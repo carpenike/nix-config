@@ -45,6 +45,41 @@ remains root-owned; Whiskey cannot change its permission ceiling or approval.
 The existing policy dataset's snapshots and local/offsite backup jobs cover
 this history.
 
+## First-use and idle-rotation alerts
+
+`service_ack_timeout` means Whiskey has not yet confirmed successful inference
+with the published key. It is not a missing-file diagnosis or proof that the
+application is down. The same alert can occur after the first deployment or a
+later daily rotation while no one is using Whiskey's generation features.
+
+Only an actual successful server-side model request writes the acknowledgement.
+A Claude answer based on MCP data, a readable key, an HTTP 200 MCP envelope,
+or a health check does not establish that. For an intended first-use check, have
+Claude call the native Whiskey `draft_dispatch` tool for an existing operation,
+with `kind: custom`, `include_history: false`, and an explicit short instruction.
+Do not save or transmit the draft. This makes a real model request and can incur
+provider charges; no automatic keepalive or background paid probe is installed.
+
+If the tool fails, inspect its actual result rather than blindly retrying. Once
+Whiskey writes a valid acknowledgement, the next existing reconciler timer run
+can accept it even after the acknowledgement deadline. Confirm with:
+
+```sh
+systemctl show atrium-reconciler.service -p Result -p ExecMainStatus
+```
+
+An inactive/dead oneshot with `Result=success` and `ExecMainStatus=0` is normal.
+The timer runs again after 20 seconds of inactivity. No restart, reauthentication
+or repeated preparation is needed just because a first-use acknowledgement was
+late.
+
+The timeout remains a real reported failure: it must not be suppressed with
+`SuccessExitStatus`, converted to a successful rotation, or bypassed by writing
+an acknowledgement manually. A previously working key is not retired until the
+replacement is acknowledged and its overlap elapses; native key expiry still
+applies. Missing, unreadable, denied and expired credentials need their actual
+cause fixed, not a reset of ownership or deny history.
+
 ## What changes
 
 Text generation uses the existing `cc.personal.ryan.whiskey-service` template

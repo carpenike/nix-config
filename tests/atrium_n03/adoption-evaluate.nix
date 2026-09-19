@@ -31,6 +31,8 @@ let
   };
   gateway = models.virtualisation.oci-containers.containers.litellm;
   controller = models.systemd.services.atrium-reconciler;
+  reconcilerAlert = selected.modules.alerting.rules.atrium-reconciler-failed;
+  controllerSettings = builtins.fromJSON selected.environment.etc."atrium/runtime/model-controller.json".text;
   expectedHealth = url: "python3 -c " + lib.escapeShellArg
     ''import sys, urllib.request; sys.exit(0 if urllib.request.urlopen(${builtins.toJSON url}, timeout=5).status == 200 else 1)'';
   healthArguments = prefix: options: lib.filter (lib.hasPrefix prefix) options;
@@ -136,6 +138,17 @@ let
     unadopted-service-not-minted = lib.hasSuffix "--no-rotate" controller.serviceConfig.ExecStart;
     service-rotation-explicit = !(lib.hasInfix "--no-rotate"
       whiskey.systemd.services.atrium-reconciler.serviceConfig.ExecStart);
+    acknowledgement-failure-is-not-hidden =
+      reconcilerAlert.expr == ''node_systemd_unit_state{name="atrium-reconciler.service",state="failed"} == 1''
+      && reconcilerAlert.for == "1m" && reconcilerAlert.severity == "high"
+      && (controller.serviceConfig.SuccessExitStatus or [ ]) == [ ]
+      && controllerSettings.service_delivery."cc.personal.ryan.whiskey-service".ack_timeout_seconds == 60;
+    acknowledgement-alert-is-actionable = lib.all
+      (text: lib.hasInfix text reconcilerAlert.annotations.description)
+      [ "service_ack_timeout" "successful inference" "first use" "rotation" "tool result" "native expiry" "Never reset" ]
+    && reconcilerAlert.annotations.command
+      == "journalctl -u atrium-reconciler.service -n 20 --no-pager"
+    && lib.hasSuffix "#first-use-and-idle-rotation-alerts" reconcilerAlert.annotations.runbook_url;
     service-key-read-live = whiskey.services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_MODEL_CONFIG
       == "/etc/atrium/runtime/whiskey-model.json"
       && lib.elem "/run/atrium-delivery/whiskey"
