@@ -81,6 +81,19 @@ Older consumer versions only acknowledge after successful inference; the
 inference-success acknowledgements remain valid. A readiness check confirms
 delivery and current admission, not provider availability or future model output.
 
+The non-billable validator supports the qualified native local in-memory budget
+backend, with Redis absent. Unsupported, replaced or ambiguous backends refuse
+before validation authentication. The deployment selects that local mode; a
+later Redis/custom-cache change needs separate qualification, not a success
+override.
+
+Validation cleanup retains exact native reservations across authentication,
+resizing, refusal and cancellation, and confirms actual local refund mutations.
+Unresolved cleanup prevents another validation from allocating more budget.
+Native budget limits and ordinary inference behavior are unchanged. This custody
+is worker-local: it does not claim a distributed or crash-safe refund journal.
+No billing counter is forcibly cleared, deleted or reseeded to obtain an ACK.
+
 The timeout remains a real reported failure: it must not be suppressed with
 `SuccessExitStatus`, converted to a successful rotation, or bypassed by writing
 an acknowledgement manually. A previously working key is not retired until the

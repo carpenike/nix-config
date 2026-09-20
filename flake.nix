@@ -132,7 +132,7 @@
     # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/a4089bb6274600cbad0e5367e0f6d36ad90bdc0f";
+      url = "github:carpenike/atrium/bb862e36ddaa6e6fe380bd431131c4caa8b9afcb";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -155,7 +155,7 @@
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
     whiskey-whiskey-whiskey = {
-      url = "github:carpenike/whiskey-whiskey-whiskey/3a4c8ea8ea232600ea6391eeacfead171fdf1791";
+      url = "github:carpenike/whiskey-whiskey-whiskey/ac4f6dfa5c1cf152ded1ae6777f43a3c48e5f9a1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
