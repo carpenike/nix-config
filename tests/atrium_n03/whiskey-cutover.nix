@@ -221,8 +221,15 @@ hostPkgs.testers.runNixOSTest {
     assert generation["status"] == "passed" and generation["cleanup"] == "passed"
     assert generation["nix_store_application"] and generation["platform"] == "linux"
     assert generation["node"] == "22.22.2" and generation["uid"] == 1070
-    assert len(generation["compiled_modules"]) == 16 and len(generation["cases"]) == 9
+    assert len(generation["compiled_modules"]) == 20 and len(generation["cases"]) == 12
     assert generation["requests"] == 6
+    assert generation["background_validation_requests"] == 2
+    assert generation["background_inference_requests"] == 0
+    assert {
+        "background-current-ack-skip",
+        "background-atomic-publication-zero-inference",
+        "background-close-aborts-without-late-ack",
+    } <= set(generation["cases"])
     machine.succeed(f"test -z \"$(ls -A {generation_runtime})\"")
     result["no_live_model_or_household_calls"] = result.pop("no_model_or_household_calls")
     result["installed_generation"] = generation
