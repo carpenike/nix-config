@@ -47,22 +47,25 @@ this history.
 
 ## First-use and idle-rotation alerts
 
-`service_ack_timeout` means Whiskey has not yet confirmed successful inference
-with the published key. It is not a missing-file diagnosis or proof that the
-application is down. The same alert can occur after the first deployment or a
-later daily rotation while no one is using Whiskey's generation features.
+`service_ack_timeout` means the published replacement is still unconfirmed, not
+necessarily that Whiskey is down. The running Whiskey process now notices new
+publications and calls the gateway's distinct, non-billable
+`/cc/service-key/validate` endpoint. That endpoint evaluates the actual native
+credential for the configured messages action and the same current Atrium
+policy, ownership and signed-deny checks without dispatching inference.
 
-Only an actual successful server-side model request writes the acknowledgement.
-A Claude answer based on MCP data, a readable key, an HTTP 200 MCP envelope,
-or a health check does not establish that. For an intended first-use check, have
-Claude call the native Whiskey `draft_dispatch` tool for an existing operation,
-with `kind: custom`, `include_history: false`, and an explicit short instruction.
-Do not save or transmit the draft. This makes a real model request and can incur
-provider charges; no automatic keepalive or background paid probe is installed.
+Whiskey requires a nonce-bound response matching the exact published identity,
+installation, issuer, template, model, route and expiry, then rereads the
+publication before acknowledging it. Generic health, file readability or an
+HTTP 200 alone is insufficient. Validation failures and missing old-gateway
+routes never fall back to generation. The background loop stops with the
+application; it is not a privileged shell job that fabricates receipts.
 
-If the tool fails, inspect its actual result rather than blindly retrying. Once
-Whiskey writes a valid acknowledgement, the next existing reconciler timer run
-can accept it even after the acknowledgement deadline. Confirm with:
+An idle application no longer needs a paid generation after every rotation.
+If the timeout persists, inspect the bounded Whiskey handoff result, gateway
+connectivity and credential-file access rather than generating test drafts or
+resetting state. Once a valid acknowledgement is written, the next existing
+reconciler timer run can accept it even after its deadline. Confirm with:
 
 ```sh
 systemctl show atrium-reconciler.service -p Result -p ExecMainStatus
@@ -72,6 +75,11 @@ An inactive/dead oneshot with `Result=success` and `ExecMainStatus=0` is normal.
 The timer runs again after 20 seconds of inactivity. No restart, reauthentication
 or repeated preparation is needed just because a first-use acknowledgement was
 late.
+
+Older consumer versions only acknowledge after successful inference; the
+2026-09-18 first-use recovery receipt records that older behavior. Existing
+inference-success acknowledgements remain valid. A readiness check confirms
+delivery and current admission, not provider availability or future model output.
 
 The timeout remains a real reported failure: it must not be suppressed with
 `SuccessExitStatus`, converted to a successful rotation, or bypassed by writing
