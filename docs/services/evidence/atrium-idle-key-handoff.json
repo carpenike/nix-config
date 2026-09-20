@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.idle-service-key-handoff-deployment",
+  "date": "2026-09-20",
+  "tickets": ["ATR-N03", "ATR-N04", "ATR-N05", "ATR-W03"],
+  "status": "qualified-coordinated-release-not-activated",
+  "deployment_revision": "abee6fd3fa1998b9701e1405541b4afa0444e7aa",
+  "gateway": {
+    "repository": "carpenike/atrium",
+    "pr": 57,
+    "qualified_runtime": "c91f777b119a321d9e46c86ab7f378721812e14b",
+    "qualified_handoff": "0ef87a3dd53fb1b1c771de08015adb32f2504222",
+    "reviewed_head": "6a9d2a5f8b2e2217b6e04cc947ec296f35dfc27b",
+    "merge_revision": "bb862e36ddaa6e6fe380bd431131c4caa8b9afcb",
+    "identical_qualified_reviewed_merge_tree": "d5ef735394566d4c0e8ed171809032b4efb831b8",
+    "receipt": "harness/evidence/ATR-N05-auth-budget-boundary-handoff.json",
+    "receipt_sha256": "ebf21c24ee11844f7e47755b9cdcd5df0760e17bf0304ca8ee6405f2655edb84",
+    "native_sdk_cases": 239,
+    "native_paired_groups": 27,
+    "permit_observations": 48,
+    "deny_or_adverse_observations": 74,
+    "provider_requests_during_auth_refund_idle_checks": 0,
+    "native_gateway": "LiteLLM1.100.1, immutable manifest sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf",
+    "execution": "Linuxarm64, Python3.13.15, actualNode26.8.1/Fastify monitor, verifiedTLS and real N04/N05/native auth.",
+    "refund_failures": "Original raised/suppressed refund failures, pre-identity cancellation and near-budget resize/partial-auth cleanup failures were reproduced and retained. Final runtime owns exact native entries and confirms original atomic local mutations; recovery never uses fixture-owned compensating refunds.",
+    "guardrails": "No native authorization/cost/release calculation changes, forced counter zero/deletion/reseed, budget-disable flag, provider fallback or unconfirmed retirement.",
+    "cleanup": "All47 final containers and9 networks independently absent; foreign inventory/processes unchanged; exact lease released.",
+    "review": "All reported refund and auth-time custody findings closed within qualified local-backend limits."
+  },
+  "consumer": {
+    "repository": "carpenike/whiskey-whiskey-whiskey",
+    "pr": 97,
+    "tested_revision": "0bb683c268292199d02f2211a5e85e1622b1e0ac",
+    "reviewed_head": "3a4c8ea8ea232600ea6391eeacfead171fdf1791",
+    "merge_revision": "ac4f6dfa5c1cf152ded1ae6777f43a3c48e5f9a1",
+    "identical_reviewed_merge_tree": "92bd3c0d85b8b3c1f460c13da37d7e8a3dff2759",
+    "receipt": "docs/evidence/ATR-W03-idle-handoff-0bb683c.json",
+    "receipt_sha256": "50ceb725c2dd20fcdd39dba9f2fe435aec0dbd1788736a219ee0f18146a94b22",
+    "source_cases": 364,
+    "new_monitor_cases": 46,
+    "retained_cases_reexecuted": 318,
+    "background_inference_requests": 0,
+    "review": "No outstanding client findings."
+  },
+  "installed_linux_and_host": {
+    "derivation": "/nix/store/7a5vfsrzv7plyx4dvgkic8dfj6z51i4m-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "system": "x86_64-linux",
+    "node": "22.22.2",
+    "synthetic_uid": 1070,
+    "test_script_seconds": 42.35,
+    "compiled_module_hashes_matched": 20,
+    "application_owned_probe_cases": 12,
+    "background_validation_requests": 2,
+    "background_inference_requests": 0,
+    "background_pairs": [
+      "Current valid acknowledgement skips network validation",
+      "Running Fastify process observes atomic replacement and acknowledges the matching validated identity",
+      "Close aborts held validation; a late response cannot write an acknowledgement"
+    ],
+    "unsafe_runtime_refusal_and_private_runtime_recovery": "passed",
+    "original_preparation_paired_groups": 9,
+    "original_host_groups": 7,
+    "cleanup": "Private child removed, loopback servers closed, exact guest QEMU process terminated.",
+    "gateway_scope": "Installed-client probe uses a local non-actuating validator double. Actual gateway/native budget proof is separately linked above."
+  },
+  "backend_applicability": {
+    "method": "Read-only live container metadata and parsing of actual /app/config.yaml; no secret values or fresh-module imports represented as live runtime objects.",
+    "image_matches_qualified_manifest": true,
+    "redis_environment_names_present": [],
+    "redis_configuration_paths_present": [],
+    "output_cache_enabled": false,
+    "cache_params_configured": false,
+    "runtime_guard": "Only the qualified native local InMemoryCache with Redis absent is admitted. Replaced, remote or ambiguous backends fail closed before validation authentication."
+  },
+  "build": {
+    "command": "task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "result": "/nix/store/292s01dzggv8yxfq7dp52rv2ydqjyjn9-nixos-system-forge-25.11.20260630.b6018f8",
+    "all_system_no_build_evaluation": "passed",
+    "targeted_pin_and_adoption_checks": "passed",
+    "merged_gateway_selection_preserves_qualified_guest": true,
+    "activation_performed": false
+  },
+  "limits": [
+    "Native qualification is one worker, nonstreaming and output-cache disabled; no new full-platform or multiworker/Redis gate is claimed.",
+    "Unfinished budget custody is worker-local, not a durable or distributed crash-safe refund journal.",
+    "Validation proves current gateway admission and consumer delivery, not future provider availability.",
+    "All historical failed receipts keep their original source/outcome; earlier passes do not substitute for final-source qualification.",
+    "Source, native and installed/host cohorts overlap and are not combined into a synthetic total.",
+    "No live model/provider request, credential/history reset, forced acknowledgement or production activation was performed."
+  ],
+  "full_phase_gate_claimed": false,
+  "proposed_amendment": null
+}

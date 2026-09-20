@@ -145,9 +145,9 @@ let
       && controllerSettings.service_delivery."cc.personal.ryan.whiskey-service".ack_timeout_seconds == 60;
     acknowledgement-alert-is-actionable = lib.all
       (text: lib.hasInfix text reconcilerAlert.annotations.description)
-      [ "service_ack_timeout" "successful inference" "first use" "rotation" "tool result" "native expiry" "Never reset" ]
+      [ "service_ack_timeout" "background without paid inference" "handoff result" "native expiry" "Never reset" ]
     && reconcilerAlert.annotations.command
-      == "journalctl -u atrium-reconciler.service -n 20 --no-pager"
+      == "journalctl -u atrium-reconciler.service -u whiskey-whiskey-whiskey.service -n 40 --no-pager"
     && lib.hasSuffix "#first-use-and-idle-rotation-alerts" reconcilerAlert.annotations.runbook_url;
     service-key-read-live = whiskey.services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_MODEL_CONFIG
       == "/etc/atrium/runtime/whiskey-model.json"

@@ -402,8 +402,8 @@ in
           let alert = failedAlert "atrium-reconciler" "Atrium owned-model reconciliation needs attention"; in
           alert // {
             annotations = alert.annotations // {
-              description = "Inspect the reconciler's error code. service_ack_timeout means the consumer has not confirmed a published model key through successful inference; it can occur at first use or after rotation while Whiskey is idle, and does not by itself mean Whiskey is down. Run one intended server-side Whiskey generation, not just a Claude question that reads MCP data. If it fails, inspect that tool result instead of repeatedly retrying. A valid acknowledgement lets the next timer run recover; the previous key is not retired without acknowledgement and overlap, and native expiry still applies. For other codes, investigate the reported failure. Never reset ownership/history, fabricate an acknowledgement, or add paid keepalive requests.";
-              command = "journalctl -u atrium-reconciler.service -n 20 --no-pager";
+              description = "Inspect the reconciler's error code. service_ack_timeout means a published model key is still unconfirmed. Whiskey validates replacements in the background without paid inference, so idle use alone should not cause this failure. Inspect Whiskey's handoff result, gateway connectivity and credential-file access. A valid acknowledgement lets the next timer run recover; retirement still requires acknowledgement and overlap, and native expiry applies. Never reset ownership/history, fabricate an acknowledgement, or add paid keepalive requests.";
+              command = "journalctl -u atrium-reconciler.service -u whiskey-whiskey-whiskey.service -n 40 --no-pager";
               runbook_url = "https://github.com/carpenike/nix-config/blob/main/docs/services/atrium-whiskey-cutover.md#first-use-and-idle-rotation-alerts";
             };
           };
