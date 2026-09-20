@@ -156,6 +156,17 @@ The public `/metrics` path remains 404.
 
 ## Qualification
 
+The idle-safe handoff is delivered by carpenike/atrium#57
+(`bb862e36ddaa6e6fe380bd431131c4caa8b9afcb`) and
+carpenike/whiskey-whiskey-whiskey#97
+(`ac4f6dfa5c1cf152ded1ae6777f43a3c48e5f9a1`).
+The [source-bound handoff receipt](evidence/atrium-idle-key-handoff.json)
+links real native authentication, idle rotation, denial, overlap and budget
+cleanup evidence to the exact merged trees and selected local-cache configuration.
+An already adopted installation only needs its normal `naf` deployment.
+Do not repeat preparation, reset acknowledgements, or run a paid generation
+solely to confirm a replacement.
+
 The original adoption application was carpenike/whiskey-whiskey-whiskey#95, merged at
 `4aac8d822a1dfe8a9875c41131cdde88075bdf80`. Its runtime and dependency files
 remain unchanged from the separately recorded `472f877` application input;
@@ -163,7 +174,7 @@ the original receipts retain their actual source IDs.
 
 The follow-up in carpenike/whiskey-whiskey-whiskey#96 adds bounded transport
 errors, caller-side rejection of incomplete drafts, and explicit custom-format
-precedence. The selected release is
+precedence. That release was
 `d58aca900bd804e7b0de8d480fe8c64f3d2719c5`, with the exact reviewed
 `38274ce` tree. The shared helper's native acknowledgement remains distinct from
 accepting a finished draft: successful native inference may acknowledge a key
@@ -197,10 +208,13 @@ claim.
 That guest also invokes the selected application's own
 `scripts/check-installed-generation.mjs`, not a deployment-owned replacement
 for the helper or acceptance logic. The probe runs as an unprivileged synthetic
-user against the installed Node 22.22.2 package, verifies all 16 changed compiled
-modules, exercises nine bounded local cases, and removes its private fixture
+user against the installed Node 22.22.2 package, verifies all 20 relevant compiled
+modules, exercises 12 bounded local cases, and removes its private fixture
 state. The host wrapper additionally refuses an unsafe runtime directory before
-allowing the private-directory recovery. Scripted provider responses and prompt
+allowing the private-directory recovery. The actual running Fastify monitor
+observes atomic replacement, skips a current acknowledgement and aborts on close;
+its background phase makes two validation requests and no inference requests.
+Scripted provider responses and prompt
 construction checks do not prove a real model will obey every formatting request.
 
 The application-owned
