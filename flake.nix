@@ -155,7 +155,7 @@
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
     whiskey-whiskey-whiskey = {
-      url = "github:carpenike/whiskey-whiskey-whiskey/ac4f6dfa5c1cf152ded1ae6777f43a3c48e5f9a1";
+      url = "github:carpenike/whiskey-whiskey-whiskey";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
