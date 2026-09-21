@@ -86,6 +86,11 @@ let
       && lib.elem "atrium-resolver.service" controller.requires
       && lib.elem "atrium-resolver.service" controller.after;
     native-default-unadopted = !(baseline.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_VIEW_POLICY);
+    native-policy-network-ordering-pulls-in-target =
+      lib.elem "network-online.target" native.systemd.services.atrium-native-policy.wants
+      && lib.elem "network-online.target" native.systemd.services.atrium-native-policy.after
+      && lib.elem "firewall.service" native.systemd.services.atrium-native-policy.requires
+      && lib.elem "zfs-service-datasets.service" native.systemd.services.atrium-native-policy.requires;
     whiskey-default-unadopted = !(baseline.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG);
     model-downgrade-refused = lib.elem "!/var/lib/atrium-policy/model-adoption.approved"
       baseline.systemd.services.podman-litellm.unitConfig.AssertPathExists;

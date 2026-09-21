@@ -66,6 +66,11 @@ credential validity, exact targets and denies remain enforced.
 
 ## Refusal and recovery
 
+The native policy unit pulls in `network-online.target` with `Wants` and orders
+itself after that target. Firewall and storage remain required dependencies.
+`After` alone only orders units already in the startup transaction; it does not
+request network readiness and produces the NixOS dependency warning.
+
 If preparation refuses a prerequisite, keep existing state and correct the
 reported cause before applying. If startup fails after cutover, recover through
 the independent SSH/Nix path with the same signers, profile and databases.
