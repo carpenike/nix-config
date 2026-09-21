@@ -273,6 +273,7 @@ in
         atrium-native-policy = {
           description = "Atrium current native policy over direct, exact-peer service mTLS";
           wantedBy = [ "multi-user.target" ];
+          wants = [ "network-online.target" ];
           requires = [ "firewall.service" "zfs-service-datasets.service" ];
           after = [ "firewall.service" "zfs-service-datasets.service" "network-online.target" ];
           restartTriggers = [
