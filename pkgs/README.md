@@ -83,6 +83,18 @@ cd pkgs && nvfetcher
 # This regenerates _sources/generated.nix with fresh hashes
 ```
 
+Cooklang also has Rust and frontend dependency hashes in `cooklang-cli.nix`.
+After a source update, refresh both without changing the nvfetcher-selected version:
+
+```bash
+# Run from the repository root
+nix-update --flake --version=skip --override-filename=pkgs/cooklang-cli.nix \
+  --subpackage frontendAssets --build cooklang-cli
+```
+
+The nvfetcher workflow uses the same subpackage option so frontend lockfile changes
+are handled alongside Cargo dependency changes.
+
 ### Generated Files
 
 | File | Purpose |

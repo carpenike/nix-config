@@ -94,7 +94,11 @@ jobs:
               # are in the package's own .nix file
               if [ -f "$pkg_file" ]; then
                 echo "Using override filename: $pkg_file"
-                if nix-shell -p nix-update --run "nix-update --flake --version=skip --override-filename=$pkg_file --build $pkg" 2>&1; then
+                subpackage_args=""
+                if [ "$pkg" = "cooklang-cli" ]; then
+                  subpackage_args="--subpackage frontendAssets"
+                fi
+                if nix-shell -p nix-update --run "nix-update --flake --version=skip --override-filename=$pkg_file $subpackage_args --build $pkg" 2>&1; then
                   echo "✅ $pkg fixed and rebuilt successfully"
                   fixed_packages="$fixed_packages $pkg"
                 else

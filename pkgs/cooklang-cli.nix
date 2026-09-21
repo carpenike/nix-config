@@ -15,7 +15,7 @@ let
     pname = "cooklang-frontend-assets";
     inherit (src) version;
     inherit (src) src;
-    npmDepsHash = "sha256-ZSRd4tcAsR1tKZ8ZBcb95C1FWEaijsA0WQ5EME0cOfo=";
+    npmDepsHash = "sha256-n/pxjcgDqhlUC09ynWExxClVT9WixahpPYRU3GAvzBc=";
 
     # Two build scripts, so npmBuildScript (singular) does not fit.
     buildPhase = ''
@@ -61,6 +61,8 @@ rustPlatform.buildRustPackage {
   '';
 
   doCheck = false;
+
+  passthru = { inherit frontendAssets; };
 
   meta = with lib; {
     description = "Cooklang CLI with embedded recipe web server";

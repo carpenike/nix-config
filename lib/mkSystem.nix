@@ -56,6 +56,7 @@
         inputs.disko.nixosModules.disko
         inputs.home-manager.nixosModules.home-manager
         inputs.sops-nix.nixosModules.sops
+        ../modules/common/sops-package.nix
         inputs.impermanence.nixosModules.impermanence
         {
           home-manager = {
@@ -63,6 +64,7 @@
             useGlobalPkgs = true;
             sharedModules = [
               inputs.sops-nix.homeModules.sops
+              ../modules/common/sops-package.nix
               inputs.catppuccin.homeManagerModules.catppuccin
             ] ++ extraHomeModules;
             extraSpecialArgs = {
@@ -115,6 +117,7 @@
             backupFileExtension = "backup";
             sharedModules = [
               inputs.sops-nix.homeModules.sops
+              ../modules/common/sops-package.nix
               inputs.nixvim.homeModules.nixvim
               inputs.catppuccin.homeManagerModules.catppuccin
             ] ++ extraHomeModules;

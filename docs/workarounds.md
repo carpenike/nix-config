@@ -76,6 +76,19 @@ as everything else in this file.
 
 ## Package Overrides (overlays/default.nix)
 
+### sops-nix - Go 1.26 Toolchain on Stable Hosts
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-09-21 |
+| **Location** | `modules/common/sops-package.nix`, imported by `lib/mkSystem.nix` for NixOS and Home Manager |
+| **Affects** | Secret installation and manifest validation on hosts using the stable package set |
+| **Reason** | The updated sops-nix input requires Go >= 1.26.0, but nixos-25.11 supplies Go 1.25.10. Builds fail before the installer or its manifests can be produced. |
+| **Workaround** | Override only the installer's Go compiler and `buildGoModule` toolchain with `pkgs.unstable.go_1_26`. Keep the current sops-nix source, vendor hash, stable build environment, encrypted secrets, and host channels unchanged. Share the package override with Home Manager so user secrets use the same supported compiler. |
+| **Check** | Remove the shared module and its imports when the stable toolchain satisfies sops-nix's `go.mod`, then rebuild Forge and any Home Manager secret consumers. The separately tracked stable-channel migration remains out of scope. |
+| **Upstream** | [sops-nix go.mod](https://github.com/Mic92/sops-nix/blob/7214124c20c1542c90deb54af50e2f53ae02711f/go.mod) |
+| **Impact** | Without the override, Forge deployment fails with `go.mod requires go >= 1.26.0 (running go 1.25.10; GOTOOLCHAIN=local)`. |
+
 ### WorldMonitor - v2.10.0 Nix Build Compatibility
 
 | Field | Value |
