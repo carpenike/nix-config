@@ -56,6 +56,27 @@ hosts/forge/
 - Monitoring alerts (via `modules.alerting.rules`)
 - Backup policies (via `modules.backup.sanoid.datasets`)
 
+## Additional Caddy Domains
+
+Forge's primary service domain remains `holthome.net`. Additional domains register
+directly in `modules.services.caddy.virtualHosts`, with `cloudflare.dns.zoneName`
+set to the owning Cloudflare zone.
+
+`warwed.com` is registered in `infrastructure/reverse-proxy.nix` as a handle-only
+HTTPS site returning `404` until an application backend is selected. It uses the
+existing `forge` tunnel and automatic proxied CNAME registration. No existing
+applications, `www` alias, or wildcard subdomains are exposed by this placeholder.
+
+Before deployment, ensure both existing Cloudflare API tokens include the
+`warwed.com` zone with **Zone:Read** and **DNS:Edit** permissions:
+
+- `networking/cloudflare/ddns/apiToken` for Caddy's DNS-01 certificates.
+- `networking/cloudflare/tunnel-dns-api-token` for tunnel DNS registration.
+
+Tokens scoped to all zones in the same account already cover the new domain.
+Keep credentials in SOPS; expanding an existing token's zone scope in Cloudflare
+does not require changing its encrypted value.
+
 ## Contribution Pattern
 
 This configuration follows a **contribution pattern** where concerns are co-located with the features that require them.

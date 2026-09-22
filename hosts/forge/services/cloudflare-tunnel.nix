@@ -35,7 +35,7 @@ in
           # scoped to every zone we want this tunnel to manage.
           # Required permissions: Zone -> DNS -> Edit
           # Recommended Zone Resources: Include -> All zones from account
-          # (or explicitly list holthome.net + whiskeywhiskeywhiskey.org).
+          # (or explicitly list holthome.net + whiskeywhiskeywhiskey.org + warwed.com).
           dnsApiTokenFile = config.sops.secrets."networking/cloudflare/tunnel-dns-api-token".path;
 
           # Pin DNS registration to API mode. Without this the module's "auto"

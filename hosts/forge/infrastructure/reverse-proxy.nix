@@ -14,6 +14,21 @@ in
   # Note: The main Caddy service configuration lives in the modules system.
   # This file handles host-specific operational concerns.
 
+  # Reserve the domain without exposing an application until a backend is chosen.
+  modules.services.caddy.virtualHosts.warwed = lib.mkIf config.modules.services.caddy.enable {
+    enable = true;
+    hostName = "warwed.com";
+    handleOnly = true;
+    extraConfig = ''
+      respond 404
+    '';
+    cloudflare = {
+      enable = true;
+      tunnel = "forge";
+      dns.zoneName = "warwed.com";
+    };
+  };
+
   # Configure Caddy to load environment files with API tokens and auth credentials
   # Also ensure Caddy waits for PocketID if it's enabled (prevents OAuth race condition)
   systemd.services.caddy = {
