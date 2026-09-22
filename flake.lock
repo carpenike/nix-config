@@ -43,11 +43,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790088357,
-        "narHash": "sha256-L/djeeRiO7nBNcePJxY39G64FL6u4JHAtbYVRoff4To=",
+        "lastModified": 1790108956,
+        "narHash": "sha256-g8QOdKbqKw05BuubNsZ3eIzJi4VQbXySPXW3/Ygs2aE=",
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "a0a0385f859a903e1c3bf453b036558b77910129",
+        "rev": "9057788e40189cce2ca4117d132cf212d307eeaf",
         "type": "github"
       },
       "original": {
@@ -825,11 +825,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790091132,
-        "narHash": "sha256-arPfxLUCj7TwfaE9flVhccgtT9j3qongfVT+q7Zdud4=",
+        "lastModified": 1790108799,
+        "narHash": "sha256-9QPPX2D8sWt9Dv43taupi3t6RbPaIDtZ8EaGHVKC8FE=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "4e339447e57bcbc6834e0f104d695cf7b3e6b2b3",
+        "rev": "7624fe0650088a18bacf38490485578e067f3a1b",
         "type": "github"
       },
       "original": {

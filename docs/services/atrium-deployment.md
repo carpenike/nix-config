@@ -24,6 +24,8 @@ The Atrium input must provide:
   `services.atriumLitellmAdmission` options.
 * `nixosModules.whiskey-egress-fixture`, preserving
   `services.atriumWhiskeyEgressFixture` options.
+* `packages.${system}.pwa` and `nixosModules.pwa` for the public browser shell,
+  generated public configuration and app-owned Caddy routing fragment.
 
 `pkgs/default.nix` forwards the package exports directly. It has no local
 controller/admission builder or fallback. No Python source path or host-created
@@ -70,6 +72,58 @@ nix build --builders '' --no-link --no-write-lock-file \
 These checks do not activate services, run native/Podman acceptance, modify live
 credentials or claim any T-case. App behavior and native acceptance run under
 the app-owned harness with separate explicit authorization.
+
+## Browser hosting and owner registration
+
+`hosts/forge/services/atrium-pwa.nix` consumes the app's static package and
+`services.atriumPwa` module. Caddy serves the exact shell/assets and
+`/client-config.json`; existing resolver APIs/JWKS and private-route blocks
+remain in place. Callback/configuration documents are not cached, the popup
+opener is preserved, and Atrium access logging is discarded. No second web
+daemon, token vault, cookie-auth proxy, device enrollment or grant seeding is
+introduced.
+
+The declared new public client is **`cc.atrium.browser`**, not a replacement for
+`cc.atrium.operator`. The browser's ID is appended to C10 and the native Whiskey
+adapter receives the exact `https://atrium.holthome.net` browser origin.
+This configuration does **not** register a client at Pocket ID or prove that
+an existing client with that name belongs to this deployment.
+
+Before first browser use, the owner must create the dedicated client in the
+existing Pocket ID installation, or verify an already owner-created matching
+registration. Do not adopt a conflicting client or recreate either API resource:
+
+| Setting | Value |
+| --- | --- |
+| Client ID | `cc.atrium.browser` |
+| Public client / PKCE | Enabled; no client secret; browser uses S256 |
+| Exact callback | `https://atrium.holthome.net/auth/callback` |
+| Access-token lifetime | 14 native minutes, as in the qualified browser fixture; never 60 native minutes, which Pocket ID can round beyond the 3600-second ceiling |
+| Refresh-token lifetime | 60 minutes; the browser discards returned refresh tokens and never refreshes silently |
+| Login restrictions | Retain the reviewed Atrium login-group restrictions; do not change group membership |
+| Resolver API resource | Existing `https://atrium.holthome.net/resolver` |
+| Whiskey API resource | Existing `https://whiskeywhiskeywhiskey.org/api/mcp` |
+| Grants on both resources | User-delegated access only; client/machine access disabled |
+| Requested scopes | `openid groups`; no additional native scope gate |
+
+Use the normal build and owner-operated activation after reviewing the pin:
+
+```sh
+task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
+task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net
+```
+
+Do **not** rerun foundation initialization or reset credentials, deny history,
+native sessions or existing grants. Browser registration is separate from the
+operator foundation setup flow. To disable only the browser, explicitly set
+`services.atriumPwa.enable = lib.mkForce false`; the resolver, native routes,
+operator admission and adopted services remain intact.
+
+`atrium-pwa-wiring` checks public metadata, additive client admission, native
+audiences/origin, existing API/private routing, disabled behavior and unchanged
+policy/state declarations. Pre-adoption/first-setup fixtures explicitly disable
+the browser rather than pretending the new client existed during their
+historical operator-only preparation.
 
 ## Host-generated fixture boundary
 

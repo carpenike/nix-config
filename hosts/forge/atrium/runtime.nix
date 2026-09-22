@@ -3,6 +3,7 @@
 , adoption ? { models = false; native = false; whiskey = false; whiskeyText = false; }
 , modelSettings ? null
 , groupEvidence ? null
+, browserOrigin ? null
 }:
 let
   identity = import ./identity.nix { inherit lib; };
@@ -184,7 +185,10 @@ in
       state_directory = "/var/lib/homelab-mcp/denial";
     };
   };
-  whiskey = {
+  whiskey = lib.optionalAttrs (browserOrigin != null)
+    {
+      browser_origin = browserOrigin;
+    } // {
     schema_version = 1;
     issuer = endpoints.resolver;
     jwks_uri = "${endpoints.resolver}/.well-known/jwks.json";

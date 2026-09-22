@@ -9,6 +9,7 @@ let
     inherit lib;
     adoption = config.services.atriumForge.adoption;
     groupEvidence = config.services.atriumForge.groupEvidence;
+    browserOrigin = if config.services.atriumPwa.enable then config.services.atriumPwa.origin else null;
     modelSettings = models.resolver;
   };
   models = import ./models.nix {
