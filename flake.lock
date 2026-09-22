@@ -43,11 +43,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790114937,
-        "narHash": "sha256-nTPxAzvfhTizBcHLlxZJmyTY1Pr0Js827Km8ZRs0Q4k=",
+        "lastModified": 1790119750,
+        "narHash": "sha256-fD48i9+xFMUa6+GTOvC6MlUzZvqnRgkbGTy+5PWrXxs=",
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "9954c5642b2ba75052f306f46529b418c3944f1d",
+        "rev": "05fce27903e11fc42990ecece4aee0510facaf55",
         "type": "github"
       },
       "original": {
