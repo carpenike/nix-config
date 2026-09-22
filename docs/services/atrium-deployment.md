@@ -125,6 +125,21 @@ policy/state declarations. Pre-adoption/first-setup fixtures explicitly disable
 the browser rather than pretending the new client existed during their
 historical operator-only preparation.
 
+The app's [original popup-failure receipt](https://github.com/carpenike/atrium/blob/9954c5642b2ba75052f306f46529b418c3944f1d/docs/evidence/ATR-P06-Caddy-popup-9057788-blocked.md)
+preserves the original Caddy popup failure; the corrected app selects
+COOP `unsafe-none` without weakening its origin/source/state/nonce checks.
+The later successful native evidence is retained by
+[carpenike/atrium#67](https://github.com/carpenike/atrium/pull/67): 47 groups
+through actual Chromium and a real WPE WebKit mobile-configured engine with
+native Whiskey `7624fe0`. This is not iOS/Android-device, passkey UX or WebKit
+offline/installation qualification.
+
+The normal full Forge build succeeds with the corrected host fragment.
+The broader deployment-flake CI still has its pre-existing selected-pin,
+vendored-source and N03 contract-check failures; those historical assertions
+are not reset or relabeled as part of P06. New browser wiring/Caddy/C10
+checks run independently so their actual result is visible.
+
 ## Host-generated fixture boundary
 
 The retained functions `tests/atrium_n04/fixture.nix` and
