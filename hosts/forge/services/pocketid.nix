@@ -137,7 +137,7 @@ in
           # so a whole-origin wildcard would let a crafted artifact register itself
           # as an OAuth client. `**` is a globstar and crosses path segments; a
           # single `*` would not.
-          CIMD_URL_ALLOWLIST = ''["https://claude.ai/oauth/**"]'';
+          CIMD_URL_ALLOWLIST = ''["https://claude.ai/oauth/**","https://vscode.dev/oauth/client-metadata.json"]'';
           # Signup posture: token-only. SECURITY-IDENTICAL to the previous
           # implicit default of "disabled" — the backend gate is a single
           # line (backend/internal/usersignup/service.go):
