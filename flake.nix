@@ -638,18 +638,26 @@
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
                 let
-                  runtime = import ./hosts/forge/atrium/runtime.nix { inherit (pkgs) lib; };
-                  entry = import ./hosts/forge/atrium/entry.nix { inherit runtime; };
-                  hosts = inputs.self.nixosConfigurations.forge.config.modules.services.caddy.virtualHosts;
+                  forge = inputs.self.nixosConfigurations.forge.config;
+                  hosts = forge.modules.services.caddy.virtualHosts;
+                  entry = hosts.atrium;
+                  entryConfig =
+                    if forge.services.atriumPwa.enable then
+                      pkgs.lib.replaceStrings
+                        [ "import ${forge.services.atriumPwa.generated.caddy}" ]
+                        [ forge.services.atriumPwa.generated.caddy.text ]
+                        entry.extraConfig
+                    else entry.extraConfig;
                   native = hosts.homelab-mcp;
                   whiskey = hosts.whiskeywhiskeywhiskey;
-                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" ''
+                  # Syntax-only adaptation does not read the target's static files.
+                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" (builtins.unsafeDiscardStringContext ''
                     {
                       admin off
                       auto_https off
                     }
                     http://127.0.0.1:18445 {
-                      ${entry.extraConfig}
+                      ${entryConfig}
                       reverse_proxy ${entry.backend.host}:${toString entry.backend.port} {
                         ${entry.reverseProxyBlock}
                       }
@@ -667,7 +675,7 @@
                       }
                     }
                     ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
-                  '';
+                  '');
                 in
                 ''
                   caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
