@@ -118,6 +118,7 @@ let
 
   serviceName = "whiskeywhiskeywhiskey";
   apexDomain = "whiskeywhiskeywhiskey.org";
+  publicDomain = "warwed.com";
   wwwDomain = "www.${apexDomain}";
   cloudflareZone = apexDomain;
   pocketIdIssuer = "https://id.${config.networking.domain}";
@@ -163,11 +164,13 @@ in
           WWW_HOST_GROUP = "www-host";
           WWW_CREW_GROUP = "www-crew";
 
-          # New upstream deployment knobs (HOF-040/HOF-041 era):
-          # keep the canonical public origin explicit, and pin artifact/media
-          # directories under StateDirectory so systemd sandboxing needs no
-          # extra ReadOnlyPaths overrides.
-          WWW_PUBLIC_BASE_ORIGIN = "https://${apexDomain}";
+          # Deploy with an app input that implements the public/crew host wall.
+          # Identity, MCP, and keyed links stay on the crew origin.
+          PUBLIC_BASE_URL = "https://${publicDomain}";
+          CREW_BASE_URL = "https://${apexDomain}";
+
+          # Keep artifact/media directories under StateDirectory so systemd
+          # sandboxing needs no extra ReadOnlyPaths overrides.
           WWW_APK_DIR = "${dataDir}/apk";
           WWW_PHOTO_DIR = "${dataDir}/op-photos";
 
@@ -305,6 +308,8 @@ in
           tunnel = "forge";
           dns.zoneName = cloudflareZone;
         };
+        # Also cover Caddy-handled responses; defer to avoid duplicate upstream headers.
+        security.customHeaders.">X-Robots-Tag" = "noindex, nofollow";
 
         # Browser telemetry (Grafana Faro RUM) beacon endpoint.
         #
@@ -343,12 +348,32 @@ in
         '';
       };
 
+      # No proxy authentication or /relay handler on the public front door.
+      # Caddy preserves Host so the app's single allowlist selects the audience.
+      modules.services.caddy.virtualHosts.warwed = lib.mkIf
+        (serviceEnabled && config.modules.services.caddy.enable)
+        {
+          enable = true;
+          hostName = publicDomain;
+          backend = {
+            host = listenAddr;
+            port = listenPort;
+          };
+          security.customHeaders.">X-Robots-Tag" = "noindex, nofollow";
+          cloudflare = {
+            enable = true;
+            tunnel = "forge";
+            dns.zoneName = publicDomain;
+          };
+        };
+
       # Caddy vhost — www → apex 301. handleOnly is required because we do
       # not define a `backend`; Caddy will just return the redirect.
       modules.services.caddy.virtualHosts."${serviceName}-www" = {
         enable = true;
         hostName = wwwDomain;
         handleOnly = true;
+        security.customHeaders.">X-Robots-Tag" = "noindex, nofollow";
         extraConfig = ''
           redir https://${apexDomain}{uri} permanent
         '';

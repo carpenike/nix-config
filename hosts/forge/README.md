@@ -62,10 +62,31 @@ Forge's primary service domain remains `holthome.net`. Additional domains regist
 directly in `modules.services.caddy.virtualHosts`, with `cloudflare.dns.zoneName`
 set to the owning Cloudflare zone.
 
-`warwed.com` is registered in `infrastructure/reverse-proxy.nix` as a handle-only
-HTTPS site returning `404` until an application backend is selected. It uses the
-existing `forge` tunnel and automatic proxied CNAME registration. No existing
-applications, `www` alias, or wildcard subdomains are exposed by this placeholder.
+`warwed.com` is the World War Wednesdays public front door, co-located with its
+crew vhost in `services/whiskeywhiskeywhiskey.nix`. Both proxy to
+`127.0.0.1:3417` through the existing `forge` tunnel, with Host preserved.
+`PUBLIC_BASE_URL` selects warwed.com; `CREW_BASE_URL` keeps PocketID, MCP, and
+keyed crew links on whiskeywhiskeywhiskey.org. The public vhost has no proxy
+authentication or telemetry relay. No `www.warwed.com` alias or wildcard is added.
+The app enforces the public-route allowlist and noindex policy; deferred Caddy
+headers also cover proxy-handled responses on the public and crew vhosts.
+
+Deploy this wiring together with a Whiskey app input that implements the
+`PUBLIC_BASE_URL`/`CREW_BASE_URL` audience split. **Do not expose this vhost with
+an older app build:** the route wall and public cookie restrictions live in the
+application. After the upstream changes are pushed, update only that flake input
+and deploy Forge with the usual guarded workflow.
+
+After deployment, list the existing Greyhound invitation and bind `/chili`
+with the one-time maintenance command on Forge:
+
+```sh
+sudo systemctl start --wait whiskey-www-maintenance@seed-public-domain.service
+```
+
+Do not add this seed to normal boot. Its completion marker preserves later host
+edits; missing or conflicting publication data fails explicitly. Existing
+Partiful Event Details links must be replaced manually.
 
 Before deployment, ensure both existing Cloudflare API tokens include the
 `warwed.com` zone with **Zone:Read** and **DNS:Edit** permissions:
