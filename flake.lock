@@ -43,11 +43,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790088357,
-        "narHash": "sha256-L/djeeRiO7nBNcePJxY39G64FL6u4JHAtbYVRoff4To=",
+        "lastModified": 1790099821,
+        "narHash": "sha256-DbjjKPWwy8Ea8r7XnvnZEKtSB4Ej96dzUXllZJ8FALU=",
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "a0a0385f859a903e1c3bf453b036558b77910129",
+        "rev": "60347bbf5e9f7dfb5d4b5430d8aad7944d5bc2bf",
         "type": "github"
       },
       "original": {
@@ -236,11 +236,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789514889,
-        "narHash": "sha256-PFD1nxptCXJyJoiYO1gf/5Vv43yqGpHtMC6LUhl9/pQ=",
+        "lastModified": 1790091288,
+        "narHash": "sha256-2dUuLTiQrf2gUFVLlayDq/hgluitplAMv6Y9bYwQQ+c=",
         "owner": "cachix",
         "repo": "git-hooks.nix",
-        "rev": "59f4ca0d063a1a3ec722c88b51a33004862e5379",
+        "rev": "0d3997c4d3253505f77c9bcea63904bb575da3c5",
         "type": "github"
       },
       "original": {
@@ -825,11 +825,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790091132,
-        "narHash": "sha256-arPfxLUCj7TwfaE9flVhccgtT9j3qongfVT+q7Zdud4=",
+        "lastModified": 1790118156,
+        "narHash": "sha256-ii11CoWCd909YUoK1mT4Bz2fQCuTOzlvVrGJ7EoXu3E=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "4e339447e57bcbc6834e0f104d695cf7b3e6b2b3",
+        "rev": "c3c2ac821b3a48c593b80117150e3669a5d45386",
         "type": "github"
       },
       "original": {
