@@ -132,7 +132,7 @@
     # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/bb862e36ddaa6e6fe380bd431131c4caa8b9afcb";
+      url = "github:carpenike/atrium";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
