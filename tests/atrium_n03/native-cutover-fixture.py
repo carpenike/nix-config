@@ -8,6 +8,7 @@ import http.client
 import json
 import os
 import pwd
+import re
 import secrets
 import signal
 import sqlite3
@@ -544,7 +545,21 @@ def tests(fixture_path, fixture, configuration):
                 if failure:
                     assert failure.encode() in result.stderr, "unexpected_refusal"
                 return None
-            assert result.returncode == 0, "preparation_failed"
+            if result.returncode != 0:
+                refusal = re.search(
+                    rb"atrium_native_cutover_rejected:([a-z_]+)", result.stderr
+                )
+                print(
+                    json.dumps(
+                        {
+                            "unexpected_preparation_refusal": (
+                                refusal[1].decode() if refusal else "unclassified"
+                            )
+                        }
+                    ),
+                    flush=True,
+                )
+                raise AssertionError("preparation_failed")
             return json.loads(result.stdout)
 
         def apply(path=fixture["config"], *, failure=None):
@@ -930,6 +945,284 @@ def tests(fixture_path, fixture, configuration):
         assert {
             name: fingerprint(root / "policy" / name) for name in artifacts
         } == publications
+        assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
+        assert retained(configuration) == baseline
+        results.append(STEP)
+
+        STEP = "retained-three-grant-money-upgrade"
+        upgrade_root = root / "money-upgrade"
+        directory(upgrade_root)
+        upgrade_state = upgrade_root / "resolver"
+        directory(upgrade_state, configuration["resolver_identity"])
+        upgrade_database = upgrade_state / "resolver.sqlite3"
+        clone_database(database, upgrade_database, configuration["resolver_identity"])
+        full_seed = load(configuration["finance_grants"])
+        for grant in full_seed["grants"]:
+            change(upgrade_database, "DELETE FROM grants WHERE id=?", (grant["id"],))
+        write(
+            upgrade_state / "foundation.initialized",
+            (configuration["installation"] + "\n").encode(),
+            mode=0o600,
+            identity=configuration["resolver_identity"],
+        )
+        new_settings = load(configuration["resolver_config"]) | {
+            "state_directory": str(upgrade_state)
+        }
+        old_policy = load(new_settings["policy_path"])
+        old_money = old_policy["instances"].pop("personal-money")
+        for template_id in old_money["route_templates"]:
+            old_policy["route_templates"].pop(template_id)
+        old_policy_path = upgrade_root / "old-policy.json"
+        write(old_policy_path, old_policy)
+        old_settings = new_settings | {"policy_path": str(old_policy_path)}
+        old_settings_path = upgrade_root / "old-resolver.json"
+        new_settings_path = upgrade_root / "new-resolver.json"
+        write(old_settings_path, old_settings)
+        write(new_settings_path, new_settings)
+        legacy_seed = full_seed | {
+            "grants": [
+                grant
+                for grant in full_seed["grants"]
+                if grant["request"]["instance"] != "personal-money"
+            ]
+        }
+        legacy_seed_path = upgrade_root / "old-finance.json"
+        write(legacy_seed_path, legacy_seed)
+        upgrade_policy = upgrade_root / "policy"
+        directory(upgrade_policy)
+        write(
+            upgrade_policy / "native-profile.json",
+            load(root / "policy" / "native-profile.json"),
+            mode=0o400,
+        )
+        legacy_template = copy.deepcopy(load(configuration["native_template"]))
+        legacy_template["issuance"]["policy_path"] = str(old_policy_path)
+        legacy_config = template_variant(
+            "legacy-money-predecessor",
+            legacy_template,
+            policy_directory=str(upgrade_policy),
+            resolver_config=str(old_settings_path),
+            finance_grants=str(legacy_seed_path),
+        )
+        legacy_prepared = apply(legacy_config)
+        assert (
+            legacy_prepared["approved"]
+            and legacy_prepared["finance_grants"] == "append"
+        )
+        assert len(query(upgrade_database, "SELECT * FROM grants")) == 4
+        upgrade_config = variant(
+            "money-upgrade-config",
+            policy_directory=str(upgrade_policy),
+            resolver_config=str(new_settings_path),
+        )
+        money_grant = next(
+            grant
+            for grant in full_seed["grants"]
+            if grant["request"]["instance"] == "personal-money"
+        )
+        money_id = money_grant["id"]
+        original_grants = query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+        old_approval = load(upgrade_policy / "native-adoption.approved")
+        old_publications = {
+            name: fingerprint(upgrade_policy / name) for name in artifacts
+        }
+        denial_before, clock_before = deny_snapshot(configuration)
+        planned = invoke(upgrade_config)
+        assert planned["finance_grants"] == "append-money" and not planned["approved"]
+        assert not planned["fresh_sign_in"] and planned["deny_history"] == "reuse"
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == original_grants
+        )
+        assert deny_snapshot(configuration) == (denial_before, clock_before)
+        assert {
+            name: fingerprint(upgrade_policy / name) for name in artifacts
+        } == old_publications
+        results.append(STEP)
+
+        STEP = "money-upgrade-requires-complete-matching-approved-predecessor"
+        approval_path = upgrade_policy / "native-adoption.approved"
+        held_approval = upgrade_policy / "held-approval"
+        os.rename(approval_path, held_approval)
+        try:
+            apply(upgrade_config, failure="partial_finance_grants")
+        finally:
+            os.rename(held_approval, approval_path)
+        with edited(approval_path, old_approval | {"finance_grants_sha256": "0" * 64}):
+            apply(upgrade_config, failure="approval_conflict")
+        legacy_id = legacy_seed["grants"][0]["id"]
+        change(upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (legacy_id,))
+        try:
+            apply(upgrade_config, failure="")
+        finally:
+            change(
+                upgrade_database, "UPDATE grants SET active=1 WHERE id=?", (legacy_id,)
+            )
+        change(
+            upgrade_database,
+            "UPDATE grants SET max_lifetime_seconds=901 WHERE id=?",
+            (legacy_id,),
+        )
+        try:
+            apply(upgrade_config, failure="finance_grant_conflict")
+        finally:
+            change(
+                upgrade_database,
+                "UPDATE grants SET max_lifetime_seconds=900 WHERE id=?",
+                (legacy_id,),
+            )
+        change(
+            upgrade_database,
+            "UPDATE grants SET id=? WHERE id=?",
+            (legacy_id + ".held", legacy_id),
+        )
+        try:
+            apply(upgrade_config, failure="partial_finance_grants")
+        finally:
+            change(
+                upgrade_database,
+                "UPDATE grants SET id=? WHERE id=?",
+                (legacy_id, legacy_id + ".held"),
+            )
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == original_grants
+        )
+        assert load(approval_path) == old_approval
+        assert {
+            name: fingerprint(upgrade_policy / name)
+            for name in artifacts
+            if name != "native-adoption.approved"
+        } == {
+            name: value
+            for name, value in old_publications.items()
+            if name != "native-adoption.approved"
+        }
+        old_publications["native-adoption.approved"] = fingerprint(approval_path)
+        assert retained(configuration) == baseline
+        results.append(STEP)
+
+        STEP = "failed-money-only-append-retains-approved-predecessor"
+        bad_money_seed = copy.deepcopy(full_seed)
+        next(
+            grant
+            for grant in bad_money_seed["grants"]
+            if grant["request"]["instance"] == "personal-money"
+        )["subject"] = "synthetic-unenrolled-money"
+        bad_money_seed_path = upgrade_root / "bad-money-subject.json"
+        write(bad_money_seed_path, bad_money_seed)
+        failed_upgrade = variant(
+            "failed-money-upgrade",
+            policy_directory=str(upgrade_policy),
+            resolver_config=str(new_settings_path),
+            finance_grants=str(bad_money_seed_path),
+        )
+        temporary_before = set(Path("/run").glob("atrium-native-grants-*"))
+        apply(failed_upgrade, failure="finance_append_failed")
+        assert set(Path("/run").glob("atrium-native-grants-*")) == temporary_before
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == original_grants
+        )
+        assert (
+            fingerprint(approval_path) == old_publications["native-adoption.approved"]
+        )
+        archive_path = upgrade_policy / "native-adoption.before-money.approved"
+        assert load(archive_path) == old_approval
+        with edited(archive_path, old_approval | {"deny_installation": "0" * 32}):
+            apply(upgrade_config, failure="approval_conflict")
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == original_grants
+        )
+        results.append(STEP)
+
+        STEP = "money-only-append-preserves-existing-grants-signers-and-history"
+        upgraded = apply(upgrade_config)
+        assert upgraded["approved"] and upgraded["finance_grants"] == "append-money"
+        assert not upgraded["fresh_sign_in"]
+        assert upgraded["cutover_at"] == legacy_prepared["cutover_at"]
+        assert (
+            query(
+                upgrade_database,
+                "SELECT * FROM grants WHERE id<>? ORDER BY id",
+                (money_id,),
+            )
+            == original_grants
+        )
+        assert query(
+            upgrade_database, "SELECT count(*) FROM grants WHERE id=?", (money_id,)
+        ) == [(1,)]
+        assert load(archive_path) == old_approval
+        assert (
+            load(approval_path)["finance_grants_sha256"]
+            != old_approval["finance_grants_sha256"]
+        )
+        assert {
+            name: fingerprint(upgrade_policy / name)
+            for name in artifacts
+            if name != "native-adoption.approved"
+        } == {
+            name: value
+            for name, value in old_publications.items()
+            if name != "native-adoption.approved"
+        }
+        after_history, after_clock = deny_snapshot(configuration)
+        assert after_history == denial_before and after_clock >= clock_before
+        assert retained(configuration) == baseline
+        upgraded_grants = query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+        upgraded_approval = fingerprint(approval_path)
+        assert apply(upgrade_config)["finance_grants"] == "reuse"
+        assert fingerprint(approval_path) == upgraded_approval
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == upgraded_grants
+        )
+        results.append(STEP)
+
+        STEP = "money-append-resumes-before-approval-without-reinserting"
+        replace(approval_path, old_approval)
+        resumed = apply(upgrade_config)
+        assert resumed["approved"] and resumed["finance_grants"] == "reuse"
+        assert not resumed["fresh_sign_in"]
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == upgraded_grants
+        )
+        assert load(archive_path) == old_approval
+        results.append(STEP)
+
+        STEP = "money-upgrade-never-resurrects-revoked-or-lost-money-grants"
+        change(upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (money_id,))
+        try:
+            apply(upgrade_config, failure="")
+            assert query(
+                upgrade_database, "SELECT active FROM grants WHERE id=?", (money_id,)
+            ) == [(0,)]
+        finally:
+            change(
+                upgrade_database, "UPDATE grants SET active=1 WHERE id=?", (money_id,)
+            )
+        change(
+            upgrade_database,
+            "UPDATE grants SET id=? WHERE id=?",
+            (money_id + ".held", money_id),
+        )
+        try:
+            apply(upgrade_config, failure="approval_conflict")
+            assert query(
+                upgrade_database, "SELECT count(*) FROM grants WHERE id=?", (money_id,)
+            ) == [(0,)]
+        finally:
+            change(
+                upgrade_database,
+                "UPDATE grants SET id=? WHERE id=?",
+                (money_id, money_id + ".held"),
+            )
+        assert (
+            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+            == upgraded_grants
+        )
         assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
         assert retained(configuration) == baseline
         results.append(STEP)

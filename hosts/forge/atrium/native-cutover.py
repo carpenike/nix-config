@@ -13,6 +13,7 @@ import ssl
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -35,6 +36,8 @@ from pydantic import Field, model_validator
 MAX_JSON = 1024 * 1024
 MAX_JWKS = 32768
 PUBLIC_JWK_FIELDS = {"kty", "kid", "alg", "use", "key_ops", "n", "e"}
+LEGACY_FINANCE_VIEWS = {"personal-finance", "personal-scribe", "personal-status"}
+PRE_MONEY_APPROVAL = "native-adoption.before-money.approved"
 SIGNER_CHECK = """
 import json, os, sys
 from atrium_profiles import PublicKeys
@@ -346,6 +349,22 @@ def deny_owner(settings, native_issuer, uid):
     return owner
 
 
+def legacy_finance_seed(seed):
+    if {grant.request.instance for grant in seed.grants} != (
+        LEGACY_FINANCE_VIEWS | {"personal-money"}
+    ):
+        return None
+    return seed.model_copy(
+        update={
+            "grants": tuple(
+                grant
+                for grant in seed.grants
+                if grant.request.instance != "personal-money"
+            )
+        }
+    )
+
+
 def finance_state(configuration, settings, seed, views):
     with readonly_database(
         settings.state_directory / "resolver.sqlite3",
@@ -359,8 +378,21 @@ def finance_state(configuration, settings, seed, views):
         ]
         if all(row is None for row in rows):
             return "append"
-        require(all(row is not None for row in rows), "partial_finance_grants")
+        missing = {
+            grant.request.instance
+            for grant, row in zip(seed.grants, rows, strict=True)
+            if row is None
+        }
+        require(
+            not missing
+            or (
+                legacy_finance_seed(seed) is not None and missing == {"personal-money"}
+            ),
+            "partial_finance_grants",
+        )
         for grant, row in zip(seed.grants, rows, strict=True):
+            if row is None:
+                continue
             record = PolicyEngine._grant(row, int(time.time()))
             resource = views.view(grant.request.instance).resource
             require(
@@ -376,7 +408,7 @@ def finance_state(configuration, settings, seed, views):
                 == (resource.target, resource.audience, "home-mcp"),
                 "finance_grant_conflict",
             )
-    return "reuse"
+    return "append-money" if missing else "reuse"
 
 
 def existing_output(directory, name):
@@ -470,7 +502,7 @@ def preflight(configuration):
     seed = PolicySeed.model_validate_json(
         json.dumps(read_json(c.finance_grants, public=True))
     )
-    expected_views = {"personal-finance", "personal-scribe", "personal-status"}
+    expected_views = LEGACY_FINANCE_VIEWS.copy()
     if any(view.resource.id == "personal-money" for view in views.active_views()):
         expected_views.add("personal-money")
     require(
@@ -594,15 +626,37 @@ def preflight(configuration):
             "existing_public_artifact_conflict",
         )
     receipt = existing_output(c.policy_directory, "native-adoption.approved")
+    previous_approval = None
     if receipt is not None:
+        legacy = legacy_finance_seed(seed)
+        legacy_approved = (
+            owner is not None
+            and legacy is not None
+            and grants in {"reuse", "append-money"}
+            and digest(receipt) == digest(approval(c, documents, legacy, owner))
+        )
         require(
             owner is not None
-            and grants == "reuse"
             and all(os.path.lexists(c.policy_directory / name) for name in documents)
-            and digest(receipt) == digest(approval(c, documents, seed, owner)),
+            and (
+                (
+                    grants == "reuse"
+                    and digest(receipt) == digest(approval(c, documents, seed, owner))
+                )
+                or legacy_approved
+            ),
             "approval_conflict",
         )
-    return settings, deny, views, seed, owner, documents, grants
+        if legacy_approved:
+            archived = existing_output(c.policy_directory, PRE_MONEY_APPROVAL)
+            require(
+                archived is None or digest(archived) == digest(receipt),
+                "approval_conflict",
+            )
+            previous_approval = receipt
+    else:
+        require(grants != "append-money", "partial_finance_grants")
+    return settings, deny, views, seed, owner, documents, grants, previous_approval
 
 
 def approval(configuration, documents, seed, owner):
@@ -618,28 +672,84 @@ def approval(configuration, documents, seed, owner):
     }
 
 
-def publish(directory, name, value):
+def publish(directory, name, value, *, previous=None):
     current = existing_output(directory, name)
-    if current is not None:
-        require(digest(current) == digest(value), "publication_conflict")
+    if current is not None and digest(current) == digest(value):
         return
-    pending = directory / ("." + name + ".new")
-    descriptor = os.open(
-        pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400
+    require(
+        (current is None and previous is None)
+        or (
+            name == "native-adoption.approved"
+            and current is not None
+            and previous is not None
+            and digest(current) == digest(previous)
+        ),
+        "publication_conflict",
     )
+    descriptor, pending_name = tempfile.mkstemp(
+        prefix="." + name + ".", suffix=".new", dir=directory
+    )
+    pending = Path(pending_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o400)
             stream.write(encoded(value))
             stream.flush()
             os.fsync(stream.fileno())
-        os.link(pending, directory / name, follow_symlinks=False)
+        if previous is None:
+            os.link(pending, directory / name, follow_symlinks=False)
+        else:
+            os.replace(pending, directory / name)
     finally:
-        pending.unlink()
+        pending.unlink(missing_ok=True)
     descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def append_money(configuration, seed):
+    selected = seed.model_copy(
+        update={
+            "grants": tuple(
+                grant
+                for grant in seed.grants
+                if grant.request.instance == "personal-money"
+            )
+        }
+    )
+    require(len(selected.grants) == 1, "exact_money_append_required")
+    with tempfile.TemporaryDirectory(
+        prefix="atrium-native-grants-", dir="/run"
+    ) as temporary:
+        directory = Path(temporary)
+        identity = configuration.resolver_identity
+        os.chown(directory, 0, identity.gid)
+        directory.chmod(0o750)
+        path = directory / "money.json"
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o440
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchown(stream.fileno(), 0, identity.gid)
+            os.fchmod(stream.fileno(), 0o440)
+            stream.write(encoded(selected.model_dump(mode="json")))
+            stream.flush()
+            os.fsync(stream.fileno())
+        run(
+            [
+                configuration.resolver_command,
+                "--config",
+                configuration.resolver_config,
+                "seed-policy",
+                "--append",
+                "--grants",
+                path,
+            ],
+            identity,
+            "finance_append_failed",
+        )
 
 
 DENY_CHECK = """
@@ -675,10 +785,12 @@ def main():
         )
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            settings, deny, views, seed, owner, documents, grants = preflight(c)
+            settings, deny, views, seed, owner, documents, grants, previous_approval = (
+                preflight(c)
+            )
             result = {
                 "mode": "apply" if args.apply else "plan",
-                "fresh_sign_in": True,
+                "fresh_sign_in": previous_approval is None,
                 "cutover_at": documents["native-profile.json"]["cutover_at"],
                 "deny_history": "initialize" if owner is None else "reuse",
                 "finance_grants": grants,
@@ -719,6 +831,8 @@ def main():
                     c.native_identity,
                     "deny_validation_failed",
                 )
+                if previous_approval is not None:
+                    publish(c.policy_directory, PRE_MONEY_APPROVAL, previous_approval)
                 if grants == "append":
                     run(
                         [
@@ -733,6 +847,8 @@ def main():
                         c.resolver_identity,
                         "finance_append_failed",
                     )
+                elif grants == "append-money":
+                    append_money(c, seed)
                 require(
                     finance_state(c, settings, seed, views) == "reuse",
                     "finance_append_unverified",
@@ -741,6 +857,7 @@ def main():
                     c.policy_directory,
                     "native-adoption.approved",
                     approval(c, documents, seed, owner),
+                    previous=previous_approval,
                 )
                 result.update(approved=True, deny_validation="verified")
             print(json.dumps(result, sort_keys=True))

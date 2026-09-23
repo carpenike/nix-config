@@ -261,6 +261,39 @@ The current `atrium-grant-finance-clients` unit still uses `seed-policy --append
 An explicit principal grant must be revoked explicitly; group removal alone
 does not revoke it.
 
+For an already prepared installation, the helper recognizes only the exact
+previously approved finance/scribe/status plan with Money absent. It validates
+every retained grant and its prior approval, then appends **only** the new Money
+grant through the existing resolver CLI. The prior approval is retained as
+`native-adoption.before-money.approved`; the current approval advances atomically
+after the complete four-grant state is verified. A retry after grant insertion
+but before approval publication finishes the approval without reinserting grants.
+Existing clients do not need fresh sign-in for this bounded addition.
+
+Unapproved partial sets, changed or revoked existing grants, conflicting
+approval/history and a Money grant lost after a completed upgrade still refuse.
+Do not fix `partial_finance_grants` by deleting grants or approval files, or by
+running the all-grants append unit against an already populated grant set.
+The original Money release missed this retained three-to-four upgrade path;
+the corrected preparation helper is required before retrying it.
+
+The retained-upgrade regression now runs through the actual Linux helper and
+resolver/native implementations: all **23 paired groups** pass, including the
+original 17 groups and six upgrade groups. These cover a genuine old three-grant
+preparation, read-only upgrade planning, missing/tampered approval, revoked or
+missing old grants, failed append, Money-only insertion, unchanged original rows
+and signer/history, approval-publication recovery, and refusal to resurrect a
+revoked or subsequently lost Money grant. The guest result is
+`/nix/store/xks59dc4y7gj6w8mzc47fsncy169r6rs-vm-test-run-atrium-owner-native-cutover`.
+
+The corrected built helper's read-only plan was also checked against Forge's
+existing state on September 23: `finance_grants=append-money`,
+`deny_history=reuse`, `fresh_sign_in=false`, `approved=false`. A subsequent
+read-only query confirmed the original three active grants, no Money grant
+and no new approval archive. This was not an apply or a live migration.
+The corresponding full build completed at
+`/nix/store/3qvf5mnl7hz4qh2k53w5wq7qks2f17c6-nixos-system-forge-25.11.20260630.b6018f8`.
+
 The table may initially be empty until the normal scheduled finance export
 publishes a Money snapshot. The PWA reports that state. Do not trigger bank
 sync or invoke the exporter merely by opening or refreshing Money.
