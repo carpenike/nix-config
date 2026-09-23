@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "atrium": "46f1a12eaa19bfec1da0aa9e5913519177db1660",
+  "atrium": "39346f4305550d2ddadcd51bea1129ff46c8265d",
   "atrium_native_vendor_source": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
-  "native": "bc1c2aa8d3346a9ac2c495e43e758efe5c3a8ab6",
-  "consumer": "a83a380781a51a74383a229efb6d1b0cdffb4ca0",
+  "native": "6eda33c2deeb43878fcddf17478628ceba5dcdc3",
+  "consumer": "e44d6f77c58ad250208c4c44de9214c4e9941640",
   "native_runtime_extra": {
     "python": "3.13",
     "platform": "aarch64-unknown-linux-gnu",

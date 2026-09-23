@@ -216,7 +216,7 @@ requests, or assert that the browser has been deployed.
 
 ## Personal Money overview (FIN-UX-01)
 
-The Money proposal consumes Atrium's bounded overview and Home MCP 0.27.0.
+The Money deployment consumes Atrium's bounded overview and Home MCP 0.27.0.
 It declares one additional native view, `personal-money`, on
 `/cc/views/personal-money`, with only the source-owned
 `atrium-personal-money` scope and read-only access. Its non-delegable grant
@@ -239,11 +239,14 @@ the browser receives the ordinary short-lived, target-bound native credential.
 The existing source/vendor comparison and installed policy-reader checks still
 apply, including rejection of unreviewed source changes.
 
-### Owner activation after the source/deployment PRs are clean
+### Owner activation after the coordinated releases
 
-Do not activate a draft proposal or bypass a failed release check. Once the
-coordinated source/deployment selections are merged, use the existing owner
-workflow:
+Do not activate a draft proposal. Ryan explicitly accepted completed local,
+native/browser and Linux deployment qualification for this release while
+GitHub Actions could not start because of account billing. Failed cloud
+statuses remain visible; they are not relabeled as successful executions.
+Once the coordinated source/deployment selections are merged, use the existing
+owner workflow:
 
 ```sh
 task nix:prepare-atrium-native
@@ -284,6 +287,18 @@ grant, refusal of partial/mismatched plans, retained original cutover time,
 unchanged signing/history, and replay refusal after reopening.
 Its output is
 `/nix/store/20whfzalfvmc1r2lz04i2cb189i6gv5s-vm-test-run-atrium-owner-native-cutover`.
+
+The final source merges are Atrium `39346f4` and Home MCP `6eda33c`. Their trees
+are identical to the qualified heads. Owner changes to Whiskey were retained;
+its newer runtime required a metadata-only compiled-manifest refresh in
+[carpenike/whiskey-whiskey-whiskey#102](https://github.com/carpenike/whiskey-whiskey-whiskey/pull/102),
+merged as `e44d6f7`, without changing application logic or dependencies.
+The current owner runtime passes 2,090 source cases and a separate actual
+native-browser CORS case. The repaired candidate also passes the actual
+installed Linux twenty-hash/twelve-case generation check, private-runtime
+refusal and all nine preparation/seven host groups, with zero background
+inference. Its source-bound receipts preserve the earlier failures and
+separate runtime revisions.
 
 ## Host-generated fixture boundary
 
