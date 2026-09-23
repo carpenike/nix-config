@@ -35,6 +35,7 @@ let
   forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
 
   apexDomain = "whiskeywhiskeywhiskey.org";
+  publicDomain = "warwed.com";
 
   # Alloy's own HTTP surface: UI at /, its Prometheus metrics at /metrics.
   # Loopback only — Prometheus scrapes it from this host.
@@ -65,7 +66,7 @@ let
   '';
 
   faroConfig = ''
-    // Browser telemetry from the Operation W.W.W. SPA.
+    // Browser telemetry from the W.W.W. public site, crew SPA, and guest pages.
     //
     // `extra_log_labels` values that are the EMPTY STRING are promoted from
     // the beacon payload rather than set statically -- `kind` becomes one of
@@ -93,7 +94,7 @@ let
         // Redundant while Caddy proxies this on the app's own origin (a
         // same-origin POST sends no preflight), but correct if the collector
         // is ever moved to its own hostname.
-        cors_allowed_origins = ["https://${apexDomain}"]
+        cors_allowed_origins = ["https://${apexDomain}", "https://${publicDomain}"]
 
         // Upstream defaults are 5MiB / 50 rps / burst 100 -- sized for a
         // commercial front end. This is a household app whose busiest moment

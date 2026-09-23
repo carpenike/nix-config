@@ -1,16 +1,11 @@
 {
   "uid": "www-audience",
   "title": "W.W.W. \u2014 Audience",
-  "description": "Who is using Operation W.W.W., when, and what they open. Sessions, not people: there is no identity field, because most users have no account -- they arrive on a token-gated share link. A session is one browser in one sitting (SPA sessions are sticky via localStorage; guest sessions are per-tab via sessionStorage, so a projector reloading itself is not counted as a returning visitor). Alloy flattens Faro event attributes with an `event_data_` prefix -- a bare `surface=\"...\"` matches nothing. `view_name` filters every signal from a surface; `event_data_surface` counts page views on it.",
-  "tags": [
-    "whiskey-whiskey-whiskey",
-    "rum",
-    "faro",
-    "audience"
-  ],
+  "description": "Public invitations, screening suggestions, crew pages and keyed guest surfaces. Sessions are browsers, not people; no identity or form content is collected. Audience counts use explicit page_view events and exclude private artwork review. Menu Board and HQ Channel emit separate throttled kiosk_heartbeat events, never page views. Alloy prefixes event attributes with event_data_; view_name filters every signal from a surface.",
+  "tags": ["whiskey-whiskey-whiskey", "rum", "faro", "audience"],
   "timezone": "browser",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "5m",
   "time": {
@@ -46,9 +41,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -63,7 +56,7 @@
             "type": "loki",
             "uid": "auto-loki-auto"
           },
-          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json [$__range])))",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | view_name!=\"site-artwork-review\" [$__range])))",
           "instant": true,
           "queryType": "instant"
         }
@@ -73,7 +66,7 @@
       "id": 2,
       "type": "stat",
       "title": "Guest sessions",
-      "description": "Sessions from the server-rendered share pages -- people with no account, arriving on a link you sent.",
+      "description": "Sessions on public invitations, doctrine, suggestion forms and keyed guest pages. Kiosk health reports and private artwork review are excluded.",
       "datasource": {
         "type": "loki",
         "uid": "auto-loki-auto"
@@ -97,9 +90,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -114,7 +105,7 @@
             "type": "loki",
             "uid": "auto-loki-auto"
           },
-          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" [$__range])))",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" | event_name=\"page_view\" | view_name!=\"site-artwork-review\" [$__range])))",
           "instant": true,
           "queryType": "instant"
         }
@@ -148,9 +139,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -165,7 +154,7 @@
             "type": "loki",
             "uid": "auto-loki-auto"
           },
-          "expr": "sum(count_over_time({job=\"faro\"} | json | event_name=\"page_view\" [$__range]))",
+          "expr": "sum(count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | view_name!=\"site-artwork-review\" [$__range]))",
           "instant": true,
           "queryType": "instant"
         }
@@ -199,9 +188,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -263,7 +250,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" [$__auto])))",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" | event_name=\"page_view\" | view_name!=\"site-artwork-review\" [$__auto])))",
           "legendFormat": "guest",
           "datasource": {
             "type": "loki",
@@ -273,7 +260,7 @@
         },
         {
           "refId": "B",
-          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name!=\"www-guest\" [$__auto])))",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name!=\"www-guest\" | event_name=\"page_view\" [$__auto])))",
           "legendFormat": "signed in",
           "datasource": {
             "type": "loki",
@@ -324,7 +311,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (event_data_surface) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | sdk_name=\"www-guest\" [$__auto]))",
+          "expr": "sum by (event_data_surface) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | sdk_name=\"www-guest\" | view_name!=\"site-artwork-review\" [$__auto]))",
           "legendFormat": "{{event_data_surface}}",
           "datasource": {
             "type": "loki",
@@ -383,7 +370,7 @@
     {
       "id": 8,
       "type": "table",
-      "title": "Bunker pages by route",
+      "title": "Crew and presenter pages by route",
       "description": "Where signed-in time goes. Route labels are bounded and carry no ids: `#/op/<id>/menu` reports as `op:menu`, and an unrecognised section collapses to `op:other`.",
       "datasource": {
         "type": "loki",
@@ -430,7 +417,7 @@
       "id": 9,
       "type": "timeseries",
       "title": "Guest page load time p75",
-      "description": "What a guest on mobile data actually waits. The host never sees this case on their own laptop. Reported by the inline beacon on the share pages, not by the SPA.",
+      "description": "Load timing on public invitations, suggestion forms and keyed guest pages. Reported by the guest beacon; kiosk reload timing is kept separate.",
       "datasource": {
         "type": "loki",
         "uid": "auto-loki-auto"
@@ -483,6 +470,33 @@
             "type": "loki",
             "uid": "auto-loki-auto"
           },
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Kiosk health reports",
+      "description": "Menu Board and HQ Channel heartbeats, at most once per five minutes per surface and tab. Not guest page views; an idle or closed kiosk reports nothing.",
+      "datasource": { "type": "loki", "uid": "auto-loki-auto" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 29 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (event_data_surface) (count_over_time({job=\"faro\"} | json | event_name=\"kiosk_heartbeat\" [$__auto]))",
+          "legendFormat": "{{event_data_surface}}",
           "queryType": "range"
         }
       ]
