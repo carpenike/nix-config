@@ -37,6 +37,23 @@ let
       == enabled.services.whiskey-whiskey-whiskey.settings.WWW_EXTERNAL_AS_RESOURCE;
     native-browser-origin-is-exact = whiskey.browser_origin == client.app_origin
       && builtins.removeAttrs whiskey [ "browser_origin" ] == baselineWhiskey;
+    money-browser-origin-is-exact =
+      enabled.services.homelab-mcp.settings.HOMELAB_MCP_ATRIUM_BROWSER_ORIGIN == client.app_origin
+      && !(disabled.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_BROWSER_ORIGIN);
+    money-reader-has-no-password-or-shared-role =
+      enabled.modules.services.postgresql.databases.homelab_finance.additionalRoles.atrium-money-reader.passwordFile == null
+      && enabled.modules.services.postgresql.databases.homelab_finance.additionalRoles.atrium-money-reader.grantRoles == [ ]
+      && enabled.services.homelab-mcp.settings.HOMELAB_MCP_MONEY_PG_DSN
+      == "postgresql:///homelab_finance?host=/run/postgresql&user=atrium-money-reader";
+    money-reader-has-only-snapshot-table-select =
+      enabled.modules.services.postgresql.databases.homelab_finance.tablePermissions."household_finance.money_overview".atrium-money-reader
+      == [ "SELECT" ]
+      && !(enabled.modules.services.postgresql.databases.homelab_finance.tablePermissions."household_finance.*" ? atrium-money-reader);
+    money-reader-peer-is-exact =
+      lib.hasInfix "local homelab_finance atrium-money-reader peer map=atrium-money"
+        enabled.services.postgresql.authentication
+      && lib.hasInfix "atrium-money homelab-mcp atrium-money-reader"
+        enabled.services.postgresql.identMap;
     caddy-consumes-real-generated-fragment = lib.hasPrefix
       "import ${enabled.services.atriumPwa.generated.caddy}\n"
       enabled.modules.services.caddy.virtualHosts.atrium.extraConfig;

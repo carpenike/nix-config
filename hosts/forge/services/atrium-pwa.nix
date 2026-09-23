@@ -21,6 +21,9 @@ in
   }
     (lib.mkIf cfg.enable {
       services.atriumForge.groupEvidence.clientIds = lib.mkAfter [ cfg.clientId ];
+      services.homelab-mcp.settings = lib.mkIf config.services.atriumForge.adoption.native {
+        HOMELAB_MCP_ATRIUM_BROWSER_ORIGIN = cfg.origin;
+      };
       modules.services.caddy.virtualHosts.atrium.extraConfig = lib.mkBefore ''
         import ${cfg.generated.caddy}
       '';

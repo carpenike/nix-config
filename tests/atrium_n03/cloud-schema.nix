@@ -145,8 +145,9 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert opus.grants[0].request.models == ("cc.personal.ryan.opus",)
     assert {grant.request.template_id for grant in finance.grants} == {
         "cc.personal.ryan.finance", "cc.personal.ryan.scribe", "cc.personal.ryan.status",
+        "cc.personal.ryan.money",
     }
-    assert len(finance.grants) == 3
+    assert len(finance.grants) == 4
     assert all(
         grant.principal == "ryan" and not grant.can_delegate
         and grant.request.lifetime_seconds == 900
@@ -162,18 +163,20 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     }
     automation_instances = {"personal-scribe", "personal-status"}
     automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status"}
+    owner_instances = automation_instances | {"personal-money"}
+    owner_templates = automation_templates | {"cc.personal.ryan.money"}
     assert automation_instances <= data["instance_acls"].keys()
     assert automation_templates <= data["human_template_acls"].keys()
     explicit_automation_acl = {"principals": ["ryan"], "groups": []}
     for name, instance in data["instance_acls"].items():
-        if name in automation_instances:
+        if name in owner_instances:
             assert instance["domain"] == "personal:ryan"
             assert instance["acl"] == explicit_automation_acl
         else:
             assert not human_ids.intersection(instance["acl"]["principals"]), "human principal ACL bypass"
             assert instance["acl"]["groups"] == required_groups[instance["domain"]]
     for name, template in data["human_template_acls"].items():
-        if name in automation_templates:
+        if name in owner_templates:
             assert template["domain"] == "personal:ryan"
             assert template["acl"] == explicit_automation_acl
         else:

@@ -43,16 +43,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1790119750,
-        "narHash": "sha256-fD48i9+xFMUa6+GTOvC6MlUzZvqnRgkbGTy+5PWrXxs=",
+        "lastModified": 1790180541,
+        "narHash": "sha256-91fu+POVpIOwI5qROhwp/xKsGO7AnUMQkwLBYILVMGI=",
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "05fce27903e11fc42990ecece4aee0510facaf55",
+        "rev": "46f1a12eaa19bfec1da0aa9e5913519177db1660",
         "type": "github"
       },
       "original": {
         "owner": "carpenike",
         "repo": "atrium",
+        "rev": "46f1a12eaa19bfec1da0aa9e5913519177db1660",
         "type": "github"
       }
     },
@@ -342,17 +343,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1789759659,
-        "narHash": "sha256-N5U+qlI4kW7ThoaeKrlZmyJNQ7dZ6zOGa82PvRhuNcI=",
+        "lastModified": 1790181372,
+        "narHash": "sha256-O4JA/3cBnDkB+wm4otG1/a8kXu8LfwdVYRGBvYIn4ew=",
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
+        "rev": "bc1c2aa8d3346a9ac2c495e43e758efe5c3a8ab6",
         "type": "github"
       },
       "original": {
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
+        "rev": "bc1c2aa8d3346a9ac2c495e43e758efe5c3a8ab6",
         "type": "github"
       }
     },

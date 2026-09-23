@@ -72,6 +72,7 @@ let
   financeDb = "homelab_finance";
   financeRole = "homelab-mcp-export";
   financeGrafanaRole = "grafana-household-finance";
+  financeMoneyRole = "atrium-money-reader";
   financeSchema = "household_finance";
   financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
   atriumScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
@@ -81,6 +82,7 @@ let
       "atrium-personal-finance"
       "atrium-personal-scribe"
       "atrium-personal-status"
+      "atrium-personal-money"
     ]
       (builtins.fromJSON (builtins.readFile
         (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);
@@ -134,6 +136,8 @@ in
           HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
           # Finances and Paperless integration endpoints.
           HOMELAB_MCP_FINANCES_SIDECAR_BASE_URL = "http://127.0.0.1:${toString actualSidecarPort}";
+          HOMELAB_MCP_MONEY_PG_DSN = "postgresql:///${financeDb}?host=/run/postgresql&user=${financeMoneyRole}";
+          HOMELAB_MCP_MONEY_PG_SCHEMA = financeSchema;
           HOMELAB_MCP_FINANCES_REPO_URL = "https://github.com/carpenike/finances.git";
           HOMELAB_MCP_PAPERLESS_BASE_URL = "https://paperless.${config.networking.domain}";
 
@@ -464,6 +468,12 @@ in
     # household's net worth. When a Grafana datasource is wired, give it its
     # own role and its own grant on `household_finance`.
     {
+      services.postgresql.authentication = lib.mkBefore ''
+        local ${financeDb} ${financeMoneyRole} peer map=atrium-money
+      '';
+      services.postgresql.identMap = lib.mkAfter ''
+        atrium-money ${serviceName} ${financeMoneyRole}
+      '';
       modules.services.postgresql.databases.${financeDb} = {
         owner = financeRole;
         ownerPasswordFile = config.sops.secrets."homelab-mcp/export_db_password".path;
@@ -471,6 +481,10 @@ in
 
         additionalRoles.${financeGrafanaRole} = {
           passwordFile = config.sops.secrets."homelab-mcp/grafana_db_password".path;
+          grantRoles = [ ];
+        };
+        additionalRoles.${financeMoneyRole} = {
+          passwordFile = null;
           grantRoles = [ ];
         };
 
@@ -481,12 +495,21 @@ in
           ''
             CREATE SCHEMA IF NOT EXISTS ${financeSchema} AUTHORIZATION "${financeRole}";
             ALTER SCHEMA ${financeSchema} OWNER TO "${financeRole}";
+            SET ROLE "${financeRole}";
+            ${builtins.replaceStrings [ "{schema}" ] [ financeSchema ]
+              (builtins.readFile (inputs.homelab-mcp + "/src/homelab_mcp/finances_export/overview.sql"))}
+            RESET ROLE;
           ''
         ];
 
         databasePermissions.${financeGrafanaRole} = [ "CONNECT" ];
-        schemaPermissions.${financeSchema}.${financeGrafanaRole} = [ "USAGE" ];
+        schemaPermissions.${financeSchema} = {
+          ${financeGrafanaRole} = [ "USAGE" ];
+          ${financeMoneyRole} = [ "USAGE" ];
+        };
         tablePermissions."${financeSchema}.*".${financeGrafanaRole} = [ "SELECT" ];
+        databasePermissions.${financeMoneyRole} = [ "CONNECT" ];
+        tablePermissions."${financeSchema}.money_overview".${financeMoneyRole} = [ "SELECT" ];
 
         # The exporter may add or replace projection tables in later releases.
         # Keep Grafana readable without granting it membership in any shared

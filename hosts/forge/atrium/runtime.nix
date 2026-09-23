@@ -142,6 +142,7 @@ in
           "personal-finance"
           "personal-scribe"
           "personal-status"
+          "personal-money"
         ];
         # Replaced by the actual nominated public leaf's fingerprint at runtime.
         certificates = [ ];

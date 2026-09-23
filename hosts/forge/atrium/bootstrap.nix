@@ -55,6 +55,7 @@ in
     "cc.personal.ryan.finance"
     "cc.personal.ryan.scribe"
     "cc.personal.ryan.status"
+    "cc.personal.ryan.money"
   ];
   groups = {
     schema_version = 1;
