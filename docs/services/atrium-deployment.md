@@ -24,6 +24,8 @@ The Atrium input must provide:
   `services.atriumLitellmAdmission` options.
 * `nixosModules.whiskey-egress-fixture`, preserving
   `services.atriumWhiskeyEgressFixture` options.
+* `packages.${system}.pwa` and `nixosModules.pwa` for the public browser shell,
+  generated public configuration and app-owned Caddy routing fragment.
 
 `pkgs/default.nix` forwards the package exports directly. It has no local
 controller/admission builder or fallback. No Python source path or host-created
@@ -46,6 +48,11 @@ The following Nix checks test consumption and host wiring, not product behavior:
   settings-path references, including disabled-by-default configuration.
 * `atrium-n06-units` checks namespace/path selection and service composition,
   including explicit capability resets and rejected stronger overrides.
+* `atrium-forge-native-policy-compatibility` loads the current generated Forge
+  policy through the installed Home MCP package's retained vendored parser.
+  It checks all five native view bindings, six refusal/recovery cases, and the
+  unchanged imported `Decision`/`PolicyDenied` definitions. It does not perform
+  native authentication or replace the application's permit/deny suite.
 
 The Forge foundation is covered by `atrium-forge-preparation`,
 `atrium-forge-caddy`, and `atrium-identity-bootstrap`. These distinguish missing
@@ -70,6 +77,142 @@ nix build --builders '' --no-link --no-write-lock-file \
 These checks do not activate services, run native/Podman acceptance, modify live
 credentials or claim any T-case. App behavior and native acceptance run under
 the app-owned harness with separate explicit authorization.
+
+## Browser hosting and owner registration
+
+`hosts/forge/services/atrium-pwa.nix` consumes the app's static package and
+`services.atriumPwa` module. Caddy serves the exact shell/assets and
+`/client-config.json`; existing resolver APIs/JWKS and private-route blocks
+remain in place. Callback/configuration documents are not cached, the popup
+opener is preserved, and Atrium access logging is discarded. No second web
+daemon, token vault, cookie-auth proxy, device enrollment or grant seeding is
+introduced.
+
+The declared new public client is **`cc.atrium.browser`**, not a replacement for
+`cc.atrium.operator`. The browser's ID is appended to C10 and the native Whiskey
+adapter receives the exact `https://atrium.holthome.net` browser origin.
+This configuration does **not** register a client at Pocket ID or prove that
+an existing client with that name belongs to this deployment.
+
+Before first browser use, the owner must create the dedicated client in the
+existing Pocket ID installation, or verify an already owner-created matching
+registration. Do not adopt a conflicting client or recreate either API resource:
+
+| Setting | Value |
+| --- | --- |
+| Client ID | `cc.atrium.browser` |
+| Public client / PKCE | Enabled; no client secret; browser uses S256 |
+| Exact callback | `https://atrium.holthome.net/auth/callback` |
+| Access-token lifetime | 14 native minutes, as in the qualified browser fixture; never 60 native minutes, which Pocket ID can round beyond the 3600-second ceiling |
+| Refresh-token lifetime | 60 minutes; the browser discards returned refresh tokens and never refreshes silently |
+| Login restrictions | Retain the reviewed Atrium login-group restrictions; do not change group membership |
+| Resolver API resource | Existing `https://atrium.holthome.net/resolver` |
+| Whiskey API resource | Existing `https://whiskeywhiskeywhiskey.org/api/mcp` |
+| Grants on both resources | User-delegated access only; client/machine access disabled |
+| Requested scopes | `openid groups`; no additional native scope gate |
+
+Use the normal build and owner-operated activation after reviewing the pin:
+
+```sh
+task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
+task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net
+```
+
+Do **not** rerun foundation initialization or reset credentials, deny history,
+native sessions or existing grants. Browser registration is separate from the
+operator foundation setup flow. To disable only the browser, explicitly set
+`services.atriumPwa.enable = lib.mkForce false`; the resolver, native routes,
+operator admission and adopted services remain intact.
+
+`atrium-pwa-wiring` checks public metadata, additive client admission, native
+audiences/origin, existing API/private routing, disabled behavior and unchanged
+policy/state declarations. Pre-adoption/first-setup fixtures explicitly disable
+the browser rather than pretending the new client existed during their
+historical operator-only preparation.
+
+The app's [original popup-failure receipt](https://github.com/carpenike/atrium/blob/9954c5642b2ba75052f306f46529b418c3944f1d/docs/evidence/ATR-P06-Caddy-popup-9057788-blocked.md)
+preserves the original Caddy popup failure; the corrected app selects
+COOP `unsafe-none` without weakening its origin/source/state/nonce checks.
+The later successful native evidence is retained by
+[carpenike/atrium#67](https://github.com/carpenike/atrium/pull/67): 47 groups
+through actual Chromium and a real WPE WebKit mobile-configured engine with
+native Whiskey `7624fe0`. This is not iOS/Android-device, passkey UX or WebKit
+offline/installation qualification.
+
+The original P06 proposal built Forge but its broader checks still failed on
+stale selected pins and an overly broad whole-source vendor comparison. The
+release follow-up updates `tests/atrium_n03/pins.json` to the actual selected
+application and native consumer. These are current composition expectations,
+not historical runtime receipts.
+
+Home MCP's `1762ecb` dependency and its artifact lock remain unchanged. The
+current app's credential profiles, policy schema and native-policy wire code
+are byte-identical to that vendor source; its PWA/discovery additions do not
+make the entire `nix`, `profiles` and `resolver` trees identical. Instead,
+`native-vendor-compatibility.json` lists exactly the eleven reviewed changed or
+added files, with old and current digests and source identities. Every unlisted
+member and digest must still match. Negative controls reject changed credential
+contracts, unreviewed additions and a different vendor revision.
+
+The installed-native policy check complements that source comparison with the
+actual consuming parser and unchanged imported decision/error definitions.
+Whole-flake evaluation is now required to pass; the browser checks do not
+bypass failed foundation/controller jobs. Original source-bound receipts and
+the original P06 baseline failures retain their dates and outcomes.
+
+The owner's later Whiskey selections (`c3c2ac8`, `35ed2d8`, then `870616d`) are
+not the earlier `7624fe0` used by the 47 browser groups. The comparison through `c3c2ac8`
+keeps native authentication, companion/deny policy, dependency lock and
+credential-profile artifacts unchanged. Its operation projection adds
+`approxEndTime`; Atrium's bounded parser still selects only
+`id`, `title`, `realDate`, `startTime` and `status`. This source comparison is
+not a new 47-group browser run or a claim that unrelated Whiskey features were
+qualified by P06. The later telemetry/dependency and screening-nomination
+updates received separate source and installed-package qualification; they do
+not inherit an older compiled manifest merely because the application name is
+unchanged.
+
+The selected Whiskey release is
+[`b681741`](https://github.com/carpenike/whiskey-whiskey-whiskey/commit/b681741ab76af6b1bfb9b6a938293870f2e8d7d4),
+merging the qualification-only repair of the owner's `870616d` runtime.
+Its [source-bound receipt](https://github.com/carpenike/whiskey-whiskey-whiskey/blob/b681741ab76af6b1bfb9b6a938293870f2e8d7d4/docs/evidence/ATR-W03-generation-manifest-870616d.json)
+records 238 generation, 159 native and 245 changed-boundary cases, with one
+pre-existing native unit skip distinguished from the executed cases. Actual
+installed Darwin checks pass all twenty compiled hashes and twelve generation
+cases, including private-runtime and byte-drift refusals, with zero background
+inference. Separate installed migration and JWT/HTTPS read probes cover the
+changed database/service boundary. All 151 executable server modules match the
+owner's runtime; no application logic or dependency version was changed by the
+repair. Existing application CI now runs the same compiled-contract checker
+after its build, without bypassing mismatches.
+
+The earlier `c3c2ac8` and `35ed2d8` receipts remain historical. None of these
+source, installed-native or CI results relabels the original 47 browser groups.
+The final deployment selection also passed the existing installed Linux
+Whiskey cutover guest and Forge build on **2026-09-23**; source-build CI and
+Darwin results were not substituted for those Linux checks:
+
+* `atrium-whiskey-cutover` passed all nine preparation and seven host/network
+  groups, the twenty installed compiled hashes and twelve generation cases,
+  and the private-runtime refusal. Its actual Linux Node 22.22.2 process made
+  six synthetic generation requests and two background validations, with zero
+  background inference. The guest cleaned up normally. The exact derivation
+  is `02hnd0vzgz0ak3xmbaz80anzmbj52nzb-vm-test-run-atrium-owner-whiskey-cutover`;
+  its output is `slr7wk8pkm2h2fnicnf0mn46qzvihsi8-vm-test-run-atrium-owner-whiskey-cutover`.
+* `atrium-forge-native-policy-compatibility` passed its five installed-native
+  view bindings, six refusals and recovery on Linux, producing
+  `a5h890mjw5kccwf8p3h0ppdbgdb8wm6p-atrium-native-policy-compatibility`.
+* All-system whole-flake evaluation, current source/pin checks, isolated units
+  and model preparation, fourteen browser wiring checks, and composed normal
+  and adopted Caddy checks passed.
+* The normal remote Forge build produced
+  `4icc6lahl6z2rcbhp5ri0wv2n7nw4a49-nixos-system-forge-25.11.20260630.b6018f8`.
+  This was a build only, not activation.
+
+These checks use the selected `b681741` application package and retain the
+original failed stale-manifest Linux run as historical evidence. They do not
+register the browser client, exercise household credentials, make paid model
+requests, or assert that the browser has been deployed.
 
 ## Host-generated fixture boundary
 

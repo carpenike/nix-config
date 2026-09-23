@@ -520,12 +520,17 @@
             atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
               inherit inputs pkgs;
             };
+            atrium-forge-native-policy-compatibility = import ./tests/atrium_n03/native-policy-compatibility.nix {
+              inherit inputs pkgs;
+            };
             atrium-forge-c10-settings =
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
             atrium-forge-c10-schema =
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
             atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
               (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
+            atrium-pwa-wiring = pkgs.writeText "atrium-pwa-wiring-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n03/pwa.nix { inherit inputs; }));
             atrium-forge-model-secrets = pkgs.writeText "atrium-forge-model-secrets.json"
               (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inherit inputs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
@@ -636,18 +641,26 @@
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
                 let
-                  runtime = import ./hosts/forge/atrium/runtime.nix { inherit (pkgs) lib; };
-                  entry = import ./hosts/forge/atrium/entry.nix { inherit runtime; };
-                  hosts = inputs.self.nixosConfigurations.forge.config.modules.services.caddy.virtualHosts;
+                  forge = inputs.self.nixosConfigurations.forge.config;
+                  hosts = forge.modules.services.caddy.virtualHosts;
+                  entry = hosts.atrium;
+                  entryConfig =
+                    if forge.services.atriumPwa.enable then
+                      pkgs.lib.replaceStrings
+                        [ "import ${forge.services.atriumPwa.generated.caddy}" ]
+                        [ forge.services.atriumPwa.generated.caddy.text ]
+                        entry.extraConfig
+                    else entry.extraConfig;
                   native = hosts.homelab-mcp;
                   whiskey = hosts.whiskeywhiskeywhiskey;
-                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" ''
+                  # Syntax-only adaptation does not read the target's static files.
+                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" (builtins.unsafeDiscardStringContext ''
                     {
                       admin off
                       auto_https off
                     }
                     http://127.0.0.1:18445 {
-                      ${entry.extraConfig}
+                      ${entryConfig}
                       reverse_proxy ${entry.backend.host}:${toString entry.backend.port} {
                         ${entry.reverseProxyBlock}
                       }
@@ -665,7 +678,7 @@
                       }
                     }
                     ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
-                  '';
+                  '');
                 in
                 ''
                   caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"

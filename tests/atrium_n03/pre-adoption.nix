@@ -3,5 +3,6 @@
 inputs.self.nixosConfigurations.forge.extendModules {
   modules = [{
     disabledModules = [ ../../hosts/forge/atrium/adoption.nix ];
+    services.atriumPwa.enable = inputs.nixpkgs.lib.mkForce false;
   }];
 }

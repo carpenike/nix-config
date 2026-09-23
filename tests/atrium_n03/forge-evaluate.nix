@@ -31,6 +31,18 @@ let
   nativeCatalog = builtins.fromJSON (builtins.readFile base.catalogs.home-mcp.source);
   nativeVendor = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
+  nativeComparison = builtins.fromJSON (builtins.readFile ./native-vendor-compatibility.json);
+  nativeVendorCompatible = vendor: sourceHashes:
+    nativeComparison.schema_version == 1
+    && nativeComparison.application_revision == inputs.atrium.rev
+    && nativeComparison.native_revision == inputs.homelab-mcp.rev
+    && nativeComparison.vendor_revision == vendor.revision
+    && lib.all
+      (name: (vendor.source_file_sha256.${name} or null)
+      == nativeComparison.reviewed_changes.${name}.previous_sha256)
+      (builtins.attrNames nativeComparison.reviewed_changes)
+    && sourceHashes == (vendor.source_file_sha256
+    // lib.mapAttrs (_: change: change.current_sha256) nativeComparison.reviewed_changes);
   nativeSourceHashes =
     let
       walk = prefix: directory:
@@ -73,8 +85,15 @@ let
       && inputs.whiskey-whiskey-whiskey.rev == pins.consumer;
     native-vendor-source-pinned = nativeVendor.revision == pins.atrium_native_vendor_source
       && nativeVendor.repository == "https://github.com/carpenike/atrium";
-    native-vendor-content-matches-app =
-      nativeVendor.source_file_sha256 == nativeSourceHashes;
+    native-vendor-content-matches-reviewed-app =
+      nativeVendorCompatible nativeVendor nativeSourceHashes;
+    unreviewed-native-contract-change-refused = !nativeVendorCompatible nativeVendor
+      (nativeSourceHashes // { "profiles/src/atrium_profiles/models.py" = builtins.hashString "sha256" "unreviewed"; });
+    unreviewed-native-source-addition-refused = !nativeVendorCompatible nativeVendor
+      (nativeSourceHashes // { "resolver/src/atrium_resolver/unreviewed.py" = "unreviewed"; });
+    different-native-vendor-revision-refused = !nativeVendorCompatible
+      (nativeVendor // { revision = "different-vendor"; })
+      nativeSourceHashes;
     explicit-gateway-version = gateway.kind == "atrium.litellm-version-candidate"
       && gateway.native_version == "v1.100.1"
       && c.services.atrium.litellmVersion == gateway.native_version;
