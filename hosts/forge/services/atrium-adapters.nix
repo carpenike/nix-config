@@ -153,7 +153,7 @@ let
     -F ATRIUM-NATIVE
     -A ATRIUM-NATIVE -m owner --uid-owner ${toString mylib.serviceUids.caddy.uid} -j RETURN
     -A ATRIUM-NATIVE -m owner --uid-owner ${toString mylib.serviceUids.atrium-resolver.uid} -j RETURN
-    -A ATRIUM-NATIVE -j REJECT --reject-with tcp-reset
+    -A ATRIUM-NATIVE -p tcp -j REJECT --reject-with tcp-reset
     COMMIT
   '';
   egressHosts = lib.unique (fixedWhiskeyHosts ++ lib.concatLists (builtins.attrValues cfg.whiskeyEgress.dynamicHosts));
@@ -235,6 +235,7 @@ in
       };
     })
     (lib.mkIf native {
+      system.build.atriumNativeFirewallRules = nativeFirewall;
       networking.firewall = {
         extraCommands = ''
           ${pkgs.iptables}/bin/iptables-restore --wait --noflush < ${nativeFirewall}

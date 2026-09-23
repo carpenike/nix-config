@@ -284,6 +284,7 @@ jobs:
             .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-forge-native-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-native-cutover.driver \
+            .#checks.x86_64-linux.atrium-native-firewall.driver \
             .#checks.x86_64-linux.atrium-whiskey-cutover.driver \
             .#checks.x86_64-linux.atrium-forge-controller-publication.driver
 
@@ -307,6 +308,13 @@ jobs:
           nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-forge-native-credential-systemd
+
+      - name: Validate native firewall with actual nft-backed packet filters
+        timeout-minutes: 5
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 180 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-native-firewall
 
       - name: Validate owner-run native cutover in an isolated guest
         timeout-minutes: 15
