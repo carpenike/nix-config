@@ -362,6 +362,19 @@ Services using `pkgs.unstable.*` instead of stable packages:
 
 ## Module-Level Workarounds
 
+### nix-darwin - Homebrew 7 Cleanup Flag
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-09-23 |
+| **Location** | `modules/darwin/homebrew.nix` (`homebrew.onActivation`) |
+| **Affects** | `dar` / `task nix:apply-darwin host=rymac` with Homebrew 7 |
+| **Reason** | The locked nix-darwin 25.11 module translates `cleanup = "zap"` into `brew bundle --cleanup --zap`. Homebrew 7 rejects `--cleanup` before activation can install or reconcile applications. The tracked 25.11 branch does not contain the upstream fix. |
+| **Workaround** | Set `cleanup = "none"` only to suppress the legacy flags, then pass `--force-cleanup --zap` through `onActivation.extraFlags`. Cleanup of undeclared programs and cask data remains enabled; automatic Homebrew updates and package upgrades remain disabled. |
+| **Validation** | Build with `task nix:build-darwin host=rymac`. Inspect `nix eval --raw .#darwinConfigurations.rymac.config.homebrew.onActivation.brewBundleCmd` and append `--help` to check Homebrew's argument parser without installing or removing applications. |
+| **Check** | When the locked nix-darwin input includes the upstream fix, restore `cleanup = "zap"`, remove the compatibility `extraFlags`, and delete this entry after rebuilding and verifying the generated command. |
+| **Upstream** | [nix-darwin cleanup flag fix](https://github.com/nix-darwin/nix-darwin/commit/bb9c29c19327336fa499fe77bd7ba6d00ccec484) |
+
 ### home-assistant - Install Check Disabled
 
 | Field | Value |
