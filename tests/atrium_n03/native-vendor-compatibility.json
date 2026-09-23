@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.native-vendor-source-comparison",
+  "application_revision": "05fce27903e11fc42990ecece4aee0510facaf55",
+  "native_revision": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
+  "vendor_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "scope": "Exact source applicability comparison, not a new native authentication gate. Every unlisted source member and digest must remain identical.",
+  "reviewed_changes": {
+    "nix/pwa.nix": {
+      "previous_sha256": null,
+      "current_sha256": "06c03af98b41dcc3ba92324284b87ae93322928fca03f3f173ffd513601be0b2",
+      "reason": "New separately consumed static browser hosting module."
+    },
+    "nix/tests/pwa-fixture.nix": {
+      "previous_sha256": null,
+      "current_sha256": "4bf7b0c584314f6340267e13d9e96e7c0b6ce48a35f92db9526de970c3d4b4e2",
+      "reason": "New browser-only fixture, not imported by Home MCP."
+    },
+    "nix/tests/pwa-hosting.nix": {
+      "previous_sha256": null,
+      "current_sha256": "cd80bb3cee9389feb71e9f0f7b015b44f1b26973341187e5378870588e351832",
+      "reason": "New browser-only hosting check, not imported by Home MCP."
+    },
+    "nix/tests/pwa.nix": {
+      "previous_sha256": null,
+      "current_sha256": "f16ab90f7ec965affaad1b13592496a8a8e9e40c912fe60e569be6f828146960",
+      "reason": "New browser module check, not imported by Home MCP."
+    },
+    "nix/types.nix": {
+      "previous_sha256": "0cb3aed9790f8e20a5c804896d83bd8f1b1877b130b7b23f6c49dccab3b68f78",
+      "current_sha256": "4703981f62d5cd52da67b0d791a1cf7f2ac65c952f2eb93d00b21bf424603300",
+      "reason": "Exports existing origin/httpsUri types for the browser module; registry generator and validator are unchanged."
+    },
+    "resolver/MANIFESTS.md": {
+      "previous_sha256": "de127c4fb85514b79258253c793599e90e1051e82efbaafa610e70ba204d1405",
+      "current_sha256": "b96c46edf3ec50fa3c608e4a88e598c0739a83445399e84493dd7def2b10a42a",
+      "reason": "Discovery documentation, not executable consumer behavior."
+    },
+    "resolver/README.md": {
+      "previous_sha256": "6b85b51b47680583be03bc4a097fddb8bcf712faae42e72731e3d6a2d569d45d",
+      "current_sha256": "e779c7111c094d9dcc50403c34b35e2a14d0092fccbaaa72d88fd670210ee06b",
+      "reason": "Browser discovery documentation, not executable consumer behavior."
+    },
+    "resolver/src/atrium_resolver/app.py": {
+      "previous_sha256": "9b88dc08182d3494ab05a5b1f800a8ff8fd1e65b2a177d31d1ee48c6c294ddd0",
+      "current_sha256": "5de64dc185c938ab6be67bd48c91ee0366b6740ea4d299dc12315742249fa11c",
+      "reason": "Non-minting browser discovery endpoint; Home MCP does not run the resolver application."
+    },
+    "resolver/src/atrium_resolver/manifests.py": {
+      "previous_sha256": "feb0d31f8706d6ba6cd4a73a4efefa9ddf95c5fe69987f6af23a78dae200568d",
+      "current_sha256": "9e80026b2310e57bb672ac9609f34c9df07f529c6ef87fb63913e47cebf968df",
+      "reason": "Non-minting browser description construction; Home MCP does not invoke the manifest service."
+    },
+    "resolver/src/atrium_resolver/policy.py": {
+      "previous_sha256": "e8dc1a9e4fac4f21dbe890cfa749f4a2cd1f01dcc63e9b9aef9699695e9ba78b",
+      "current_sha256": "cbf6b52935b8cd7112d0b96da1dd87096503f8235c12ffa875bc04f349534873",
+      "reason": "Discovery accepts an optional wing filter. Home MCP's imported Decision and PolicyDenied definitions are unchanged and checked separately against the installed native package."
+    },
+    "resolver/tests/test_discovery.py": {
+      "previous_sha256": null,
+      "current_sha256": "fed57c732dbe428431fb9c891b4ac0b8f004f316fe190eaf47242de91879c5b0",
+      "reason": "New discovery tests, not imported by Home MCP."
+    }
+  }
+}

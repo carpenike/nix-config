@@ -48,6 +48,11 @@ The following Nix checks test consumption and host wiring, not product behavior:
   settings-path references, including disabled-by-default configuration.
 * `atrium-n06-units` checks namespace/path selection and service composition,
   including explicit capability resets and rejected stronger overrides.
+* `atrium-forge-native-policy-compatibility` loads the current generated Forge
+  policy through the installed Home MCP package's retained vendored parser.
+  It checks all five native view bindings, six refusal/recovery cases, and the
+  unchanged imported `Decision`/`PolicyDenied` definitions. It does not perform
+  native authentication or replace the application's permit/deny suite.
 
 The Forge foundation is covered by `atrium-forge-preparation`,
 `atrium-forge-caddy`, and `atrium-identity-bootstrap`. These distinguish missing
@@ -134,11 +139,34 @@ through actual Chromium and a real WPE WebKit mobile-configured engine with
 native Whiskey `7624fe0`. This is not iOS/Android-device, passkey UX or WebKit
 offline/installation qualification.
 
-The normal full Forge build succeeds with the corrected host fragment.
-The broader deployment-flake CI still has its pre-existing selected-pin,
-vendored-source and N03 contract-check failures; those historical assertions
-are not reset or relabeled as part of P06. New browser wiring/Caddy/C10
-checks run independently so their actual result is visible.
+The original P06 proposal built Forge but its broader checks still failed on
+stale selected pins and an overly broad whole-source vendor comparison. The
+release follow-up updates `tests/atrium_n03/pins.json` to the actual selected
+application and native consumer. These are current composition expectations,
+not historical runtime receipts.
+
+Home MCP's `1762ecb` dependency and its artifact lock remain unchanged. The
+current app's credential profiles, policy schema and native-policy wire code
+are byte-identical to that vendor source; its PWA/discovery additions do not
+make the entire `nix`, `profiles` and `resolver` trees identical. Instead,
+`native-vendor-compatibility.json` lists exactly the eleven reviewed changed or
+added files, with old and current digests and source identities. Every unlisted
+member and digest must still match. Negative controls reject changed credential
+contracts, unreviewed additions and a different vendor revision.
+
+The installed-native policy check complements that source comparison with the
+actual consuming parser and unchanged imported decision/error definitions.
+Whole-flake evaluation is now required to pass; the browser checks do not
+bypass failed foundation/controller jobs. Original source-bound receipts and
+the original P06 baseline failures retain their dates and outcomes.
+
+The owner-selected Whiskey revision is `c3c2ac8`, not the earlier `7624fe0` used
+by the 47 browser groups. Its native authentication, companion/deny policy,
+dependency lock and credential-profile artifacts are unchanged. Its operation
+projection adds `approxEndTime`; Atrium's bounded parser still selects only
+`id`, `title`, `realDate`, `startTime` and `status`. This source comparison is
+not a new 47-group browser run or a claim that unrelated Whiskey features were
+qualified by P06.
 
 ## Host-generated fixture boundary
 

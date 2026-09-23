@@ -18,6 +18,8 @@ name: Atrium controller deployment
       - hosts/forge/atrium/pocketid-authority.json
       - hosts/forge/atrium/litellm-controller-isolated.nix
       - tests/atrium_n03/forge-evaluate.nix
+      - tests/atrium_n03/native-policy-compatibility.nix
+      - tests/atrium_n03/native-vendor-compatibility.json
       - tests/atrium_n03/client-views.nix
       - tests/atrium_n03/hermes-transition.nix
       - tests/atrium_n03/identity-bootstrap.nix
@@ -72,6 +74,7 @@ jobs:
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-identity-bootstrap \
             .#checks.x86_64-linux.atrium-forge-preparation \
+            .#checks.x86_64-linux.atrium-forge-native-policy-compatibility \
             .#checks.x86_64-linux.atrium-forge-client-views \
             .#checks.x86_64-linux.atrium-hermes-config-transition \
             .#checks.x86_64-linux.atrium-n04-package-smoke \

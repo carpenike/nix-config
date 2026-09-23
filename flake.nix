@@ -520,6 +520,9 @@
             atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
               inherit inputs pkgs;
             };
+            atrium-forge-native-policy-compatibility = import ./tests/atrium_n03/native-policy-compatibility.nix {
+              inherit inputs pkgs;
+            };
             atrium-forge-c10-settings =
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
             atrium-forge-c10-schema =
