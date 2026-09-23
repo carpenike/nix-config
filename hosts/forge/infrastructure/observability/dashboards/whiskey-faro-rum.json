@@ -1,15 +1,11 @@
 {
   "uid": "www-faro-rum",
   "title": "W.W.W. \u2014 Application Telemetry",
-  "description": "Real user monitoring for Operation W.W.W. Signals arrive from the Grafana Faro Web SDK in the SPA, via Alloy's faro.receiver. Counters come from Alloy's own /metrics; everything else is queried out of Loki under {job=\"faro\"}. Share tokens on the #/present and #/hub routes are redacted client-side before send. Server-side RED metrics come from fastify-metrics via the whiskeywhiskeywhiskey Prometheus job.",
-  "tags": [
-    "whiskey-whiskey-whiskey",
-    "rum",
-    "faro"
-  ],
+  "description": "Real user monitoring across the public site, crew SPA, keyed guest pages and kiosks. Faro and the lightweight guest beacon share Alloy and Loki. Public and guest pages include numeric Web Vitals; kiosks use throttled health reports. Exception text is field-safe; inspect build, view and stack coordinates. Capability URLs, OAuth codes and form values are excluded. Server RED metrics include the homepage and use bounded route patterns.",
+  "tags": ["whiskey-whiskey-whiskey", "rum", "faro"],
   "timezone": "browser",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "1m",
   "time": {
@@ -61,9 +57,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -112,9 +106,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -163,9 +155,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -226,9 +216,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -458,7 +446,7 @@
             "type": "loki",
             "uid": "auto-loki-auto"
           },
-          "expr": "topk(10, sum by (value, type) (count_over_time({job=\"faro\", kind=\"exception\"} | json [$__range])))",
+          "expr": "topk(10, sum by (view_name, type, app_version) (count_over_time({job=\"faro\", kind=\"exception\"} | json [$__range])))",
           "instant": true,
           "queryType": "instant"
         }

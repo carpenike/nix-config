@@ -342,13 +342,21 @@ in
             respond 404
           }
 
-          handle_path /relay/* {
-            reverse_proxy ${faroCollectorHost}:${toString faroCollectorPort}
+          handle /relay/collect {
+            request_body {
+              max_size 512KB
+            }
+            rewrite * /collect
+            reverse_proxy ${faroCollectorHost}:${toString faroCollectorPort} {
+              header_up -Authorization
+              header_up -Cookie
+              header_up -Referer
+            }
           }
         '';
       };
 
-      # No proxy authentication or /relay handler on the public front door.
+      # No proxy authentication on the public front door.
       # Caddy preserves Host so the app's single allowlist selects the audience.
       modules.services.caddy.virtualHosts.warwed = lib.mkIf
         (serviceEnabled && config.modules.services.caddy.enable)
@@ -360,6 +368,23 @@ in
             port = listenPort;
           };
           security.customHeaders.">X-Robots-Tag" = "noindex, nofollow";
+          extraConfig = ''
+            handle /metrics {
+              respond 404
+            }
+
+            handle /relay/collect {
+              request_body {
+                max_size 512KB
+              }
+              rewrite * /collect
+              reverse_proxy ${faroCollectorHost}:${toString faroCollectorPort} {
+                header_up -Authorization
+                header_up -Cookie
+                header_up -Referer
+              }
+            }
+          '';
           cloudflare = {
             enable = true;
             tunnel = "forge";
@@ -466,7 +491,7 @@ in
         annotations = {
           summary = "Operation W.W.W. is throwing JavaScript errors at users";
           description =
-            "More than 3 browser exceptions in 15 minutes from the W.W.W. SPA. "
+            "More than 3 browser exceptions in 15 minutes from W.W.W. public, crew, or kiosk pages. "
             + "The server may be perfectly healthy -- this is the client failing. "
             + "Check the Applications / W.W.W. Browser Telemetry dashboard, or "
             + "query Loki directly. Stack traces are minified; app_version on each "
