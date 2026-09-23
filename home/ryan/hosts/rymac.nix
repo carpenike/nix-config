@@ -28,6 +28,25 @@ let
       ssh_public_key=${lib.escapeShellArg sshPublicKey}
       sops_document=${lib.escapeShellArg sopsDocument}
 
+      usage() {
+        echo "Usage: yubikey-unlock [--recover]"
+        echo "  --recover  If card discovery fails, restart your macOS PC/SC helpers."
+        echo "             This disconnects other smartcard applications running as your user."
+      }
+
+      recover=false
+      if (( $# > 1 )); then
+        usage >&2
+        exit 2
+      fi
+      if (( $# == 1 )); then
+        case "$1" in
+          --recover) recover=true ;;
+          --help|-h) usage; exit 0 ;;
+          *) printf 'Unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+        esac
+      fi
+
       umask 077
       challenge="$(mktemp "''${TMPDIR:-/tmp}/yubikey-unlock.XXXXXX")"
       gpg_signature="$challenge.gpg"
@@ -45,31 +64,102 @@ let
       }
       trap cleanup EXIT
 
+      check_card() {
+        local attempt
+        for attempt in 1 2 3; do
+          if LC_ALL=C gpg --card-status >/dev/null 2>"$card_status_error"; then
+            return 0
+          fi
+
+          case "$(<"$card_status_error")" in
+            *"OpenPGP card not available: General error"*|\
+            *"OpenPGP card not available: Operation not supported by device"*) ;;
+            *) return 1 ;;
+          esac
+
+          if (( attempt < 3 )); then
+            printf 'waiting... '
+            sleep 1 || return 1
+          fi
+        done
+        return 1
+      }
+
+      card_reader_busy() {
+        [[ "$(<"$card_status_error")" == *"OpenPGP card not available: Operation not supported by device"* ]]
+      }
+
       printf 'Checking GnuPG agent... '
       gpgconf --launch gpg-agent
       echo "ready"
 
       printf 'Checking YubiKey... '
       card_ready=false
-      for attempt in 1 2 3; do
-        if gpg --card-status >/dev/null 2>"$card_status_error"; then
+      if check_card; then
+        card_ready=true
+      elif card_reader_busy; then
+        printf 'restarting smartcard daemon... '
+        gpgconf --kill scdaemon
+        if check_card; then
           card_ready=true
-          break
         fi
+      fi
 
-        if [[ "$(<"$card_status_error")" != *"OpenPGP card not available: General error"* ]]; then
-          cat "$card_status_error" >&2
+      if [[ "$card_ready" != true && "$recover" == true ]] && card_reader_busy; then
+        current_uid="$(id -u)"
+        if [[ "$current_uid" == 0 ]]; then
+          echo "Refusing PC/SC recovery as root. Run yku --recover without sudo." >&2
           exit 1
         fi
 
-        if (( attempt < 3 )); then
-          printf 'waiting... '
-          sleep 1
+        printf '\nRestarting your PC/SC helpers; other smartcard sessions will disconnect.\n'
+        gpgconf --kill scdaemon
+        pcsc_helper="/System/Library/Frameworks/PCSC.framework/Versions/A/XPCServices/com.apple.ctkpcscd.xpc/Contents/MacOS/com.apple.ctkpcscd"
+        processes="$(ps -axww -o uid=,pid=,comm=)"
+        stopped_helper=false
+        while read -r owner pid executable; do
+          if [[ "$owner" != "$current_uid" || "$executable" != "$pcsc_helper" || ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
+            continue
+          fi
+
+          # Recheck identity in case the process exited or its PID was reused.
+          if ! identity="$(ps -ww -p "$pid" -o uid=,comm=)" || [[ -z "$identity" ]]; then
+            printf 'Cannot verify PC/SC helper PID %s; skipping it.\n' "$pid" >&2
+            continue
+          fi
+          read -r verified_owner verified_executable <<< "$identity"
+          if [[ "$verified_owner" != "$current_uid" || "$verified_executable" != "$pcsc_helper" ]]; then
+            printf 'Identity changed for PID %s; skipping it.\n' "$pid" >&2
+            continue
+          fi
+
+          printf 'Stopping your PC/SC helper PID %s...\n' "$pid"
+          if ! kill -TERM "$pid"; then
+            printf 'Could not stop PC/SC helper PID %s; recovery aborted.\n' "$pid" >&2
+            exit 1
+          fi
+          stopped_helper=true
+        done <<< "$processes"
+
+        if [[ "$stopped_helper" != true ]]; then
+          echo "No matching user-owned PC/SC helpers were restarted." >&2
         fi
-      done
+        sleep 1
+        printf 'Checking YubiKey again... '
+        if check_card; then
+          card_ready=true
+        fi
+      fi
 
       if [[ "$card_ready" != true ]]; then
         cat "$card_status_error" >&2
+        if card_reader_busy; then
+          if [[ "$recover" == true ]]; then
+            echo "Recovery did not restore card access. Close other smartcard apps and unplug/reinsert the YubiKey." >&2
+          else
+            echo "macOS card access may be busy or stale. Close other smartcard apps, then run 'yku --recover' to restart your PC/SC helpers." >&2
+          fi
+        fi
         exit 1
       fi
       echo "ready"
