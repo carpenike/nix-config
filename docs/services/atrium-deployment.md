@@ -160,13 +160,59 @@ Whole-flake evaluation is now required to pass; the browser checks do not
 bypass failed foundation/controller jobs. Original source-bound receipts and
 the original P06 baseline failures retain their dates and outcomes.
 
-The owner-selected Whiskey revision is `c3c2ac8`, not the earlier `7624fe0` used
-by the 47 browser groups. Its native authentication, companion/deny policy,
-dependency lock and credential-profile artifacts are unchanged. Its operation
-projection adds `approxEndTime`; Atrium's bounded parser still selects only
+The owner's later Whiskey selections (`c3c2ac8`, `35ed2d8`, then `870616d`) are
+not the earlier `7624fe0` used by the 47 browser groups. The comparison through `c3c2ac8`
+keeps native authentication, companion/deny policy, dependency lock and
+credential-profile artifacts unchanged. Its operation projection adds
+`approxEndTime`; Atrium's bounded parser still selects only
 `id`, `title`, `realDate`, `startTime` and `status`. This source comparison is
 not a new 47-group browser run or a claim that unrelated Whiskey features were
-qualified by P06.
+qualified by P06. The later telemetry/dependency and screening-nomination
+updates received separate source and installed-package qualification; they do
+not inherit an older compiled manifest merely because the application name is
+unchanged.
+
+The selected Whiskey release is
+[`b681741`](https://github.com/carpenike/whiskey-whiskey-whiskey/commit/b681741ab76af6b1bfb9b6a938293870f2e8d7d4),
+merging the qualification-only repair of the owner's `870616d` runtime.
+Its [source-bound receipt](https://github.com/carpenike/whiskey-whiskey-whiskey/blob/b681741ab76af6b1bfb9b6a938293870f2e8d7d4/docs/evidence/ATR-W03-generation-manifest-870616d.json)
+records 238 generation, 159 native and 245 changed-boundary cases, with one
+pre-existing native unit skip distinguished from the executed cases. Actual
+installed Darwin checks pass all twenty compiled hashes and twelve generation
+cases, including private-runtime and byte-drift refusals, with zero background
+inference. Separate installed migration and JWT/HTTPS read probes cover the
+changed database/service boundary. All 151 executable server modules match the
+owner's runtime; no application logic or dependency version was changed by the
+repair. Existing application CI now runs the same compiled-contract checker
+after its build, without bypassing mismatches.
+
+The earlier `c3c2ac8` and `35ed2d8` receipts remain historical. None of these
+source, installed-native or CI results relabels the original 47 browser groups.
+The final deployment selection also passed the existing installed Linux
+Whiskey cutover guest and Forge build on **2026-09-23**; source-build CI and
+Darwin results were not substituted for those Linux checks:
+
+* `atrium-whiskey-cutover` passed all nine preparation and seven host/network
+  groups, the twenty installed compiled hashes and twelve generation cases,
+  and the private-runtime refusal. Its actual Linux Node 22.22.2 process made
+  six synthetic generation requests and two background validations, with zero
+  background inference. The guest cleaned up normally. The exact derivation
+  is `02hnd0vzgz0ak3xmbaz80anzmbj52nzb-vm-test-run-atrium-owner-whiskey-cutover`;
+  its output is `slr7wk8pkm2h2fnicnf0mn46qzvihsi8-vm-test-run-atrium-owner-whiskey-cutover`.
+* `atrium-forge-native-policy-compatibility` passed its five installed-native
+  view bindings, six refusals and recovery on Linux, producing
+  `a5h890mjw5kccwf8p3h0ppdbgdb8wm6p-atrium-native-policy-compatibility`.
+* All-system whole-flake evaluation, current source/pin checks, isolated units
+  and model preparation, fourteen browser wiring checks, and composed normal
+  and adopted Caddy checks passed.
+* The normal remote Forge build produced
+  `4icc6lahl6z2rcbhp5ri0wv2n7nw4a49-nixos-system-forge-25.11.20260630.b6018f8`.
+  This was a build only, not activation.
+
+These checks use the selected `b681741` application package and retain the
+original failed stale-manifest Linux run as historical evidence. They do not
+register the browser client, exercise household credentials, make paid model
+requests, or assert that the browser has been deployed.
 
 ## Host-generated fixture boundary
 
