@@ -470,10 +470,12 @@ def preflight(configuration):
     seed = PolicySeed.model_validate_json(
         json.dumps(read_json(c.finance_grants, public=True))
     )
+    expected_views = {"personal-finance", "personal-scribe", "personal-status"}
+    if any(view.resource.id == "personal-money" for view in views.active_views()):
+        expected_views.add("personal-money")
     require(
-        len(seed.grants) == 3
-        and {grant.request.instance for grant in seed.grants}
-        == {"personal-finance", "personal-scribe", "personal-status"},
+        len(seed.grants) == len(expected_views)
+        and {grant.request.instance for grant in seed.grants} == expected_views,
         "exact_finance_plan_required",
     )
     for grant in seed.grants:

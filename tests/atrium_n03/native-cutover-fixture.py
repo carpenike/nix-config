@@ -872,7 +872,7 @@ def tests(fixture_path, fixture, configuration):
             )
         PublicKeys(load(root / "policy" / "native-jwks.json"))
         PublicKeys(load(root / "policy" / "resolver-jwks.json"))
-        assert len(query(database, "SELECT * FROM grants")) == 4
+        assert len(query(database, "SELECT * FROM grants")) == 5
         assert (
             query(database, "SELECT * FROM grants WHERE id=?", (ordinary[0][0],))
             == ordinary

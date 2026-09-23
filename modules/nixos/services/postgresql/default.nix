@@ -206,14 +206,16 @@ let
   additionalRoleType = types.submodule {
     options = {
       passwordFile = lib.mkOption {
-        type = types.str;
+        type = types.nullOr types.str;
         apply = p:
-          assert lib.assertMsg
-            (!lib.hasPrefix "/nix/store" p)
-            "passwordFile must not be in the Nix store (would leak secrets). Use a runtime path like /run/secrets/...";
-          p;
+          if p == null then null else
+            assert lib.assertMsg
+              (!lib.hasPrefix "/nix/store" p)
+              "passwordFile must not be in the Nix store (would leak secrets). Use a runtime path like /run/secrets/...";
+            p;
         description = ''
           Runtime path to file containing the role's password.
+          Explicit null is only for separately configured peer/socket authentication.
           Must be a runtime path (e.g., /run/secrets/..., /run/agenix/...)
           that is NOT copied to the Nix store.
 

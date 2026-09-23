@@ -19,6 +19,7 @@ let
     personal-finance = { route = "/cc/views/personal-finance"; scope = "atrium-personal-finance"; access = "read-write"; };
     personal-scribe = { route = "/cc/views/personal-scribe"; scope = "atrium-personal-scribe"; access = "read-write"; };
     personal-status = { route = "/cc/views/personal-status"; scope = "atrium-personal-status"; access = "read-only"; };
+    personal-money = { route = "/cc/views/personal-money"; scope = "atrium-personal-money"; access = "read-only"; };
   };
   registry = {
     environment = "isolated";
@@ -217,7 +218,7 @@ let
       inherit (nativeTemplate) deny;
     };
     finance_grants = jsonFile "native-cutover-fixture-finance.json"
-      (seed [ "personal-finance" "personal-scribe" "personal-status" ]);
+      (seed [ "personal-finance" "personal-scribe" "personal-status" "personal-money" ]);
     native_issuer = nativeIssuer;
     native_jwks_url = "${nativeIssuer}/oauth/jwks.json";
     resolver_jwks_url = "${resolverIssuer}/.well-known/jwks.json";

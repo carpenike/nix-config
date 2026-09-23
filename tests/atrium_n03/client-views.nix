@@ -16,7 +16,7 @@ let
   catalog = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"));
   scopes = [ "atrium-personal-read" "atrium-family-read" ]
-    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" ];
+    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" ];
   tools = config: builtins.fromJSON
     config.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
   resources = config: builtins.fromJSON
@@ -30,7 +30,7 @@ let
   grantUnit = "atrium-grant-finance-clients";
   grantService = native.systemd.services.${grantUnit};
   grants = bootstrap.financeClients.grants;
-  expectedGrants = map (name: "cc.personal.ryan.${name}") [ "finance" "scribe" "status" ];
+  expectedGrants = map (name: "cc.personal.ryan.${name}") [ "finance" "scribe" "status" "money" ];
   checks = {
     exact-source-profiles = catalog.scopes.atrium-personal-finance.tools
       == lib.subtractLists
@@ -41,7 +41,10 @@ let
       == lib.remove "homelab_list_status" catalog.scopes.hermes.tools
       && lib.length catalog.scopes.atrium-personal-scribe.tools == 12
       && catalog.scopes.atrium-personal-status.tools == [ "homelab_list_status" ]
-      && catalog.scopes.atrium-personal-status.resources == [ ];
+      && catalog.scopes.atrium-personal-status.resources == [ ]
+      && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" ]
+      && catalog.scopes.atrium-personal-money.resources == [ ]
+      && catalog.scopes.atrium-personal-money.permissions == [ "read" ];
     honest-write-permissions = lib.all
       (scope: catalog.scopes.${scope}.permissions == [ "read" "write" ])
       [ "atrium-personal-finance" "atrium-personal-scribe" ]
@@ -67,17 +70,19 @@ let
         && view.deployment == "home-mcp" && view.kind == "view"
         && view.route == "/cc/views/personal-${name}"
         && view.scopes == [ "atrium-personal-${name}" ]
-        && view.access == (if name == "status" then "read-only" else "read-write")
+        && view.access == (if lib.elem name [ "status" "money" ] then "read-only" else "read-write")
         && view.authorityBinding == [ "pocketid" ]
         && template.domain == view.domain && template.instance == "personal-${name}"
         && template.scopes == view.scopes && template.acl == view.acl
         && template.permissions == [ ] && template.maxLifetimeSeconds == 900)
-      [ "finance" "scribe" "status" ];
+      [ "finance" "scribe" "status" "money" ];
     advisor-remains-group-backed = registry.instances.personal-finance.acl
       == { principals = [ ]; groups = [ "atrium-personal-ryan" ]; };
     automation-is-explicit-not-group-fallback = lib.all
       (name: registry.instances.${name}.acl == { principals = [ "ryan" ]; groups = [ ]; })
       [ "personal-scribe" "personal-status" ];
+    money-is-owner-only = registry.instances.personal-money.acl
+      == { principals = [ "ryan" ]; groups = [ ]; };
     ordinary-groups-still-required = lib.all
       (name: registry.instances.${name}.acl.principals == [ ])
       [ "personal-data-read" "family-home-read" ]
@@ -89,6 +94,7 @@ let
         "personal-finance"
         "personal-scribe"
         "personal-status"
+        "personal-money"
       ];
     default-public-resource-unchanged = runtime.native.resource == {
       id = "personal-data-read";
