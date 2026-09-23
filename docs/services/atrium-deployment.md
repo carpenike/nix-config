@@ -214,6 +214,27 @@ original failed stale-manifest Linux run as historical evidence. They do not
 register the browser client, exercise household credentials, make paid model
 requests, or assert that the browser has been deployed.
 
+## Native backend firewall
+
+The `ATRIUM-NATIVE` output chain restricts loopback TCP port 9200 to the
+declared Caddy and resolver service identities. Its reject rule must include
+its own `-p tcp` when using `--reject-with tcp-reset`: nft-backed iptables
+validates the rule independently and does not inherit the protocol match from
+the `OUTPUT` jump. Omitting it caused the September 23 `RULE_APPEND failed
+(Invalid argument)` failure during firewall start.
+
+`atrium-native-firewall` now exercises the actual generated rule file and
+native start/stop commands in an isolated Linux guest with `iptables-nft`.
+It reproduces the missing-protocol refusal, verifies both permitted identities
+and root/unrelated-user denials, preserves unrelated loopback traffic, and
+checks real firewall start/reload/restart without duplicate jumps. The native
+application's authentication and private resolver-mTLS issuance remain
+separate, unchanged boundaries.
+
+Apply the corrected NixOS configuration through the normal owner workflow.
+Do not flush firewall tables, widen the backend allowlist, reset grants or
+rerun native preparation to repair this packet-filter error.
+
 ## Personal Money overview (FIN-UX-01)
 
 The Money deployment consumes Atrium's bounded overview and Home MCP 0.27.0.
