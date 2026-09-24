@@ -132,7 +132,7 @@
     # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/f36938f884b61d7d46bb23bf6423e47b247752b3";
+      url = "github:carpenike/atrium/00765c5ee989c3fe8c1e114f86d02d2acbcb9bb6";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -196,7 +196,7 @@
     homelab-mcp = {
       # Qualified read-only Money snapshot and unchanged existing native clients.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/f0ced5f91093e31d5bf7545d660b6bbb4ccbf25c";
+      url = "github:carpenike/mcp/bf8cdfbf8e34d787c4d88006e608c2b85c18137f";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

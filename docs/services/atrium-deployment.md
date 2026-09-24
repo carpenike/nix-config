@@ -356,7 +356,7 @@ separate runtime revisions.
 
 ## Cashflow and category reporting (FIN-UX-02)
 
-This proposal consumes the bounded Personal cashflow/category-history slice
+This deployment consumes the bounded Personal cashflow/category-history slice
 from Atrium and Home MCP 0.28.0. The existing `personal-money` view keeps its
 target, read-only permission, owner ACL and grant identity; the source catalog
 adds only `finances_cashflow` alongside `finances_overview`. Other native
@@ -368,6 +368,13 @@ atomically. The existing `atrium-money-reader` table-level SELECT permission
 already covers the new column: no new database password, role membership,
 broader reporting-table grant or native grant preparation is needed.
 Old overview data remains readable during the upgrade.
+
+The release selects Atrium `00765c5` (carpenike/atrium#70) and Home MCP
+`bf8cdfb` (carpenike/mcp#85). Their merge trees match the qualified source heads.
+On September 24 Ryan explicitly accepted the completed local, native/browser
+and installed-Linux evidence regardless of hosted CI availability. Hosted
+billing failures remain visible rather than being relabeled as successful
+test executions; this does not authorize automatic production activation.
 
 Use the normal owner NixOS application after the source/deployment releases
 are approved and merged. The existing database provisioner and normal exporter
