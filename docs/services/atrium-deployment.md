@@ -78,6 +78,51 @@ These checks do not activate services, run native/Podman acceptance, modify live
 credentials or claim any T-case. App behavior and native acceptance run under
 the app-owned harness with separate explicit authorization.
 
+## In-place activation and running-version checks
+
+The September 24 rollout exposed an activation race, not missing package pins:
+NixOS stopped a changed resolver before installing/reloading unit definitions.
+A timer-driven dependent started it again using the still-loaded old command.
+After `daemon-reload`, the switch's final `start` was a no-op because the old
+process was already running. PostgreSQL and its retained provisioning oneshot
+could similarly keep the old configuration/schema work.
+
+The resolver/device-serving units, PostgreSQL and the database provisioner now
+use `stopIfChanged = false` while retaining `restartIfChanged = true`. NixOS
+queues an actual restart after loading the new unit definitions instead of
+early-stop/late-start. This is not a disabled restart, periodic blanket restart,
+or a pause of model reconciliation throughout a potentially long build.
+Normal first boot, unchanged switches, native preparation/grants, database
+state and the existing backup lease remain separate and unchanged.
+
+`atrium-activation-switch` exercises real in-place NixOS specialisation switches,
+a versioned fixture daemon and actual PostgreSQL with timer-driven dependency
+starts. It consumes the production lifecycle flags, compares the served version
+with the installed unit, checks loaded database settings and schema, preserves
+persistent markers/rows, and covers unchanged deployment and visible
+provisioning failure/recovery. This is lifecycle evidence, not a substitute
+for native authentication or financial-content qualification.
+
+The five actual switch groups pass at
+`/nix/store/v5xcm7kgwb7c1hxnlalzvglk1c4zs99g-vm-test-run-atrium-in-place-activation`,
+including repair of an already-stale process/configuration. An unchanged
+switch retains the daemon PID and provisioning run count. The existing backup
+lease and guarded-apply fault tests also pass; neither wrapper was changed.
+The full unactivated Forge build is
+`/nix/store/j1bsh5bcza4zn0kfnc05ky97k48d02x8-nixos-system-forge-25.11.20260630.b6018f8`.
+
+The first normal owner apply of this correction restarts the affected changed
+units, including PostgreSQL, so expect a brief database connection interruption.
+It does not initialize a database, recreate identities, run finance exports or
+reset grant/credential history.
+
+When diagnosing a rollout, `systemctl show ExecStart` describes the loaded
+unit, not necessarily the command used by its existing process. Check the
+running PID's command or the application's own version response, and the
+database's loaded settings/schema, before claiming successful activation.
+Do not compensate by rerunning foundation initialization, replacing grants,
+flushing firewall tables or rotating retained credentials.
+
 ## Browser hosting and owner registration
 
 `hosts/forge/services/atrium-pwa.nix` consumes the app's static package and

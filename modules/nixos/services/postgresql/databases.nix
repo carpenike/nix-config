@@ -1058,6 +1058,8 @@ in
           after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
           requires = [ "postgresql-readiness-wait.service" ];
           wantedBy = [ "multi-user.target" ];
+          # RemainAfterExit must not preserve an old-script run during the switch window.
+          stopIfChanged = false;
 
           # Run once per boot, but only if config changed
           serviceConfig = {
