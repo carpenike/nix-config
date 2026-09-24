@@ -239,6 +239,22 @@ task nix:apply-darwin host=rymac
 task nix:build-nixos host=forge
 ```
 
+### Binary caches and private inputs
+
+The flake adds `nix-community.cachix.org` and `carpenike.cachix.org` alongside
+Nix's default `cache.nixos.org`. These caches avoid compiling matching store
+paths; a cache miss can still be built from source. Garnix was removed from the
+flake and shared host trust settings after `cache.garnix.io` returned public
+NXDOMAIN on 2026-09-24. No replacement cache is required.
+
+Private GitHub inputs are a separate concern. The process evaluating the flake
+needs a GitHub token with access to each private repository; an unauthenticated
+archive request can return HTTP 404 even when the pinned commit exists.
+Forge's SOPS-managed `nix/access-tokens` include is root-only and does not
+configure the non-root user's evaluator. Verify credentials in the actual
+evaluation context, not just with `gh` or as root. Keep tokens out of the
+repository and preserve the root secret's restrictive permissions.
+
 ### Common Operations
 
 ```bash
