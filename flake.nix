@@ -132,7 +132,7 @@
     # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/39346f4305550d2ddadcd51bea1129ff46c8265d";
+      url = "github:carpenike/atrium/f36938f884b61d7d46bb23bf6423e47b247752b3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -196,7 +196,7 @@
     homelab-mcp = {
       # Qualified read-only Money snapshot and unchanged existing native clients.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/6eda33c2deeb43878fcddf17478628ceba5dcdc3";
+      url = "github:carpenike/mcp/f0ced5f91093e31d5bf7545d660b6bbb4ccbf25c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -577,6 +577,15 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 configuration = inputs.self.nixosConfigurations.forge.config;
+              };
+            atrium-money-reporting =
+              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
+              import ./tests/atrium_n03/money-reporting.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                configuration = inputs.self.nixosConfigurations.forge.config;
+                nativeSource = inputs.homelab-mcp;
               };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));

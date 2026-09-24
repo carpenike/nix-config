@@ -354,6 +354,40 @@ refusal and all nine preparation/seven host groups, with zero background
 inference. Its source-bound receipts preserve the earlier failures and
 separate runtime revisions.
 
+## Cashflow and category reporting (FIN-UX-02)
+
+This proposal consumes the bounded Personal cashflow/category-history slice
+from Atrium and Home MCP 0.28.0. The existing `personal-money` view keeps its
+target, read-only permission, owner ACL and grant identity; the source catalog
+adds only `finances_cashflow` alongside `finances_overview`. Other native
+profiles and client mappings are unchanged.
+
+The source-owned `overview.sql` adds nullable `cashflow_payload` to the existing
+`household_finance.money_overview` row. The exporter publishes both payloads
+atomically. The existing `atrium-money-reader` table-level SELECT permission
+already covers the new column: no new database password, role membership,
+broader reporting-table grant or native grant preparation is needed.
+Old overview data remains readable during the upgrade.
+
+Use the normal owner NixOS application after the source/deployment releases
+are approved and merged. The existing database provisioner and normal exporter
+consume the source DDL; no destructive migration or manual table replacement
+is required. If cashflow has not yet been published, its UI reports that
+explicitly. Reading or choosing months never triggers a sync or export.
+
+The dedicated `atrium-money-reporting` Linux check uses the actual configured
+PostgreSQL HBA/identity map and source DDL. It proves service-only peer login,
+foreign/root refusal, upgrading the original two-column table with its existing
+reader grant, preserved overview data, denied writes/unrelated reads, and
+idempotence across provisioning and PostgreSQL restart. Real native/client
+authorization, atomic publication and report semantics have separate app/native
+evidence rather than being inferred from this database check.
+
+This is not debt/net-worth history, project reporting, bookkeeping, Family
+sharing, model inclusion or Grafana retirement. FIN-UX-01's first populated
+owner snapshot remains a separate live observation, not something established
+by synthetic reporting tests.
+
 ## Host-generated fixture boundary
 
 The retained functions `tests/atrium_n04/fixture.nix` and
