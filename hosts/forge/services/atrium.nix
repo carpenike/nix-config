@@ -72,6 +72,8 @@ let
       wants = [ "network-online.target" ];
       requires = [ "zfs-service-datasets.service" "firewall.service" ];
       after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" ];
+      # Timer-driven dependents must not revive the old executable before daemon-reload.
+      stopIfChanged = false;
       restartTriggers = [
         config.environment.etc."atrium/runtime/${unit}.json".source
         config.services.atrium.generated.resolver

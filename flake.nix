@@ -587,6 +587,14 @@
                 configuration = inputs.self.nixosConfigurations.forge.config;
                 nativeSource = inputs.homelab-mcp;
               };
+            atrium-activation-switch =
+              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
+              import ./tests/atrium_n03/activation-switch.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                configuration = inputs.self.nixosConfigurations.forge.config;
+              };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
             atrium-forge-credential-systemd =

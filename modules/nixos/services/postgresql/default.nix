@@ -1341,6 +1341,8 @@ in
 
         # Extend systemd service configuration
         systemd.services.postgresql = {
+          # Restart against the new unit/config, not an early dependency-triggered start.
+          stopIfChanged = false;
           # Ensure PostgreSQL doesn't start until required directories are mounted
           unitConfig = {
             RequiresMountsFor = [ cfg.dataDir ] ++ lib.optional (cfg.backup.walArchive.enable or false) cfg.walArchiveDir;
