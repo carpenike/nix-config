@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "kind": "atrium.native-vendor-source-comparison",
-  "application_revision": "39346f4305550d2ddadcd51bea1129ff46c8265d",
-  "native_revision": "6eda33c2deeb43878fcddf17478628ceba5dcdc3",
+  "application_revision": "00765c5ee989c3fe8c1e114f86d02d2acbcb9bb6",
+  "native_revision": "bf8cdfbf8e34d787c4d88006e608c2b85c18137f",
   "vendor_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
   "scope": "Exact source applicability comparison, not a new native authentication gate. Every unlisted source member and digest must remain identical.",
   "reviewed_changes": {
@@ -33,7 +33,7 @@
     },
     "resolver/MANIFESTS.md": {
       "previous_sha256": "de127c4fb85514b79258253c793599e90e1051e82efbaafa610e70ba204d1405",
-      "current_sha256": "5e566edb1e04db61a128a1bb7734c1887e595472ad4f6ec8656fc42de371f13c",
+      "current_sha256": "3b60e4b5d639f452ac054967a3ad068181a31f185220502fd15f4e29d2593704",
       "reason": "Discovery and opt-in Money module documentation, not executable consumer behavior."
     },
     "resolver/README.md": {
@@ -43,12 +43,12 @@
     },
     "resolver/src/atrium_resolver/app.py": {
       "previous_sha256": "9b88dc08182d3494ab05a5b1f800a8ff8fd1e65b2a177d31d1ee48c6c294ddd0",
-      "current_sha256": "52727f1d987dd52dab7f8f5624b3109380ed18c565aa3e10ff0f8f232804f0ca",
+      "current_sha256": "77c7f63100ca3c0c71944a42407d44dae8b4eb27d49281419664a28c884ddfbe",
       "reason": "Non-minting browser discovery and opt-in module header negotiation; Home MCP does not run the resolver application."
     },
     "resolver/src/atrium_resolver/manifests.py": {
       "previous_sha256": "feb0d31f8706d6ba6cd4a73a4efefa9ddf95c5fe69987f6af23a78dae200568d",
-      "current_sha256": "b2227928f31886c5bdb8668e88569f171f5d837af7f78cb62c75687025a032ec",
+      "current_sha256": "2e9fd45f6d87c02c91f56491ffe6dd244c7ea6af514f98a1b1332f1e4bd78004",
       "reason": "Non-minting descriptions with opt-in, current-owner/read-only Money capability metadata; Home MCP does not invoke the manifest service."
     },
     "resolver/src/atrium_resolver/policy.py": {
@@ -58,7 +58,7 @@
     },
     "resolver/tests/test_discovery.py": {
       "previous_sha256": null,
-      "current_sha256": "c684882e7cec922f0023881e1b23968cd78b738728142a1eabdd062b3911720b",
+      "current_sha256": "aafd504e2eed313218569962e1249858ba34b81031271bbdece50e0728166312",
       "reason": "Discovery and module negotiation tests, not imported by Home MCP."
     }
   }
