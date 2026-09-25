@@ -42,7 +42,7 @@ let
       && lib.length catalog.scopes.atrium-personal-scribe.tools == 12
       && catalog.scopes.atrium-personal-status.tools == [ "homelab_list_status" ]
       && catalog.scopes.atrium-personal-status.resources == [ ]
-      && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" "finances_cashflow" ]
+      && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" "finances_cashflow" "finances_balance_history" ]
       && catalog.scopes.atrium-personal-money.resources == [ ]
       && catalog.scopes.atrium-personal-money.permissions == [ "read" ];
     honest-write-permissions = lib.all
