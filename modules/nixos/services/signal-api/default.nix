@@ -66,7 +66,7 @@ mylib.mkContainerService {
     # to send and the only fix is a newer image. Treat a "sending suddenly
     # broke" incident as an image-age problem first.
     #   Upstream releases: https://github.com/bbernhard/signal-cli-rest-api/releases
-    image = "bbernhard/signal-cli-rest-api:0.100@sha256:2399d449123cdad56c4d859277e3b9127e1a00c4d2ab4601c239882609286cf8";
+    image = "bbernhard/signal-cli-rest-api:0.101@sha256:2cf09d66a86fdd210e42ee91662216364acc27da1163a8c44167a77ea3a6559a";
 
     operationalProfile = "infrastructure";
     displayName = "Signal API";
