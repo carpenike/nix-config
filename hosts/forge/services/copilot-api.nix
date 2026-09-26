@@ -50,7 +50,7 @@ in
         enable = true;
 
         # Pin container image (Renovate will update)
-        image = "ghcr.io/caozhiyuan/copilot-api:v2.6.12@sha256:7fe1beb3e97a3f2240363859eddf008efac4283bafd3597065b98c8937178ef5";
+        image = "ghcr.io/caozhiyuan/copilot-api:v2.6.13@sha256:3845d5892dae98a0b8a4e3d3274831da6bf5c0b705b4a8cc8856cf6091c99f4c";
 
         # 4141 is upstream's default and unused elsewhere on forge.
         port = listenPort;
