@@ -139,7 +139,7 @@ mylib.mkContainerService {
   spec = {
     port = containerPort;
     inherit containerPort;
-    image = "ghcr.io/caozhiyuan/copilot-api:v2.6.16@sha256:55b83f6026111b25e12eb42700891d0e2441c4564c49aa1520c234b9346a2af3";
+    image = "ghcr.io/caozhiyuan/copilot-api:v2.6.17@sha256:a904a431cf1219f9a1fb2e2e827582eba4eea7ca1048afee9715869381e92dd3";
     operationalProfile = "ai";
     displayName = "Copilot API";
     function = "llm_inference_proxy";
