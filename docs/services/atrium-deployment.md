@@ -448,6 +448,20 @@ the existing Personal-only view, route, grant ID, database peer map and
 `money_overview` table-level SELECT role. No new grant preparation or password
 is required.
 
+The coordinated release selects Atrium `006500d` (carpenike/atrium#71) and
+Home MCP `c206c75` (carpenike/mcp#86), whose merge trees match the source-qualified
+heads. On September 28 Ryan accepted completed local checks in place of hosted
+jobs that were refused by billing before execution. This does not relabel
+hosted failures as successful runs or authorize production activation.
+
+The separate Forge source-fetch failure was not a billing failure: the
+VueTorrent URL had advanced to v2.35.0 while retaining an older unpacked hash.
+The selected version is unchanged. Its corrected hash was verified against
+GitHub release asset `527936192` and ZIP SHA256
+`6e0c0e6acb563710aaf32cd165cf34da0e5d61bc1a68386e4cf97a648fa8171c`,
+then independently fetched with Nix and compared file-by-file. The verified
+unpacked hash is `sha256-sPEyumlEGdlx59SeJ0n2XM0dG60bY+LamrumTGW9Nfg=`.
+
 The source-owned DDL adds nullable `balance_payload` to the same row. All three
 reports publish atomically and retain independent explicit source/basis
 information without changing the existing overview/cashflow response shapes.
