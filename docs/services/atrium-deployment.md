@@ -440,6 +440,46 @@ sharing, model inclusion or Grafana retirement. FIN-UX-01's first populated
 owner snapshot remains a separate live observation, not something established
 by synthetic reporting tests.
 
+## Net worth, buffer and configured-debt history
+
+The September 25 bounded FIN-UX-02 history slice adds
+`finances_balance_history` to the reviewed read-only Money scope. It retains
+the existing Personal-only view, route, grant ID, database peer map and
+`money_overview` table-level SELECT role. No new grant preparation or password
+is required.
+
+The coordinated release selects Atrium `006500d` (carpenike/atrium#71) and
+Home MCP `c206c75` (carpenike/mcp#86), whose merge trees match the source-qualified
+heads. On September 28 Ryan accepted completed local checks in place of hosted
+jobs that were refused by billing before execution. This does not relabel
+hosted failures as successful runs or authorize production activation.
+
+The separate Forge source-fetch failure was not a billing failure: the
+VueTorrent URL had advanced to v2.35.0 while retaining an older unpacked hash.
+The selected version is unchanged. Its corrected hash was verified against
+GitHub release asset `527936192` and ZIP SHA256
+`6e0c0e6acb563710aaf32cd165cf34da0e5d61bc1a68386e4cf97a648fa8171c`,
+then independently fetched with Nix and compared file-by-file. The verified
+unpacked hash is `sha256-sPEyumlEGdlx59SeJ0n2XM0dG60bY+LamrumTGW9Nfg=`.
+
+The source-owned DDL adds nullable `balance_payload` to the same row. All three
+reports publish atomically and retain independent explicit source/basis
+information without changing the existing overview/cashflow response shapes.
+The reporting-store fixture now starts with the prior cashflow-capable table
+and verifies both old values survive the history-column upgrade and restart.
+Writes, other table access and foreign peer identities remain refused.
+
+Use the normal owner NixOS application once the coordinated release is ready.
+The installed post-reload activation policy ensures changed provisioning runs
+with the new script. The regular exporter supplies the first history payload;
+the UI never runs it as a fallback. A missing first publication is distinct
+from a missing schema or malformed source.
+
+Only aggregate current-roster/register history is shown, with the configured
+current buffer floor and explicit gaps/basis changes. No account details,
+historical valuation fabrication, payment recommendation, source write, bank
+sync, model inclusion, Family sharing or Grafana retirement is included.
+
 ## Host-generated fixture boundary
 
 The retained functions `tests/atrium_n04/fixture.nix` and

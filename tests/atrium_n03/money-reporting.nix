@@ -16,9 +16,11 @@ let
     SET ROLE "${owner}";
     CREATE TABLE household_finance.money_overview (
       singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
-      payload text NOT NULL CHECK(octet_length(payload) <= 16384)
+      payload text NOT NULL CHECK(octet_length(payload) <= 16384),
+      cashflow_payload text CHECK(octet_length(cashflow_payload) <= 524288)
     );
-    INSERT INTO household_finance.money_overview VALUES (true, '{"fixture":"retained-overview"}');
+    INSERT INTO household_finance.money_overview VALUES
+      (true, '{"fixture":"retained-overview"}', '{"fixture":"retained-cashflow"}');
     CREATE TABLE household_finance.unrelated_fixture (value integer);
     RESET ROLE;
     GRANT CONNECT ON DATABASE homelab_finance TO "${reader}";
@@ -67,6 +69,7 @@ hostPkgs.testers.runNixOSTest {
     groups = []
     assert select("SELECT current_user") == "${reader}"
     original = select("SELECT payload FROM household_finance.money_overview")
+    original_cashflow = select("SELECT cashflow_payload FROM household_finance.money_overview")
     assert "retained-overview" in original
     machine.fail("runuser -u nobody -- psql -X -qAt " + shlex.quote(dsn) + " -c 'SELECT 1'")
     machine.fail("psql -X -qAt " + shlex.quote(dsn) + " -c 'SELECT 1'")
@@ -74,25 +77,29 @@ hostPkgs.testers.runNixOSTest {
 
     machine.succeed(admin + " -c " + shlex.quote('SET ROLE "${owner}";') + " -f ${ddl}")
     assert select("SELECT payload FROM household_finance.money_overview") == original
-    assert select("SELECT cashflow_payload IS NULL FROM household_finance.money_overview") == "t"
-    owner_sql("""UPDATE household_finance.money_overview SET cashflow_payload='{"fixture":"cashflow"}'""")
-    assert "cashflow" in select("SELECT cashflow_payload FROM household_finance.money_overview")
-    groups.append("source-ddl-adds-report-column-without-new-role-or-grant")
+    assert select("SELECT cashflow_payload FROM household_finance.money_overview") == original_cashflow
+    assert select("SELECT balance_payload IS NULL FROM household_finance.money_overview") == "t"
+    owner_sql("""UPDATE household_finance.money_overview SET balance_payload='{"fixture":"balance-history"}'""")
+    assert "balance-history" in select("SELECT balance_payload FROM household_finance.money_overview")
+    groups.append("source-ddl-adds-history-without-changing-existing-reports-role-or-grant")
 
     for query in (
         "UPDATE household_finance.money_overview SET cashflow_payload=NULL",
+        "UPDATE household_finance.money_overview SET balance_payload=NULL",
         "DELETE FROM household_finance.money_overview",
         "SELECT * FROM household_finance.unrelated_fixture",
     ):
         machine.fail(reader + " -c " + shlex.quote(query))
-    assert "cashflow" in select("SELECT cashflow_payload FROM household_finance.money_overview")
+    assert select("SELECT cashflow_payload FROM household_finance.money_overview") == original_cashflow
+    assert "balance-history" in select("SELECT balance_payload FROM household_finance.money_overview")
     groups.append("same-reader-cannot-write-or-read-unrelated-tables")
 
     machine.succeed(admin + " -c " + shlex.quote('SET ROLE "${owner}";') + " -f ${ddl}")
     machine.succeed("systemctl restart postgresql")
     machine.wait_for_unit("postgresql")
     assert select("SELECT payload FROM household_finance.money_overview") == original
-    assert "cashflow" in select("SELECT cashflow_payload FROM household_finance.money_overview")
+    assert select("SELECT cashflow_payload FROM household_finance.money_overview") == original_cashflow
+    assert "balance-history" in select("SELECT balance_payload FROM household_finance.money_overview")
     groups.append("repeated-provision-and-service-restart-preserve-overview-report-and-peer-access")
     print(json.dumps({
         "kind": "atrium.money-reporting-store",
