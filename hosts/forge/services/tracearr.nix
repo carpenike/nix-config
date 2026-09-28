@@ -35,7 +35,7 @@ in
 
         # Use standard image (not supervised all-in-one)
         # Pin with digest for reproducibility; Renovate will update
-        image = "ghcr.io/connorgallopo/tracearr:2.4.1@sha256:689af46c10c34ccd0487be71a713323574a8cfd60214d89fee6ddb5f60555eae";
+        image = "ghcr.io/connorgallopo/tracearr:2.5.1@sha256:2af90bdc9aa5a6fbc4adddcb2482a4ca7a18247e876ea7a020e1264a0e172757";
 
         # Enable MaxMind GeoIP for accurate IP geolocation
         maxmindLicenseKeyFile = config.sops.secrets."tracearr/maxmind_license_key".path;

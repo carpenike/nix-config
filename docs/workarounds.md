@@ -295,6 +295,19 @@ as everything else in this file.
 
 Services using `pkgs.unstable.*` instead of stable packages:
 
+### github-runner
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-09-25 |
+| **Location** | `hosts/forge/services/github-runner.nix` |
+| **Reason** | GitHub rejects the EOL nixos-25.11 package, runner 2.335.1, with `Runner version v2.335.1 is deprecated and cannot receive messages`. Registration succeeds, but the listener exits before it can accept jobs. The NixOS module disables the runner's automatic updater, so restarting does not update the binary. |
+| **Workaround** | Use `pkgs.unstable.github-runner` (2.337.0 in the existing lock) only for Forge's runner. Keep flake inputs, credentials, labels, and ephemeral behavior unchanged. |
+| **Module compatibility** | Set `services.github-runners.forge.nodeRuntimes = [ "node24" ]` alongside the package override. The stable module also requests Node 20 by default, but the unstable package only supports Node 24; changing the package alone fails evaluation. |
+| **Validation** | Evaluate the effective runner version and runtimes, build Forge with `task nix:build-nixos host=forge`, and deploy through `task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net`. Confirm the service remains active, the journal reports the new version listening for jobs without a deprecation error, and GitHub reports the runner online. |
+| **Check** | Remove both overrides when the root stable channel provides a GitHub-supported runner and compatible runtime defaults. Keep the runner current through Nix updates and deployments; the separately tracked stable-channel migration is not part of this fix. |
+| **Upstream** | [Runner v2.337.0](https://github.com/actions/runner/releases/tag/v2.337.0), [self-hosted runner update policy](https://docs.github.com/en/actions/reference/runners/self-hosted-runners#runner-software-updates-on-self-hosted-runners) |
+
 ### music-assistant
 
 | Field | Value |

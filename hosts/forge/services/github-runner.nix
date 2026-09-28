@@ -65,6 +65,15 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # WORKAROUND (2026-09-25): GitHub rejects the EOL channel's runner.
+      # Affects: Forge's Actions runner; unstable requires Node 24 only.
+      # Upstream: https://github.com/actions/runner/releases/tag/v2.337.0
+      # Check: Remove when stable supplies a supported runner and matching runtimes.
+      services.github-runners.forge = {
+        package = pkgs.unstable.github-runner;
+        nodeRuntimes = [ "node24" ];
+      };
+
       # Service monitoring alert
       # GitHub runner is a systemd service, use systemd alert helper
       modules.alerting.rules."github-runner-service-down" =
