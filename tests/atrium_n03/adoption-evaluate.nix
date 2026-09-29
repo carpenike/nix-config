@@ -148,6 +148,14 @@ let
       && reconcilerAlert.for == "1m" && reconcilerAlert.severity == "high"
       && (controller.serviceConfig.SuccessExitStatus or [ ]) == [ ]
       && controllerSettings.service_delivery."cc.personal.ryan.whiskey-service".ack_timeout_seconds == 60;
+    health-requires-completed-reconciliation = lib.all
+      (text: lib.hasInfix text selected.systemd.services.atrium-model-health.script)
+      [
+        "/run/atrium-publications/controller/reconciliation.json"
+        ''test -r "$path"''
+        ''test ! -L "$path"''
+        ''test "$((now - timestamp))" -le 80''
+      ];
     acknowledgement-alert-is-actionable = lib.all
       (text: lib.hasInfix text reconcilerAlert.annotations.description)
       [ "service_ack_timeout" "background without paid inference" "handoff result" "native expiry" "Never reset" ]
