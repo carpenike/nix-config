@@ -49,6 +49,15 @@ this history.
 
 ### Missing runtime publications
 
+The coordinated recovery release selects Atrium
+`eb6842c22c218e26aeb5efac8753339374d97721` (carpenike/atrium#72).
+Its runtime matches the source-qualified `573c65c` controller. Five actual
+native recovery groups and all eight retained Whiskey background groups
+passed with the unchanged deployed Whiskey `e44d6f7` and LiteLLM 1.100.1.
+See the application's source-bound
+[recovery evidence](https://github.com/carpenike/atrium/blob/eb6842c22c218e26aeb5efac8753339374d97721/docs/evidence/ATR-N04-runtime-loss-573c65c.md).
+Home MCP and the reviewed vendor content remain unchanged.
+
 The controller retains ownership and key hashes, not a recoverable copy of
 the raw service key. A lost `/run/atrium-delivery/whiskey/key.json` must not
 be repaired by reinitializing that ledger, pasting a key, fabricating an
