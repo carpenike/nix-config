@@ -38,12 +38,13 @@ failed attempts; unknown outcomes require explicit operator recovery.
 or other genuine errors. `run --allow-bank-sync` retains exit 0 (success),
 1 (degraded/failed), and 2 (refused). There is no systemd retry.
 
-The upstream unit opts into `--distinguish-degraded`, which gives a completed,
-verified known partial exit 3 while retaining its truthful JSON. Every unverified
-account must match an explicitly reported bank failure; inventory, coverage and
-readback defects still fail with exit 1. Only 3 is
-added to `SuccessExitStatus`; never add 1, because that also makes `due`'s
-normal skip eligible. Failed exit 1, refusal exit 2, preconditions, credentials,
+The upstream unit opts into `--distinguish-degraded`, which gives a durably
+completed, verified known partial exit 3 only with at least one verified account.
+JSON status stays `degraded`. Every unverified account must match an explicitly
+reported bank failure; all-account failures, inventory, coverage and readback
+defects still fail with exit 1. Only 3 is added to `SuccessExitStatus`; never add
+1, because that also makes `due`'s normal skip eligible. Failed exit 1, refusal
+exit 2, preconditions, credentials,
 mount, timeout and signal failures remain failures. This avoids turning one
 bank's attention result into a generic systemd outage. **Unit success is not
 financial success**: durable evidence and verification metrics determine health.
