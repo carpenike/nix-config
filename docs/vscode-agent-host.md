@@ -180,7 +180,21 @@ unit and no listener on 17890. This is build/test evidence only,
    ```
 
    These commands are operator deployment steps, not executed by the foundation.
-   Check the generated dataset and account before starting anything.
+   Check the generated dataset and account before starting anything:
+
+   ```sh
+   sudo zfs list tank/services/vscode-agent-host
+   findmnt -T /var/lib/vscode-agent-host -o SOURCE,TARGET,FSTYPE
+   ```
+
+   The source must be `tank/services/vscode-agent-host` and the type `zfs`.
+   An active `zfs-service-datasets.service` is not sufficient evidence: the first
+   deployment left the initializer active without creating the new dataset.
+   After verifying the new mountpoint contained no data, the operator ran the
+   declared initializer in a separate bounded oneshot with its exact unit PATH,
+   without restarting its production dependents. Replication then passed.
+   If this recurs, reconcile the declaration and verify storage before retrying;
+   never mount over existing sessions or bypass the service's mountpoint assertion.
 4. Manually start the declared service, not a second `code agent host`:
 
    ```sh

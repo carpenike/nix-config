@@ -104,7 +104,8 @@ let
     storage-startup-order =
       builtins.elem "zfs-service-datasets.service" service.requires
       && builtins.elem "zfs-service-datasets.service" service.after
-      && service.unitConfig.RequiresMountsFor == [ cfg.dataDir ];
+      && service.unitConfig.RequiresMountsFor == [ cfg.dataDir ]
+      && service.unitConfig.AssertPathIsMountPoint == [ cfg.dataDir ];
     private-state-and-workspaces-are-backed-up =
       dataset.mountpoint == cfg.dataDir && dataset.mode == "0700"
       && dataset.owner == cfg.user && dataset.properties.quota == "20G"

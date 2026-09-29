@@ -63,6 +63,9 @@ in
       systemd.services.${name} = {
         after = [ "zfs-service-datasets.service" ];
         requires = [ "zfs-service-datasets.service" ];
+        # An active initializer is not proof that a newly declared dataset
+        # exists; never put sessions on Forge's rollback-prone root filesystem.
+        unitConfig.AssertPathIsMountPoint = [ cfg.dataDir ];
       };
 
       modules.alerting.rules = lib.mkIf cfg.startAtBoot {
