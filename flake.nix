@@ -507,6 +507,16 @@
 
           # Checks for CI
           checks = {
+            vscode-agent-host-foundation = pkgs.writeText "vscode-agent-host-foundation.json"
+              (builtins.toJSON (import ./tests/vscode-agent-host/evaluate.nix { inherit inputs; }));
+            vscode-agent-host-unit = pkgs.runCommand "vscode-agent-host-unit-tests"
+              { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                export AGENT_HOST_MODULE=${./modules/nixos/services/vscode-agent-host}
+                python3 ${./tests/vscode-agent-host/unit.py}
+                touch "$out"
+              '';
             atrium-identity-bootstrap = import ./tests/atrium_n03/identity-bootstrap.nix {
               inherit pkgs;
               resolverPackage = inputs.atrium.packages.${system}.resolver;
@@ -1210,6 +1220,10 @@
                 touch $out
               '';
           } // pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+            vscode-agent-host-smoke = import ./tests/vscode-agent-host/smoke.nix {
+              inherit pkgs;
+              package = pkgs.callPackage ./pkgs/vscode-agent-host.nix { };
+            };
             deployment-backup-guard =
               let
                 forge = inputs.self.nixosConfigurations.forge.config;

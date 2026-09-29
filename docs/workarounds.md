@@ -17,6 +17,19 @@ When reviewing workarounds:
 
 ---
 
+## VS Code standalone Agent Host immutable runtime
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-09-29 |
+| **Location** | `pkgs/vscode-agent-host.nix` |
+| **Affects** | Opt-in standalone Agent Host only; Forge remains disabled. |
+| **Reason** | Stable 1.139.1's released CLI automatically resolves/downloads server updates, so pinning that executable alone does not pin the agent runtime. |
+| **Workaround** | Build the unchanged tagged CLI with upstream's compile-time `VSCODE_CLI_OVERRIDE_SERVER_PATH` pointing to the same-commit, hash-verified and auto-patchelf'd Nix server bundle. This development hook skips both eager download and the background update loop. |
+| **Check** | Revalidate on every VS Code update; remove the hook only when upstream provides a tested immutable-runtime configuration. No missing ELF dependencies are ignored. |
+| **Upstream** | [Supervisor](https://github.com/microsoft/vscode/blob/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/cli/src/commands/agent_host.rs), [runtime selection](https://github.com/microsoft/vscode/blob/04c0d99f4fb0d8afe6ce4f0c58e31e183ac3e4b1/cli/src/tunnels/agent_host.rs) |
+| **Validation** | `task nix:agent-host-check host=forge`; real token-authenticated AHP plus native terminal smoke, with no provider login or inference. See [runbook](vscode-agent-host.md). |
+
 ## Channel Lifecycle Debt
 
 Not a workaround and not a pin — a dependency that stopped moving on its own

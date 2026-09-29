@@ -9,5 +9,6 @@
     ../github-runner # GitHub Actions self-hosted runner
     ../netvisor # Network discovery/visualization
     ../pgweb # PostgreSQL web browser
+    ../vscode-agent-host # Standalone agent runtime, distinct from Remote SSH server support
   ];
 }
