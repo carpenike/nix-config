@@ -94,12 +94,9 @@ mylib.mkContainerService {
       cpus = "2.0";
     };
 
-    # The entrypoint must start as root: it usermod/groupmods the in-image
-    # `signal-api` account to SIGNAL_CLI_UID/GID, chowns the config dir, then
-    # drops privileges with setpriv before exec'ing the server. The PUID/PGID
-    # variables the factory injects for runAsRoot containers are replaced with
-    # the SIGNAL_CLI_* equivalents in extraConfig below.
-    runAsRoot = true;
+    # Since 0.101, s6 runs rootless and no longer remaps SIGNAL_CLI_UID/GID.
+    # Pin the runtime identity instead of inheriting the image's UID 1000.
+    runAsRoot = false;
 
     # State lives at the signal-cli config dir, not /config.
     skipDefaultConfigMount = true;
@@ -200,6 +197,9 @@ mylib.mkContainerService {
   };
 
   extraConfig = cfg': {
+    modules.services.signal-api.user = toString cfg'.uid;
+    users.groups.${cfg'.group}.gid = cfg'.gid;
+
     assertions = lib.optionals cfg'.localAccess.enable (
       [
         {
@@ -228,17 +228,10 @@ mylib.mkContainerService {
     );
 
     virtualisation.oci-containers.containers.signal-api = {
-      # Replace the factory's LinuxServer.io-style PUID/PGID/UMASK trio with
-      # the variables this image actually reads.
-      environment = lib.mkForce {
+      environment = {
         TZ = cfg'.timezone;
         MODE = cfg'.mode;
         LOG_LEVEL = cfg'.logLevel;
-        # The entrypoint remaps its internal `signal-api` account to these
-        # ids, so everything written to the mounted dataset is owned by the
-        # host service user.
-        SIGNAL_CLI_UID = toString cfg'.uid;
-        SIGNAL_CLI_GID = toString cfg'.gid;
         # This bot never receives attachments/stories/stickers; not
         # downloading them keeps the dataset small and the crown-jewel
         # backup cheap.

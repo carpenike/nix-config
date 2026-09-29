@@ -330,6 +330,7 @@ ssh forge 'systemctl list-units "restic-backup-*signal*" --all'
 | No SMS arrives | Number cannot receive SMS from short codes (common with some VoIP providers). Retry with `{"use_voice": true}` for a voice call, or use a different provider. |
 | `Cannot send message to group - please first update your profile` | Step 5 was skipped or failed. |
 | `User <number> is not registered` right after verifying | The signal-cli daemon has not picked up the account. Restart the container once. If it recurs, the container is resource-starved — check the memory limit in the module. |
+| `permission denied` opening `jsonrpc2.yml` after an image update | Check the container's effective UID/GID against the dataset owner. Version 0.101 uses rootless s6 and no longer remaps `SIGNAL_CLI_UID/GID`. The factory must pass the registered service IDs with `--user`; do not loosen the dataset's `0700` permissions or re-register the account. |
 | Sends stopped working after months of silence | Almost always image age: signal-cli's protocol support goes stale and Signal rejects old clients. Bump the pinned image (see below) before debugging anything else. |
 | `curl: (56) Connection reset by peer` from a script | The caller's UID is not in `localAccess.allowedUsers`. Add it in `hosts/forge/services/signal-api.nix` — deliberately, and only for a service that should be able to speak as the bot. |
 | Container healthy, both Gatus checks red | Gatus checks from the `gatus` user; confirm it is still in `localAccess.allowedUsers`. |
@@ -345,6 +346,13 @@ TOKEN=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=r
 
 Update tag and digest together, deploy, then re-run smoke test 9a. The account
 dataset is untouched by an image bump.
+
+For 0.101 and newer, keep `runAsRoot = false`. The module ties the factory's
+runtime user and group to its registry-backed `uid` and `gid` options
+(947:947 on forge), rather than the image's default 1000:1000. Its bundled s6
+startup works with those IDs without a runtime-directory override. After an
+upgrade, confirm both `/v1/health` and `/v1/accounts`; a running container alone
+does not prove that the registered account is usable.
 
 ### If the dataset is lost
 

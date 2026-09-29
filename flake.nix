@@ -813,6 +813,11 @@
                 touch $out
               '';
 
+            service-startup-compatibility = pkgs.writeText "service-startup-compatibility.json"
+              (builtins.toJSON (import ./tests/service-startup-compatibility.nix {
+                inherit inputs;
+              }));
+
             backup-phase0 =
               let
                 lib = inputs.nixpkgs.lib;

@@ -56,6 +56,21 @@ hosts/forge/
 - Monitoring alerts (via `modules.alerting.rules`)
 - Backup policies (via `modules.backup.sanoid.datasets`)
 
+## PostgreSQL migration capacity
+
+Forge sets `max_locks_per_transaction = 512` in `services/postgresql.nix`.
+Tracearr's retained Timescale history has roughly 3,000 compressed snapshot
+chunks and 20,000 chunk/index relations (measured 2026-09-29). Its upgrade
+migrations scan that history in a transaction; PostgreSQL's default setting
+of 64 with 100 connections exhausts the shared lock table.
+
+The setting provides roughly 51,000 lock slots without increasing query
+memory or deleting history. Changes require a PostgreSQL restart and must use
+the guarded deployment workflow. If this recurs as history grows, measure
+chunk counts and lock demand before retuning; retention changes remain a
+separate decision. Tracearr can report HTTP 200 in maintenance mode, so confirm
+that `/health` reports application readiness, not just a healthy container.
+
 ## Additional Caddy Domains
 
 Forge's primary service domain remains `holthome.net`. Additional domains register

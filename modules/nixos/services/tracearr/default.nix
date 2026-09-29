@@ -104,7 +104,8 @@ in
         Path to Tracearr data directory.
 
         For embedded mode: stores TimescaleDB, Redis, and app data.
-        For external mode: stores only app data (GeoIP databases, secrets, etc.).
+        For external mode: stores app data (image cache and local backup exports);
+        the primary database is external.
       '';
     };
 
@@ -472,6 +473,7 @@ in
         } // lib.optionalAttrs useExternalDatabases {
           # Redis URL can be passed directly (no secrets)
           REDIS_URL = cfg.redis.url;
+          BACKUP_DIR = "/data/tracearr/backup";
           # DATABASE_URL is set via environment file to avoid exposing password in process list
         };
         # Build environment file with optional MaxMind key and database password
@@ -497,6 +499,8 @@ in
         resources = cfg.resources;
         extraOptions = [
           "--pull=newer"
+        ] ++ lib.optionals useExternalDatabases [
+          "--user=${toString cfg.uid}:${toString cfg.gid}"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Use /health endpoint which returns JSON status of db, redis, geoip, and timescale
           # Note: Using wget instead of curl because tracearr image doesn't include curl

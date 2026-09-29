@@ -303,6 +303,15 @@ in
             # mode; systemd's default (0755) would otherwise loosen it.
             StateDirectoryMode = "0750";
           }
+          # WORKAROUND (2026-09-29): Stable module calls a CLI absent in newer Beszel.
+          # Affects: Beszel 0.20+ with the stable NixOS hub module.
+          # Upstream: https://github.com/henrygd/beszel/releases/tag/v0.20.0
+          # Check: Remove when the upstream module no longer calls history-sync.
+          (lib.mkIf (lib.versionAtLeast hubCfg.package.version "0.20.0") {
+            ExecStartPre = lib.mkForce [
+              "${hubCfg.package}/bin/beszel-hub migrate up"
+            ];
+          })
         ];
       };
 

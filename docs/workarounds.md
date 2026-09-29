@@ -327,9 +327,12 @@ Services using `pkgs.unstable.*` instead of stable packages:
 
 | Field | Value |
 |-------|-------|
+| **Updated** | 2026-09-29 |
 | **Location** | `modules/nixos/services/beszel/default.nix` |
-| **Reason** | Package not available or too old in stable |
-| **Check** | When package lands in stable nixpkgs |
+| **Reason** | The hub uses `pkgs.unstable.beszel`, but the stable NixOS module unconditionally runs `history-sync` before startup. The deployed Beszel 0.20.0 no longer provides that command, so the hub fails before it starts serving. |
+| **Workaround** | For Beszel 0.20 and newer, override `ExecStartPre` to retain `migrate up` without `history-sync`. Older package overrides retain the upstream startup commands. Keep the existing package, data, stable service identity, and systemd hardening unchanged. |
+| **Check** | Remove the startup override when the upstream NixOS module stops invoking `history-sync` for these versions. Revisit the unstable package override when stable supplies a suitable package and matching module. |
+| **Upstream** | [Beszel v0.20.0](https://github.com/henrygd/beszel/releases/tag/v0.20.0), [stable NixOS hub module](https://github.com/NixOS/nixpkgs/blob/nixos-25.11/nixos/modules/services/monitoring/beszel-hub.nix) |
 
 ### n8n
 

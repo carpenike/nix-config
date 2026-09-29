@@ -74,6 +74,10 @@ in
 
         # Additional settings via extraSettings
         extraSettings = {
+          # Tracearr migrations lock ~20k chunk/index relations. At 100
+          # connections, 512 provides ~51k slots instead of the default ~6k.
+          max_locks_per_transaction = 512;
+
           # WAL settings for pgBackRest PITR
           wal_level = "replica"; # Required for pgBackRest
           wal_compression = "on";
