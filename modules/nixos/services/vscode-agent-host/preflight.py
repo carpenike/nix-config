@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import stat
+import struct
 import subprocess
 import sys
 
@@ -37,9 +38,56 @@ class _ValidationFailure(ValueError):
         super().__init__(code)
 
 
+def _private_systemd_acl(path, access):
+    try:
+        acl = os.getxattr(path, "system.posix_acl_access", follow_symlinks=False)
+    except (AttributeError, OSError):
+        return False
+    # Linux ACL xattr v2: root owner, this service UID, empty owning group,
+    # access mask, empty other. Reject extra principals, even with safe mode bits.
+    undefined_id = 0xFFFFFFFF
+    expected = {
+        (0x01, access, undefined_id),
+        (0x02, access, os.geteuid()),
+        (0x04, 0, undefined_id),
+        (0x10, access, undefined_id),
+        (0x20, 0, undefined_id),
+    }
+    return (
+        len(acl) == 44
+        and struct.unpack_from("<I", acl)[0] == 2
+        and set(struct.iter_unpack("<HHI", acl[4:])) == expected
+    )
+
+
+def _is_private_systemd_credential(path, info):
+    directory = os.environ.get("CREDENTIALS_DIRECTORY")
+    path = os.fspath(path)
+    if (
+        not directory
+        or os.path.dirname(directory) != "/run/credentials"
+        or os.path.normpath(directory) != directory
+        or os.path.normpath(path) != path
+        or os.path.dirname(path) != directory
+        or (info.st_uid, info.st_gid) != (0, 0)
+        or stat.S_IMODE(info.st_mode) != 0o440
+    ):
+        return False
+    directory_info = os.stat(directory, follow_symlinks=False)
+    return (
+        stat.S_ISDIR(directory_info.st_mode)
+        and stat.S_IMODE(directory_info.st_mode) == 0o550
+        and (directory_info.st_uid, directory_info.st_gid) == (0, 0)
+        and _private_systemd_acl(directory, 0o5)
+        and _private_systemd_acl(path, 0o4)
+    )
+
+
 def validate_token(path):
     info = os.stat(path, follow_symlinks=False)
-    if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+    if not stat.S_ISREG(info.st_mode) or (
+        info.st_mode & 0o077 and not _is_private_systemd_credential(path, info)
+    ):
         raise _ValidationFailure("TOKEN_PERMISSIONS")
     with open(path, "rb") as credential:
         token = credential.read(258)

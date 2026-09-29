@@ -4,7 +4,9 @@ import io
 import os
 from pathlib import Path
 import stat
+import struct
 import subprocess
+from types import SimpleNamespace
 import unittest
 from unittest.mock import mock_open, patch
 
@@ -31,6 +33,115 @@ class PreflightTests(unittest.TestCase):
         ):
             info.return_value.st_mode = mode
             preflight.validate_token("/run/credentials/test/token")
+
+    def systemd_acl(self, access, uid=1068):
+        undefined = 0xFFFFFFFF
+        return struct.pack("<I", 2) + b"".join(
+            struct.pack("<HHI", *entry)
+            for entry in [
+                (0x01, access, undefined),
+                (0x02, access, uid),
+                (0x04, 0, undefined),
+                (0x10, access, undefined),
+                (0x20, 0, undefined),
+            ]
+        )
+
+    def systemd_token(self, **overrides):
+        directory = "/run/credentials/test.service"
+        path = directory + "/connection-token"
+        file_info = SimpleNamespace(st_mode=stat.S_IFREG | 0o440, st_uid=0, st_gid=0)
+        directory_info = SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o550, st_uid=0, st_gid=0
+        )
+        for key, value in overrides.get("file_info", {}).items():
+            setattr(file_info, key, value)
+        for key, value in overrides.get("directory_info", {}).items():
+            setattr(directory_info, key, value)
+        attributes = {path: file_info, directory: directory_info}
+        acls = {
+            path: overrides.get("file_acl", self.systemd_acl(0o4)),
+            directory: overrides.get("directory_acl", self.systemd_acl(0o5)),
+        }
+        environment = {
+            "CREDENTIALS_DIRECTORY": overrides.get("credential_directory", directory)
+        }
+        reader = mock_open(read_data=b"x" * 64)
+        with (
+            patch.dict(preflight.os.environ, environment),
+            patch.object(preflight.os, "geteuid", return_value=1068),
+            patch.object(
+                preflight.os,
+                "stat",
+                side_effect=lambda item, **_kwargs: attributes[item],
+            ),
+            patch.object(
+                preflight.os,
+                "getxattr",
+                side_effect=overrides.get("acl_error")
+                or (lambda item, _name, **_kwargs: acls[item]),
+                create=True,
+            ),
+            patch("builtins.open", reader),
+        ):
+            try:
+                preflight.validate_token(path)
+            except preflight._ValidationFailure:
+                reader.assert_not_called()
+                raise
+
+    def test_observed_systemd_credential_acl_is_private(self):
+        self.systemd_token()
+
+    def test_systemd_exception_requires_manager_owned_credential_context(self):
+        cases = [
+            {"credential_directory": ""},
+            {"credential_directory": "/run/credentials/another.service"},
+            {"file_info": {"st_mode": stat.S_IFREG | 0o640}},
+            {"file_info": {"st_mode": stat.S_IFREG | 0o444}},
+            {"file_info": {"st_mode": stat.S_IFLNK | 0o440}},
+            {"file_info": {"st_uid": 1068}},
+            {"file_info": {"st_gid": 1068}},
+            {"directory_info": {"st_mode": stat.S_IFDIR | 0o750}},
+            {"directory_info": {"st_mode": stat.S_IFDIR | 0o555}},
+            {"directory_info": {"st_mode": stat.S_IFLNK | 0o550}},
+            {"directory_info": {"st_uid": 1068}},
+            {"directory_info": {"st_gid": 1068}},
+        ]
+        for overrides in cases:
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaises(preflight._ValidationFailure) as error,
+            ):
+                self.systemd_token(**overrides)
+            self.assertEqual(error.exception.code, "TOKEN_PERMISSIONS")
+
+    def test_systemd_exception_rejects_extra_principals_and_invalid_acls(self):
+        file_acl = self.systemd_acl(0o4)
+        directory_acl = self.systemd_acl(0o5)
+        group_read = file_acl.replace(
+            struct.pack("<HHI", 0x04, 0, 0xFFFFFFFF),
+            struct.pack("<HHI", 0x04, 0o4, 0xFFFFFFFF),
+        )
+        cases = [
+            {"file_acl": self.systemd_acl(0o4, uid=1069)},
+            {"directory_acl": self.systemd_acl(0o5, uid=1069)},
+            {"file_acl": file_acl + struct.pack("<HHI", 0x02, 0o4, 1069)},
+            {"directory_acl": directory_acl + struct.pack("<HHI", 0x08, 0o5, 1069)},
+            {"file_acl": group_read},
+            {"file_acl": b""},
+            {"file_acl": struct.pack("<I", 1) + file_acl[4:]},
+            {"file_acl": file_acl[:-1]},
+            {"acl_error": OSError("ACL metadata unavailable")},
+            {"acl_error": AttributeError("ACL inspection unavailable")},
+        ]
+        for overrides in cases:
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaises(preflight._ValidationFailure) as error,
+            ):
+                self.systemd_token(**overrides)
+            self.assertEqual(error.exception.code, "TOKEN_PERMISSIONS")
 
     def test_private_url_safe_token(self):
         self.token(b"x" * 64)

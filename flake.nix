@@ -999,6 +999,8 @@
                 atriumAdapterStateNames =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
+                agentHostStateNames = pkgs.lib.optional
+                  forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -1086,7 +1088,8 @@
               assert manifest.summary.total >= 60;
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
-              assert manifest.summary.classified == 55 + builtins.length atriumAdapterStateNames;
+              assert manifest.summary.classified
+                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames;
               assert manifest.summary.byClass == {
                 critical = 15 + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
@@ -1096,9 +1099,16 @@
                 # every boot and the manifest could not see it at all.
                 # 17 since 2026-09-04: copilot-api (new) and litellm
                 # (re-enabled) both declare `standard`.
-                standard = 17;
+                standard = 17 + builtins.length agentHostStateNames;
                 system = 2;
               };
+              assert builtins.all
+                (name:
+                  let entry = manifest.datasets."tank/services/${name}";
+                  in entry.classification == "standard"
+                    && entry.missingRequiredTiers == [ ]
+                    && !entry.policy.allowEmptyBootstrap)
+                agentHostStateNames;
               assert manifest.summary.unknownRepositories == [ ];
               assert builtins.hasAttr "rpool/safe/persist" manifest.datasets;
               # The system identity dataset: /persist carries the SSH host key

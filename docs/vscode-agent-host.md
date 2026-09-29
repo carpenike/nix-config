@@ -84,6 +84,16 @@ to start a competing auto-installed host.
 - Token comes from SOPS through systemd `LoadCredential`; neither value nor
   bearer URL appears in the Nix store, service arguments, or unit environment.
   A missing, shared-readable, malformed, or short token fails preflight.
+  Systemd's protected credential copy is a specific exception to a plain
+  group-bit check: a metadata-only probe on 2026-09-29 observed a `0440`
+  root:root file inside a `0550` root:root credential directory. Systemd
+  adds a named-user ACL for the service UID; the apparent group bits are the
+  ACL mask, not a shared-group grant. Preflight accepts this only directly
+  inside its declared `/run/credentials/<unit>` directory, with the exact
+  root-owned, read-only modes and ACLs granting only root and the current
+  service UID access. Ordinary `0440` files, extra ACL principals, group/other
+  grants and symlinks remain rejected. Do not chmod the production credential
+  or relax the private service group to work around this.
 - `--foreground --new-instance` keeps one supervisor owned by systemd, not
   a launcher that detaches or silently reuses an editor's process.
 - Private `0700` home/state at `/var/lib/vscode-agent-host`; runtime sockets
@@ -145,7 +155,7 @@ The build sandbox does not contain NixOS's normal `/etc/NIXOS` marker or
 actual ELF linker to upstream's prerequisite check. The deployed service does
 not bypass prerequisites. This is distinct from accepting an unsupported binary.
 
-Verified on 2026-09-29: package install checks, twelve Python safety tests,
+Verified on 2026-09-29: package install checks, fifteen Python safety tests,
 seventeen Forge configuration assertions, the real Linux smoke, the documented
 Taskfile command, Statix, Deadnix, and `nix flake check --no-build` passed.
 Before manual provisioning, Forge reported `LoadState=not-found` for the production
