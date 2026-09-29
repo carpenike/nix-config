@@ -23,7 +23,7 @@ in
         # v4.0.0+ fixes Owner API 403s after Tesla moved owner-api behind the
         # Fleet API ingress (requires HTTP/2 + TLS 1.3). See teslamate v4.0.0/v4.0.1
         # release notes. Avoids needing a Fleet API / MyTeslaMate migration.
-        image = "teslamate/teslamate:4.3.0@sha256:fb0d8fff2e3b412b7ca2cb80c56071482f24a7311ddd37f0eadf72e879be7c64";
+        image = "teslamate/teslamate:4.3.0@sha256:516fc9f0a14369f541b1a70ff2f65dd9b57c2e01c1f533b6d43b375445404955";
         encryptionKeyFile = config.sops.secrets."teslamate/encryption_key".path;
 
         database = {
