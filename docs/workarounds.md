@@ -23,7 +23,7 @@ When reviewing workarounds:
 | --- | --- |
 | **Added** | 2026-09-29 |
 | **Location** | `pkgs/vscode-agent-host.nix` |
-| **Affects** | Opt-in standalone Agent Host only; Forge remains disabled. |
+| **Affects** | Opt-in standalone Agent Host only; Forge boot startup remains gated during manual acceptance. |
 | **Reason** | Stable 1.139.1's released CLI automatically resolves/downloads server updates, so pinning that executable alone does not pin the agent runtime. |
 | **Workaround** | Build the unchanged tagged CLI with upstream's compile-time `VSCODE_CLI_OVERRIDE_SERVER_PATH` pointing to the same-commit, hash-verified and auto-patchelf'd Nix server bundle. This development hook skips both eager download and the background update loop. |
 | **Check** | Revalidate on every VS Code update; remove the hook only when upstream provides a tested immutable-runtime configuration. No missing ELF dependencies are ignored. |

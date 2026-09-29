@@ -67,7 +67,7 @@ hosts/forge/
 
 ## Standalone Agent Host foundation
 
-`services/vscode-agent-host.nix` declares a **disabled**, native VS Code Agent
+`services/vscode-agent-host.nix` declares a **manual-acceptance**, native VS Code Agent
 Host with a pinned CLI/runtime, private identity/state, loopback/token access,
 backups and bounded systemd supervision. This is separate from the existing
 Remote-SSH `vscode-server` support. Boot activation requires explicit operator

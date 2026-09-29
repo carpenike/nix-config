@@ -2,10 +2,22 @@
 let
   inherit (inputs.nixpkgs) lib;
   forge = inputs.self.nixosConfigurations.forge;
-  base = forge.config;
+  base = (forge.extendModules {
+    modules = [{
+      modules.services.vscode-agent-host = {
+        enable = lib.mkForce false;
+        startAtBoot = lib.mkForce false;
+        runtimeAccepted = lib.mkForce false;
+      };
+    }];
+  }).config;
   manual = (forge.extendModules {
     modules = [{
-      modules.services.vscode-agent-host.enable = lib.mkForce true;
+      modules.services.vscode-agent-host = {
+        enable = lib.mkForce true;
+        startAtBoot = lib.mkForce false;
+        runtimeAccepted = lib.mkForce false;
+      };
     }];
   }).config;
   accepted = (forge.extendModules {
@@ -21,6 +33,7 @@ let
     modules = [{
       modules.services.vscode-agent-host = {
         enable = lib.mkForce true;
+        runtimeAccepted = lib.mkForce false;
       } // overrides;
     }];
   }).config;
@@ -32,7 +45,7 @@ let
   sc = service.serviceConfig;
   dataset = accepted.modules.storage.datasets.services.vscode-agent-host;
   checks = {
-    forge-is-off = !base.modules.services.vscode-agent-host.enable
+    disabled-mode-is-inert = !base.modules.services.vscode-agent-host.enable
       && !(base.systemd.services ? vscode-agent-host)
       && !(base.users.users ? vscode-agent-host)
       && !(base.sops.secrets ? "vscode-agent-host/connection-token")

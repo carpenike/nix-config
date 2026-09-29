@@ -9,9 +9,8 @@ in
   config = lib.mkMerge [
     {
       modules.services.vscode-agent-host = {
-        # RB-10/11 foundation only. First provision the SOPS token, then enable
-        # for manual acceptance. Set both boot flags only after RB-12 evidence.
-        enable = false;
+        # Operator-approved manual acceptance. Boot remains gated on RB-12.
+        enable = true;
         startAtBoot = false;
         runtimeAccepted = false;
         connectionTokenFile = "/run/secrets/${name}/connection-token";

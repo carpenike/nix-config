@@ -2,11 +2,12 @@
 
 ## Status and scope
 
-This is the **RB-10/RB-11 foundation**, not production acceptance or a finance
-integration. Forge's declaration is disabled, has no boot activation, and
-does not create a secret, account, dataset, or listener until explicitly
-enabled. Existing `services.vscode-server.enable` remains unchanged and is
-**not** this Agent Host.
+This is the **RB-10/RB-11 foundation**, not full runtime acceptance or a finance
+integration. Forge's declaration is enabled for operator-approved manual
+acceptance with its SOPS credential provisioned. Boot activation and the
+`runtimeAccepted` gate remain disabled. A configured service is not evidence of
+deployment or provider login; record those separately. Existing
+`services.vscode-server.enable` remains unchanged and is **not** this Agent Host.
 
 The native, reusable module is
 `modules/nixos/services/vscode-agent-host/default.nix`; Forge's co-located
@@ -147,8 +148,9 @@ not bypass prerequisites. This is distinct from accepting an unsupported binary.
 Verified on 2026-09-29: package install checks, twelve Python safety tests,
 seventeen Forge configuration assertions, the real Linux smoke, the documented
 Taskfile command, Statix, Deadnix, and `nix flake check --no-build` passed.
-Forge still reported `LoadState=not-found` for the production unit and no
-listener on 17890. This is build/test evidence only, **not RB-12 acceptance**.
+Before manual provisioning, Forge reported `LoadState=not-found` for the production
+unit and no listener on 17890. This is build/test evidence only,
+**not RB-12 acceptance**.
 
 ## Operator provisioning and acceptance
 
@@ -199,8 +201,8 @@ listener on 17890. This is build/test evidence only, **not RB-12 acceptance**.
    Do **not** choose “Connect via SSH” / “Start New Dedicated Agent Host” for
    this managed service: those paths can auto-install and launch another CLI
    under the operator identity. No service-identity SSH shell is provisioned.
-6. Authenticate the chosen provider through the supported client flow with a
-   dedicated account. Connection-token authentication is **not** provider
+6. Authenticate the chosen provider through the supported client flow with an
+   operator-approved account. Connection-token authentication is **not** provider
    authentication. Do not copy Ryan's home, Hermes state, MCP credentials, or
    Actual budget/credentials into this identity.
 7. In `/var/lib/vscode-agent-host/workspaces/scratch`, demonstrate:
