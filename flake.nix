@@ -1250,6 +1250,15 @@
                   ])
                   atriumStateNames
                 ++ map (name: "restic-backup-${name}.timer") atriumAdapterJobs;
+                agentHostStates = pkgs.lib.optional
+                  forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
+                agentHostTimers = pkgs.lib.concatMap
+                  (name: [
+                    "restic-backup-service-${name}.timer"
+                    "restic-backup-${name}-offsite.timer"
+                    "syncoid-tank-services-${name}.timer"
+                  ])
+                  agentHostStates;
                 requiredAlerts = [
                   "deployment-backup-guard-abandoned"
                   "deployment-backup-guard-monitoring-stale"
@@ -1297,20 +1306,31 @@
                 # N04 ownership and N05 admission each add a protected dataset,
                 # replication timer and two encrypted backup jobs. Names and
                 # coverage are asserted below, independently of these totals.
-              assert builtins.length expectedTimers == 150 + builtins.length atriumAdapterJobs;
+                # The opt-in Agent Host adds one dataset, two backup jobs and
+                # three timers; keep the disabled baseline covered as well.
+              assert builtins.length expectedTimers
+                == 150 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
+              assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 65;
+              assert builtins.length (builtins.attrNames snapshotDatasets)
+                == 65 + builtins.length agentHostStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
-                atriumStateNames;
+                (atriumStateNames ++ agentHostStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 73 + builtins.length atriumAdapterJobs;
+              assert builtins.length (builtins.attrNames enabledResticJobs)
+                == 73 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates;
+              assert builtins.all
+                (name: enabledResticJobs."service-${name}".useSnapshots
+                  && enabledResticJobs."${name}-offsite".useSnapshots
+                  && enabledResticJobs."${name}-offsite".repository == "r2-offsite")
+                agentHostStates;
               assert builtins.all
                 (name: enabledResticJobs.${name}.repository == "r2-offsite"
                   && enabledResticJobs.${name}.useSnapshots)
