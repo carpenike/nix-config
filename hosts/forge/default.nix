@@ -49,6 +49,7 @@ in
 
     # Application Services
     ./services/actual.nix # Actual Budget personal finance
+    ./services/vscode-agent-host.nix # Gated standalone coding host foundation (disabled)
     ./services/filebrowser-quantum.nix # Authenticated web access to NAS media
     ./services/postgresql.nix # PostgreSQL database
     ./services/pgbackrest.nix # pgBackRest PostgreSQL backup system

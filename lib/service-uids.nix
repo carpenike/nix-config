@@ -47,6 +47,13 @@
 { ... }:
 
 {
+  vscode-agent-host = {
+    uid = 1068;
+    gid = 1068;
+    description = "Standalone VS Code Agent Host, isolated from household services";
+    extraGroups = [ ];
+  };
+
   atrium-resolver = {
     uid = 1060;
     gid = 1060;

@@ -27,6 +27,7 @@
   thelounge-theme-mininapse = pkgs.callPackage ./thelounge-theme-mininapse.nix { };
   tracearr-retention-plan = pkgs.callPackage ./tracearr-retention-plan.nix { };
   usage = pkgs.callPackage ./usage.nix { };
+  vscode-agent-host = pkgs.callPackage ./vscode-agent-host.nix { };
 } // (if inputs ? atrium then {
   inherit (inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system})
     atrium-litellm-controller

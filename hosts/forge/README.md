@@ -2,6 +2,15 @@
 
 This directory contains the NixOS configuration for the `forge` host, organized following a three-tier architectural pattern with strict separation of concerns.
 
+## Household agent transition
+
+The rebuild configuration disables Hermes's unused Telegram gateway and its
+status-only MCP connection. Existing token caches and shared OAuth credentials
+are preserved; Signal finance jobs stay enabled until their replacements pass
+acceptance. Public MCP/OAuth access for Claude mobile is unchanged. This is a
+configuration change requiring the normal reviewed deployment, not a claim that
+the live gateway has already been stopped.
+
 ## Architecture
 
 ### Three-Tier Organization
@@ -55,6 +64,17 @@ hosts/forge/
 - Storage datasets (via `modules.storage.datasets`)
 - Monitoring alerts (via `modules.alerting.rules`)
 - Backup policies (via `modules.backup.sanoid.datasets`)
+
+## Standalone Agent Host foundation
+
+`services/vscode-agent-host.nix` declares a **manual-acceptance**, native VS Code Agent
+Host with a pinned CLI/runtime, private identity/state, loopback/token access,
+backups and bounded systemd supervision. This is separate from the existing
+Remote-SSH `vscode-server` support. Boot activation requires explicit operator
+acceptance; no finance credentials are supplied.
+
+See [the Agent Host runbook](../../docs/vscode-agent-host.md) for targeted
+tests, SSH forwarding, provider authentication, acceptance and recovery.
 
 ## PostgreSQL migration capacity
 

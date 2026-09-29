@@ -959,12 +959,16 @@ in
               redirect_port = 8765;
               redirect_uri = "http://127.0.0.1:8765/callback";
             };
-            ${statusAlias}.oauth = {
-              client_id = "d2vzX8u-_LxxkAJFlKw4TglIWAnvV8zc";
-              client_secret = "\${HOMELAB_MCP_OAUTH_CLIENT_SECRET}";
-              scope = if nativeAdopted then "atrium-personal-status" else "hermes";
-              redirect_port = 8765;
-              redirect_uri = "http://127.0.0.1:8765/callback";
+            ${statusAlias} = {
+              # Retired with Telegram; Signal still uses this OAuth client.
+              enabled = false;
+              oauth = {
+                client_id = "d2vzX8u-_LxxkAJFlKw4TglIWAnvV8zc";
+                client_secret = "\${HOMELAB_MCP_OAUTH_CLIENT_SECRET}";
+                scope = if nativeAdopted then "atrium-personal-status" else "hermes";
+                redirect_port = 8765;
+                redirect_uri = "http://127.0.0.1:8765/callback";
+              };
             };
           } // lib.genAttrs
             (if nativeAdopted then [ "holthome" "holthome-telegram" ] else [ "atrium-finance" "atrium-status" ])
@@ -985,7 +989,7 @@ in
             telegram = [ "hermes-telegram" statusAlias ];
           };
           gateway.platforms.telegram = {
-            enabled = true;
+            enabled = false;
             dm_policy = "allowlist";
             allow_from = [ "8903896206" ];
             # A user's private Telegram chat ID equals their numeric user ID.

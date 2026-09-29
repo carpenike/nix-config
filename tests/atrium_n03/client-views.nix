@@ -195,6 +195,13 @@ let
       signal = [ "hermes-signal" "atrium-finance" ];
       telegram = [ "hermes-telegram" "atrium-status" ];
     };
+    telegram-retired-without-disabling-signal =
+      !clients.settings.gateway.platforms.telegram.enabled
+      && !legacy.settings.gateway.platforms.telegram.enabled
+      && !clients.settings.mcp_servers.atrium-status.enabled
+      && !legacy.settings.mcp_servers.holthome-telegram.enabled
+      && clients.settings.gateway.platforms.signal.enabled
+      && legacy.settings.gateway.platforms.signal.enabled;
     model-and-scribe-guard-unchanged = clients.settings.model == legacy.settings.model
       && clients.settings.plugins == legacy.settings.plugins;
     selected-host-uses-bounded-native-clients = selected.services.atriumForge.adoption.native
