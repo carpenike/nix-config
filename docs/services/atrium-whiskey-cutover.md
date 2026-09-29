@@ -56,7 +56,13 @@ native recovery groups and all eight retained Whiskey background groups
 passed with the unchanged deployed Whiskey `e44d6f7` and LiteLLM 1.100.1.
 See the application's source-bound
 [recovery evidence](https://github.com/carpenike/atrium/blob/eb6842c22c218e26aeb5efac8753339374d97721/docs/evidence/ATR-N04-runtime-loss-573c65c.md).
-Home MCP and the reviewed vendor content remain unchanged.
+The concurrent owner release selects Home MCP 0.30.0 at `6aa112db`. Its
+vendored Atrium source, Money reader/projections and authorization/view code
+are byte-identical to the prior `c206c75` release; generated Money/catalog
+differences are revision identifiers. The exact native identity expectations
+advance with that pin, without changing any reviewed vendor-content digest.
+The new finance-ingestion service and timer remain disabled pending their
+separate owner acceptance. This recovery does not activate them.
 
 The controller retains ownership and key hashes, not a recoverable copy of
 the raw service key. A lost `/run/atrium-delivery/whiskey/key.json` must not
