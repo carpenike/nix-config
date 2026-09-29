@@ -192,9 +192,10 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Qualified read-only Money snapshot and unchanged existing native clients.
+      # Rebuild tracker and authoritative bank-linkage metadata; the new
+      # ingestion service/timer stay disabled until separate live acceptance.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/c206c75db9deddfcff856fb0649bd6d05f1078d9";
+      url = "github:carpenike/mcp/6aa112db0ef0bdce58316ed282a6bcfeb9db26ae";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
