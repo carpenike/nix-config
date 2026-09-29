@@ -59,6 +59,25 @@ tasks:
       - sh: which nix
         msg: "nix not found"
 
+  agent-host-check:
+    desc: Validate the gated standalone Agent Host without deploying or logging in
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      ssh_user: '{{.ssh_user | default "ryan"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    cmds:
+      - |
+        set -eu
+        system="$(nix eval --raw --impure --expr builtins.currentSystem)"
+        nix build --no-link \
+          ".#checks.${system}.vscode-agent-host-foundation" \
+          ".#checks.${system}.vscode-agent-host-unit"
+        drv="$(nix eval --raw .#checks.x86_64-linux.vscode-agent-host-smoke.drvPath)"
+        nix copy --derivation --to "ssh://{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" "$drv"
+        ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" \
+          nix-store --realise "$drv" --option max-jobs 2 --option cores 2
+
   prepare-atrium-native:
     desc: Build Forge and explicitly prepare native cutover artifacts and bounded grants
     silent: true

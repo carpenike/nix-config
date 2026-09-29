@@ -507,6 +507,16 @@
 
           # Checks for CI
           checks = {
+            vscode-agent-host-foundation = pkgs.writeText "vscode-agent-host-foundation.json"
+              (builtins.toJSON (import ./tests/vscode-agent-host/evaluate.nix { inherit inputs; }));
+            vscode-agent-host-unit = pkgs.runCommand "vscode-agent-host-unit-tests"
+              { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                export AGENT_HOST_MODULE=${./modules/nixos/services/vscode-agent-host}
+                python3 ${./tests/vscode-agent-host/unit.py}
+                touch "$out"
+              '';
             atrium-identity-bootstrap = import ./tests/atrium_n03/identity-bootstrap.nix {
               inherit pkgs;
               resolverPackage = inputs.atrium.packages.${system}.resolver;
@@ -989,6 +999,8 @@
                 atriumAdapterStateNames =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
+                agentHostStateNames = pkgs.lib.optional
+                  forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -1076,7 +1088,8 @@
               assert manifest.summary.total >= 60;
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
-              assert manifest.summary.classified == 55 + builtins.length atriumAdapterStateNames;
+              assert manifest.summary.classified
+                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames;
               assert manifest.summary.byClass == {
                 critical = 15 + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
@@ -1086,9 +1099,16 @@
                 # every boot and the manifest could not see it at all.
                 # 17 since 2026-09-04: copilot-api (new) and litellm
                 # (re-enabled) both declare `standard`.
-                standard = 17;
+                standard = 17 + builtins.length agentHostStateNames;
                 system = 2;
               };
+              assert builtins.all
+                (name:
+                  let entry = manifest.datasets."tank/services/${name}";
+                  in entry.classification == "standard"
+                    && entry.missingRequiredTiers == [ ]
+                    && !entry.policy.allowEmptyBootstrap)
+                agentHostStateNames;
               assert manifest.summary.unknownRepositories == [ ];
               assert builtins.hasAttr "rpool/safe/persist" manifest.datasets;
               # The system identity dataset: /persist carries the SSH host key
@@ -1210,6 +1230,10 @@
                 touch $out
               '';
           } // pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+            vscode-agent-host-smoke = import ./tests/vscode-agent-host/smoke.nix {
+              inherit pkgs;
+              package = pkgs.callPackage ./pkgs/vscode-agent-host.nix { };
+            };
             deployment-backup-guard =
               let
                 forge = inputs.self.nixosConfigurations.forge.config;
@@ -1236,6 +1260,15 @@
                   ])
                   atriumStateNames
                 ++ map (name: "restic-backup-${name}.timer") atriumAdapterJobs;
+                agentHostStates = pkgs.lib.optional
+                  forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
+                agentHostTimers = pkgs.lib.concatMap
+                  (name: [
+                    "restic-backup-service-${name}.timer"
+                    "restic-backup-${name}-offsite.timer"
+                    "syncoid-tank-services-${name}.timer"
+                  ])
+                  agentHostStates;
                 requiredAlerts = [
                   "deployment-backup-guard-abandoned"
                   "deployment-backup-guard-monitoring-stale"
@@ -1283,20 +1316,31 @@
                 # N04 ownership and N05 admission each add a protected dataset,
                 # replication timer and two encrypted backup jobs. Names and
                 # coverage are asserted below, independently of these totals.
-              assert builtins.length expectedTimers == 150 + builtins.length atriumAdapterJobs;
+                # The opt-in Agent Host adds one dataset, two backup jobs and
+                # three timers; keep the disabled baseline covered as well.
+              assert builtins.length expectedTimers
+                == 150 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
+              assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 65;
+              assert builtins.length (builtins.attrNames snapshotDatasets)
+                == 65 + builtins.length agentHostStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
-                atriumStateNames;
+                (atriumStateNames ++ agentHostStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 73 + builtins.length atriumAdapterJobs;
+              assert builtins.length (builtins.attrNames enabledResticJobs)
+                == 73 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates;
+              assert builtins.all
+                (name: enabledResticJobs."service-${name}".useSnapshots
+                  && enabledResticJobs."${name}-offsite".useSnapshots
+                  && enabledResticJobs."${name}-offsite".repository == "r2-offsite")
+                agentHostStates;
               assert builtins.all
                 (name: enabledResticJobs.${name}.repository == "r2-offsite"
                   && enabledResticJobs.${name}.useSnapshots)

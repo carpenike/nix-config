@@ -9,6 +9,10 @@ let
   }).config;
   clientSettings = config: {
     inherit (config.services.hermes-agent.settings) mcp_servers platform_toolsets;
+    gateway.platforms = {
+      telegram.enabled = config.services.hermes-agent.settings.gateway.platforms.telegram.enabled;
+      signal.enabled = config.services.hermes-agent.settings.gateway.platforms.signal.enabled;
+    };
   };
   data = pkgs.writeText "atrium-hermes-transition-input.json" (builtins.toJSON {
     legacy = clientSettings forge.config;
@@ -51,6 +55,11 @@ pkgs.runCommand "atrium-hermes-config-transition"
         result = copy.deepcopy(settings)
         result["mcp_servers"]["unrelated"] = copy.deepcopy(unrelated)
         result["unrelated-setting"] = {"keep": True}
+        # Existing gateways and aliases must be disabled by the merge, not
+        # merely absent from a newly generated configuration.
+        result["gateway"]["platforms"]["telegram"]["enabled"] = True
+        for alias in ("holthome-telegram", "atrium-status"):
+            result["mcp_servers"][alias]["enabled"] = True
         return result
 
     def merge(settings):
@@ -65,9 +74,9 @@ pkgs.runCommand "atrium-hermes-config-transition"
         }
 
     transitions = [
-        ("adopted", {"atrium-finance", "atrium-status"}),
-        ("legacy", {"holthome", "holthome-telegram"}),
-        ("adopted", {"atrium-finance", "atrium-status"}),
+        ("adopted", {"atrium-finance"}),
+        ("legacy", {"holthome"}),
+        ("adopted", {"atrium-finance"}),
     ]
     config.write_text(yaml.safe_dump(initial(data["legacy"])))
     for name, expected in transitions:
@@ -78,12 +87,14 @@ pkgs.runCommand "atrium-hermes-config-transition"
         assert result["platform_toolsets"] == data[name]["platform_toolsets"]
         assert result["mcp_servers"]["unrelated"] == unrelated
         assert result["unrelated-setting"] == {"keep": True}
+        assert result["gateway"]["platforms"]["telegram"]["enabled"] is False
+        assert result["gateway"]["platforms"]["signal"]["enabled"] is True
         assert merge(data[name]) == result, "configuration merge was not idempotent"
         assert {path.name: path.read_bytes() for path in cache.iterdir()} == original_cache
 
     for source, target, expected in [
-        ("legacy", "adopted", {"atrium-finance", "atrium-status"}),
-        ("adopted", "legacy", {"holthome", "holthome-telegram"}),
+        ("legacy", "adopted", {"atrium-finance"}),
+        ("adopted", "legacy", {"holthome"}),
     ]:
         config.write_text(yaml.safe_dump(initial(data[source])))
         unsafe = copy.deepcopy(data[target])
@@ -101,6 +112,7 @@ pkgs.runCommand "atrium-hermes-config-transition"
         "omitted_disable_regressions_detected": 2,
         "synthetic_cache_files_preserved": len(original_cache),
         "unrelated_configuration_preserved": True,
+        "telegram_retired_signal_preserved": True,
         "runtime_gate_evidence": False,
         "live_operations": False,
     }, sort_keys=True))
