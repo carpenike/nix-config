@@ -93,6 +93,7 @@ in
     ./services/cooklang.nix # Cooklang recipe management
     ./services/cooklang-federation.nix # Cooklang federation search service
     ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
+    ./services/finance-ingestion.nix # Quota-guarded ingestion and independent local-state monitoring
     ./services/schoolhouse.nix # Schoology ingest + read-only MCP (loopback only)
     ./services/lading.nix # Amazon order ingest for the ledger (loopback only)
     ./services/enclosed.nix # Enclosed encrypted note sharing

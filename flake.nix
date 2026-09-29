@@ -192,10 +192,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Rebuild tracker and authoritative bank-linkage metadata; the new
-      # ingestion service/timer stay disabled until separate live acceptance.
+      # Quota-aware ingestion eligibility and credential-free outcome metrics.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/6aa112db0ef0bdce58316ed282a6bcfeb9db26ae";
+      url = "github:carpenike/mcp/897ecc1c2a84eb9eb0c5b22729785b078208e8a9";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -508,6 +507,9 @@
 
           # Checks for CI
           checks = {
+            finance-ingestion-contract = pkgs.writeText "finance-ingestion-contract.json"
+              (builtins.toJSON (import ./tests/finance-ingestion/evaluate.nix { inherit inputs; }));
+            finance-ingestion-monitoring = import ./tests/finance-ingestion/monitoring.nix { inherit pkgs; };
             vscode-agent-host-foundation = pkgs.writeText "vscode-agent-host-foundation.json"
               (builtins.toJSON (import ./tests/vscode-agent-host/evaluate.nix { inherit inputs; }));
             vscode-agent-host-unit = pkgs.runCommand "vscode-agent-host-unit-tests"

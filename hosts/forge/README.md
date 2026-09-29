@@ -76,6 +76,15 @@ acceptance; no finance credentials are supplied.
 See [the Agent Host runbook](../../docs/vscode-agent-host.md) for targeted
 tests, SSH forwarding, provider authentication, acceptance and recovery.
 
+## Deterministic finance ingestion
+
+`services/finance-ingestion.nix` co-locates the quota-aware eligibility timer,
+read-only local-state collector, and severity-specific alerts. Activation must
+pair the new CLI pin with the dedicated token-only SOPS file; existing durable
+quota state and the 05:30 GET-only export are preserved. See the
+[finance ingestion runbook](../../docs/finance-ingestion.md) for prerequisites,
+skip behavior, monitoring limits, and focused offline validation.
+
 ## PostgreSQL migration capacity
 
 Forge sets `max_locks_per_transaction = 512` in `services/postgresql.nix`.
