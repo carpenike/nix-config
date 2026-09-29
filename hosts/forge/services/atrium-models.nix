@@ -347,19 +347,15 @@ in
           };
         };
         atrium-model-health = lib.recursiveUpdate (stateUnit m.roles.gateway) {
-          description = "Check live model publication freshness without reading service tokens";
+          description = "Check completed model reconciliation, publication freshness and admission history";
           requires = [ "zfs-service-datasets.service" "atrium-admission-settings.service" ];
           after = [ "zfs-service-datasets.service" "atrium-admission-settings.service" ];
-          script = ''
-            set -eu
-            now=$(${pkgs.coreutils}/bin/date +%s)
-            for path in ${m.exports.resolver}/associations.json ${m.exports.controller}/native-bindings.json ${m.exports.controller}/service-associations.json; do
-              timestamp=$(${pkgs.coreutils}/bin/stat -c %Y "$path")
-              test "$timestamp" -le "$now"
-              test "$((now - timestamp))" -le 80
-            done
-            ${admission} --settings ${m.admissionSettingsPath} status >/dev/null
-          '';
+          script = import ../atrium/model-health.nix {
+            inherit pkgs admission;
+            resolverDirectory = m.exports.resolver;
+            controllerDirectory = m.exports.controller;
+            settingsPath = m.admissionSettingsPath;
+          };
           serviceConfig = {
             Type = "oneshot";
             PrivateNetwork = true;

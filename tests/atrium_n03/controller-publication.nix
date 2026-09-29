@@ -86,6 +86,14 @@ let
     jwks_url = "${issuer}/jwks";
     fetch_timeout_seconds = 1;
   });
+  health = pkgs.writeShellScript "controller-publication-health"
+    (import ../../hosts/forge/atrium/model-health.nix {
+      inherit pkgs;
+      resolverDirectory = "${root}/resolver-public";
+      controllerDirectory = "${root}/controller-public";
+      admission = lib.getExe packages.atrium-litellm-admission;
+      settingsPath = toString admissionConfig;
+    });
   program = pkgs.writeText "controller-publication-fixture.py" ''
     import hashlib
     import json
@@ -253,6 +261,7 @@ let
         assert publication["generated_at"] <= int(time.time()) < publication["expires_at"]
         assert publication["expires_at"] - publication["generated_at"] == 300
         assert not current.bindings_snapshot.exists()
+        assert not current.reconciliation_snapshot.exists()
         metadata = PUBLICATION.stat()
         assert (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)) == (
             ${toString ids.atrium-reconciler.uid}, ${toString metadataGroup}, 0o640,
@@ -416,11 +425,36 @@ let
             assert raw and raw not in logs and all(raw not in document for document in documents)
         print(json.dumps({"credential_values_checked": len(credentials), "credential_leaks": 0}))
 
+    def health_state(mode):
+        from atrium_litellm.files import atomic_publication_json
+
+        directory = ROOT / "controller-public"
+        completed = directory / "reconciliation.json"
+        if mode == "prepare":
+            atomic_publication_json(directory / "native-bindings.json",
+                {"kind": "atrium.litellm-bindings", "fixture": True}, ${toString metadataGroup})
+        elif mode == "complete":
+            atomic_publication_json(completed, {
+                "kind": "atrium.litellm-reconciliation-completed",
+                "completed_at": int(time.time()), "fixture": True,
+            }, ${toString metadataGroup})
+        elif mode == "stale":
+            age = int(time.time()) - 81
+            os.utime(completed, (age, age))
+        elif mode == "unreadable":
+            completed.chmod(0o600)
+        elif mode == "readable":
+            completed.chmod(0o640)
+        else:
+            raise ValueError("unknown health fixture state")
+
     if sys.argv[1] != "audit":
         network_blocked()
     action = sys.argv[1]
     if action == "admission":
         admission(sys.argv[2])
+    elif action == "health":
+        health_state(sys.argv[2])
     else:
         {"setup": setup, "resolver": resolver, "seed": seed, "verify": verify,
          "denials": denials, "resolver-denial": resolver_denial, "audit": audit}[action]()
@@ -541,6 +575,15 @@ hostPkgs.testers.runNixOSTest {
       atrium-publication-resolver-denial = lib.recursiveUpdate (actor "atrium-resolver") {
         serviceConfig.ExecStart = "${command} resolver-denial";
       };
+      "atrium-publication-health-state@" = lib.recursiveUpdate (actor "atrium-reconciler") {
+        serviceConfig.ExecStart = "${command} health %i";
+      };
+      atrium-publication-refresh = lib.recursiveUpdate (actor "atrium-reconciler") {
+        serviceConfig.ExecStart = "${bootstrap} controller-publication --config ${controllerConfig "atrium-reconciler"} --confirm-existing-installation ${installation}";
+      };
+      atrium-model-health = lib.recursiveUpdate (actor "atrium-model-gateway") {
+        serviceConfig.ExecStart = health;
+      };
     };
     system.stateVersion = "25.11";
   };
@@ -579,6 +622,22 @@ hostPkgs.testers.runNixOSTest {
     resolver_denial = json.loads(machine.succeed("cat ${root}/resolver/denials.json"))
     assert resolver_denial == {"rejected": 1, "unchanged_on_rejection": True}
     machine.succeed("systemctl start atrium-publication-admission@permit")
+    machine.succeed("systemctl start atrium-publication-refresh")
+    machine.succeed("systemctl start atrium-publication-health-state@prepare")
+    machine.fail("systemctl start atrium-model-health")
+    machine.succeed("systemctl start atrium-publication-health-state@complete")
+    machine.succeed("systemctl start atrium-model-health")
+    machine.succeed("systemctl start atrium-publication-health-state@stale")
+    age = machine.succeed("stat -c %Y ${root}/controller-public/reconciliation.json").strip()
+    machine.succeed("systemctl start atrium-publication-refresh")
+    assert machine.succeed("stat -c %Y ${root}/controller-public/reconciliation.json").strip() == age
+    machine.fail("systemctl start atrium-model-health")
+    machine.succeed("systemctl start atrium-publication-health-state@complete")
+    machine.succeed("systemctl start atrium-model-health")
+    machine.succeed("systemctl start atrium-publication-health-state@unreadable")
+    machine.fail("systemctl start atrium-model-health")
+    machine.succeed("systemctl start atrium-publication-health-state@readable")
+    machine.succeed("systemctl start atrium-model-health")
     audit = json.loads(machine.succeed("${command} audit"))
     assert audit == {"credential_values_checked": 8, "credential_leaks": 0}
     machine.succeed(
@@ -596,6 +655,9 @@ hostPkgs.testers.runNixOSTest {
         "retained_records": 4, "bootstrap_denials": 8, "owned_denials": 12,
         "same_initialized_history": True, "ip_sockets_forbidden": True,
         "real_LoadCredential_projection": True, "cleanup": True,
+        "shared_production_health_script": True,
+        "health_missing_stale_unreadable_completion_denied": True,
+        "bootstrap_does_not_refresh_completion": True,
         "credential_leaks": 0, "native_writes": False, "live_operations": False,
         "source_sha256": {
             "bootstrap": "${builtins.hashFile "sha256" ../../hosts/forge/atrium/model-bootstrap.py}",

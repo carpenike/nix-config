@@ -47,6 +47,35 @@ this history.
 
 ## First-use and idle-rotation alerts
 
+### Missing runtime publications
+
+The controller retains ownership and key hashes, not a recoverable copy of
+the raw service key. A lost `/run/atrium-delivery/whiskey/key.json` must not
+be repaired by reinitializing that ledger, pasting a key, fabricating an
+acknowledgement or restoring obsolete runtime files.
+
+The bounded recovery path verifies the retained owned service association
+and actual native permissions before generating one replacement. It keeps
+narrower effective limits and uses the existing atomic publication,
+non-billable consumer acknowledgement and overlap. A missing acknowledgement
+with an intact publication is repaired by Whiskey's monitor without a new
+key. Unsafe, linked, foreign, blocked, retired and expired state stays refused.
+Unconfirmed lost pending keys are retired through the existing journal;
+confirmed keys and an earlier overlap are not discarded prematurely.
+
+After deploying the coordinated controller release, the existing timer
+performs recovery. No new adoption or grant preparation is required.
+Deployment remains owner-operated; do not invoke initialization as repair.
+
+Model health also requires the protected
+`/run/atrium-publications/controller/reconciliation.json` completion receipt.
+Only a fully completed non-dry controller run writes it. Bootstrap's retained
+metadata refresh does not refresh it, and the existing 80-second bound is
+unchanged. Missing, linked or unreadable publications fail the check. The
+isolated systemd publication fixture executes the shared production health
+script with synthetic metadata; application native qualification separately
+proves real controller completion and the actual consumer handoff.
+
 `service_ack_timeout` means the published replacement is still unconfirmed, not
 necessarily that Whiskey is down. The running Whiskey process now notices new
 publications and calls the gateway's distinct, non-billable
