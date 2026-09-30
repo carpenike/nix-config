@@ -85,6 +85,12 @@ quota state and the 05:30 GET-only export are preserved. See the
 [finance ingestion runbook](../../docs/finance-ingestion.md) for prerequisites,
 skip behavior, monitoring limits, and focused offline validation.
 
+`services/finance-snapshots.nix` adds bounded five-minute post-ingestion exports
+using the existing export identity/environment and read-only bank state. The
+nightly export and bank quota remain unchanged. See the
+[snapshot runbook](../../docs/finance-snapshots.md) for the paired-release gate,
+checkpoint alerts and the remaining manual/nightly source-consistency limit.
+
 ## PostgreSQL migration capacity
 
 Forge sets `max_locks_per_transaction = 512` in `services/postgresql.nix`.
