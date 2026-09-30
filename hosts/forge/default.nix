@@ -95,6 +95,7 @@ in
     ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
     ./services/finance-ingestion.nix # Quota-guarded ingestion and independent local-state monitoring
     ./services/finance-snapshots.nix # Bounded post-ingestion export and aggregate checkpoint monitoring
+    ./services/finance-signal.nix # Off-by-default manual report preparation and Ops-only capture staging
     ./services/schoolhouse.nix # Schoology ingest + read-only MCP (loopback only)
     ./services/lading.nix # Amazon order ingest for the ledger (loopback only)
     ./services/enclosed.nix # Enclosed encrypted note sharing
@@ -134,6 +135,12 @@ in
   ];
 
   config = {
+    # Expose only manual acceptance units; no Signal receiver/sender starts here.
+    services.financeSignalStaging = {
+      reportReader.enable = true;
+      capture.enable = true;
+    };
+
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
 

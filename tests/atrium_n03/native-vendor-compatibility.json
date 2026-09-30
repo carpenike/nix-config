@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "atrium.native-vendor-source-comparison",
   "application_revision": "eb6842c22c218e26aeb5efac8753339374d97721",
-  "native_revision": "a72d69b627899c744d20a062c76058ef39aeb9c3",
+  "native_revision": "ac0c0fd9102c28a66f94a0d18cbbca5f9275058c",
   "vendor_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
   "scope": "Exact source applicability comparison, not a new native authentication gate. Every unlisted source member and digest must remain identical.",
   "reviewed_changes": {
