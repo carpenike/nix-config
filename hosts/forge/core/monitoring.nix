@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   bootStatusState = "/var/lib/boot-status/state";
@@ -276,9 +276,14 @@ in
     "systemd-unit-failed" = {
       type = "promql";
       alertname = "SystemdUnitFailed";
-      expr = ''
-        node_systemd_unit_state{state="failed"} == 1
-      '';
+      # These two bounded jobs own preparation retries and an explicit
+      # completion deadline. Their outcome/deadline alerts remain authoritative.
+      expr =
+        if config.services.financeSignalProduction.enable or false then ''
+          node_systemd_unit_state{state="failed",name!~"finance-signal-report@(daily|weekly)\\.service"} == 1
+        '' else ''
+          node_systemd_unit_state{state="failed"} == 1
+        '';
       for = "5m";
       severity = "high";
       labels = { service = "system"; category = "systemd"; };

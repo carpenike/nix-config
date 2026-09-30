@@ -507,6 +507,15 @@
 
           # Checks for CI
           checks = {
+            finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
+              (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
+            finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {
+              inherit pkgs;
+              package = inputs.homelab-mcp.packages.${system}.default;
+              source = inputs.homelab-mcp;
+              systemdFailureExpr = inputs.self.nixosConfigurations.forge.config.modules.alerting.rules.systemd-unit-failed.expr;
+              productionEnabled = inputs.self.nixosConfigurations.forge.config.services.financeSignalProduction.enable;
+            };
             finance-signal-staging-contract = pkgs.writeText "finance-signal-staging-contract.json"
               (builtins.toJSON (import ./tests/finance-signal/evaluate.nix { inherit inputs; }));
             finance-signal-staging-runtime = import ./tests/finance-signal/runtime.nix { inherit pkgs; };
