@@ -194,7 +194,7 @@
     homelab-mcp = {
       # Gated deterministic Signal preparation, delivery, and acknowledged capture.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/ac0c0fd9102c28a66f94a0d18cbbca5f9275058c";
+      url = "github:carpenike/mcp/70f96a35d05f9bfa9e422e3a5d17903953345222";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

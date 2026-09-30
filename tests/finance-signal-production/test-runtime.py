@@ -265,6 +265,18 @@ class RuntimeTests(unittest.TestCase):
                 clock.now.return_value = start + timedelta(seconds=seconds)
                 self.assertEqual(runtime.due("daily", BEFORE), expected)
 
+    def test_live_monitor_does_not_pass_a_pre_read_clock_to_listener_status(self):
+        native = status.read_status(str(self.db), now=AT.timestamp())
+        with (
+            patch.object(runtime, "datetime", wraps=datetime) as clock,
+            patch.object(status, "read_status", return_value=native) as read,
+            patch.object(report_job, "read_report_status", side_effect=self.fresh),
+        ):
+            clock.now.return_value = AT
+            values = runtime.collect(self.db, ENV, "18484", BEFORE)
+        read.assert_called_once_with(str(self.db), now=None)
+        self.assertEqual(values["listener_healthy"], 1)
+
     def test_due_configuration_errors_fail_the_systemd_condition(self):
         for arguments in (
             ["due", "daily", "2026-13-01T00:00:00-04:00"],

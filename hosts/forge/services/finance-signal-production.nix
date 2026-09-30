@@ -73,8 +73,8 @@ in
 
     assertions = [
       {
-        assertion = app.enable && lib.versionAtLeast (app.package.version or "0") "0.33.1";
-        message = "finance-signal production requires MCP >= 0.33.1 with native capture/status and Ops-first durable report delivery.";
+        assertion = app.enable && lib.versionAtLeast (app.package.version or "0") "0.33.2";
+        message = "finance-signal production requires MCP >= 0.33.2 with live post-read heartbeat status and Ops-first durable report delivery.";
       }
       {
         assertion = !(config.systemd.services.hermes-agent.enable or true);

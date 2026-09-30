@@ -177,8 +177,10 @@ def collect(
     environ: Mapping[str, str],
     port: str,
     not_before: datetime,
-    at: datetime,
+    at: datetime | None = None,
 ) -> dict[str, float]:
+    live_observation = at is None
+    at = datetime.now(UTC) if at is None else at
     values = empty_metrics(at)
     try:
         private_database(path, mounted=True)
@@ -209,7 +211,11 @@ def collect(
     if not values["path_healthy"]:
         return values
     try:
-        evidence = status.read_status(str(path), now=at.timestamp())
+        # A fixed test clock is explicit; live health must sample after the
+        # heartbeat read, not use the time before native imports/SQLite work.
+        evidence = status.read_status(
+            str(path), now=None if live_observation else at.timestamp()
+        )
         if (
             type(evidence["schema_version"]) is not int
             or evidence["schema_version"] != 1
@@ -341,9 +347,7 @@ def main(argv: list[str]) -> int:
     os.umask(0o077)
     try:
         if len(argv) == 4 and argv[0] == "collect":
-            values = collect(
-                DATABASE, os.environ, argv[1], cutover(argv[2]), datetime.now(UTC)
-            )
+            values = collect(DATABASE, os.environ, argv[1], cutover(argv[2]))
             publish(Path(argv[3]), values)
             return int(
                 not values["path_healthy"] or not values["listener_status_available"]

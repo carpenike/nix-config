@@ -1,20 +1,30 @@
 # Production finance Signal wiring
 
 The [production module](../hosts/forge/services/finance-signal-production.nix)
-is **opt-in, default off**. Importing it starts nothing. It replaces neither
-Hermes configuration nor the [manual staging module](finance-signal-staging.md).
+is **opt-in, default off**. Forge now selects it explicitly for the approved
+cutover. The parent retirement block masks Hermes runtime/recovery units while
+preserving history and backups; the [manual staging module](finance-signal-staging.md)
+remains installed but its receiver is stopped.
 No deployment, notice, live Signal call, permission repair or migration is
 performed by the offline tests.
 
 The parent supplied the qualification evidence: Ops report and attachment
 received, two durable acknowledgments confirmed, chatter ignored, and the nine
-production context rows unchanged. Hermes was restored and staging stopped
-after that test. This is not evidence that production ownership has changed.
+production context rows unchanged. Hermes was restored after that bounded test,
+then stopped by the separately approved production cutover. First scheduled
+daily/weekly delivery remains a future acceptance check, not a fixture claim.
+
+Live monitoring requires the paired **MCP 0.33.2** clock correction. A listener
+can write a new heartbeat during imports/SQLite startup; sampling the clock
+before that read falsely labels it future-dated. Production status now samples
+time after reading the heartbeat, while fixed-clock tests still reject genuinely
+stale/future evidence. Never fix this by suppressing the listener-health alert.
 
 ## Parent-owned cutover
 
-After offline qualification, **one authorized family notice**, and the checks
-below, the parent may select:
+After offline qualification and the checks below, the parent may select the
+following. Send **one authorized Family notice only after the replacement
+receiver is verified healthy**:
 
 ```nix
 services.financeSignalProduction = {

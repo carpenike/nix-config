@@ -124,7 +124,7 @@ let
       !(passes (mkHost { before = null; }))
       && !(passes (mkHost { before = "2026-10-01T00:00:00"; }));
     old-package-and-wrong-uid-fail =
-      !(passes (mkHost { version = "0.33.0"; }))
+      !(passes (mkHost { version = "0.33.1"; }))
       && !(passes (mkHost { allowedUsers = [ "hermes" ]; }));
     no-new-secrets-roles-or-repair =
       on.sops.secrets == off.sops.secrets
