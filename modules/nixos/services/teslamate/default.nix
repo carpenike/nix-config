@@ -579,7 +579,8 @@ in
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           "--network=${cfg.podmanNetwork}"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          "--health-cmd=nc -z 127.0.0.1 4000 || exit 1"
+          # The 4.3 image includes Bash but no longer ships netcat.
+          "--health-cmd=bash -c 'exec 3<>/dev/tcp/127.0.0.1/4000'"
           "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"

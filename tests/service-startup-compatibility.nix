@@ -31,6 +31,10 @@ let
     }];
   }).config;
   checks = {
+    teslamate-probe-uses-an-installed-interpreter =
+      builtins.elem "--health-cmd=bash -c 'exec 3<>/dev/tcp/127.0.0.1/4000'"
+        containers.teslamate.extraOptions
+      && !lib.any (lib.hasInfix "--health-cmd=nc ") containers.teslamate.extraOptions;
     beszel-keeps-schema-migration =
       c.systemd.services.beszel-hub.serviceConfig.ExecStartPre
       == [ "${beszel.package}/bin/beszel-hub migrate up" ];

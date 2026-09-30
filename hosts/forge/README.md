@@ -91,6 +91,13 @@ nightly export and bank quota remain unchanged. See the
 [snapshot runbook](../../docs/finance-snapshots.md) for the paired-release gate,
 checkpoint alerts and the remaining manual/nightly source-consistency limit.
 
+## TeslaMate health probe
+
+TeslaMate 4.3 no longer ships `nc`; its TCP healthcheck uses the installed
+Bash interpreter instead. The replacement was checked against the real listener
+and a closed-port negative control. A missing probe tool must not be diagnosed
+as a stopped application.
+
 ## PostgreSQL migration capacity
 
 Forge sets `max_locks_per_transaction = 512` in `services/postgresql.nix`.
