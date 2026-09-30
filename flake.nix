@@ -192,9 +192,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Quota-aware ingestion eligibility and credential-free outcome metrics.
+      # Atomic post-ingestion snapshots and conservative obligation forecasts.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/897ecc1c2a84eb9eb0c5b22729785b078208e8a9";
+      url = "github:carpenike/mcp/a72d69b627899c744d20a062c76058ef39aeb9c3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -507,6 +507,9 @@
 
           # Checks for CI
           checks = {
+            finance-snapshot-contract = pkgs.writeText "finance-snapshot-contract.json"
+              (builtins.toJSON (import ./tests/finance-snapshots/evaluate.nix { inherit inputs; }));
+            finance-snapshot-monitoring = import ./tests/finance-snapshots/monitoring.nix { inherit pkgs; };
             finance-ingestion-contract = pkgs.writeText "finance-ingestion-contract.json"
               (builtins.toJSON (import ./tests/finance-ingestion/evaluate.nix { inherit inputs; }));
             finance-ingestion-monitoring = import ./tests/finance-ingestion/monitoring.nix { inherit pkgs; };

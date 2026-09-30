@@ -1,8 +1,9 @@
 # Forge finance ingestion
 
 `hosts/forge/services/finance-ingestion.nix` enables the deterministic ingestion
-owner and independent monitoring. This is ingestion/readback infrastructure,
-not the later shared-snapshot, checkpoint, or household-report pipeline.
+owner and independent monitoring. Post-ingestion export/checkpoint polling is
+separate wiring described in [finance snapshots](finance-snapshots.md); neither
+is the household-report pipeline.
 
 ## Activation prerequisites
 
@@ -99,8 +100,10 @@ No `OnSuccess` or unconditional post-service export hook is attached: a skipped
 eligibility condition is not proof of an actual attempt, and a reported partial
 is not a successful shared snapshot. After a verified actual attempt an operator
 may start the existing `homelab-mcp-finances-export.service` for a read-only
-dashboard refresh. Automatic snapshot/export checkpointing remains RB-21/RB-23
-work; a recent export must never disguise stale bank data.
+dashboard refresh. The separate five-minute [snapshot poll](finance-snapshots.md)
+checks durable ingestion identities instead of process-success hooks, with its
+own aggregate evidence and alerts. Pair its MCP release before activation;
+a recent export or poll must never disguise stale bank data.
 
 ## Focused validation
 
