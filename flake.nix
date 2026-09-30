@@ -192,9 +192,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Atomic post-ingestion snapshots and conservative obligation forecasts.
+      # Gated deterministic Signal preparation, delivery, and acknowledged capture.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/a72d69b627899c744d20a062c76058ef39aeb9c3";
+      url = "github:carpenike/mcp/79ea5d7a4ebf7a1855dd3699e9e2c07721cc0c7e";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -507,6 +507,9 @@
 
           # Checks for CI
           checks = {
+            finance-signal-staging-contract = pkgs.writeText "finance-signal-staging-contract.json"
+              (builtins.toJSON (import ./tests/finance-signal/evaluate.nix { inherit inputs; }));
+            finance-signal-staging-runtime = import ./tests/finance-signal/runtime.nix { inherit pkgs; };
             finance-snapshot-contract = pkgs.writeText "finance-snapshot-contract.json"
               (builtins.toJSON (import ./tests/finance-snapshots/evaluate.nix { inherit inputs; }));
             finance-snapshot-monitoring = import ./tests/finance-snapshots/monitoring.nix { inherit pkgs; };
