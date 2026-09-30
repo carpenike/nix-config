@@ -875,6 +875,26 @@ in
   ];
 
   config = lib.mkMerge [
+    (lib.mkIf (config.services.financeSignalProduction.enable or false) {
+      # Keep private history, ownership and backups for rollback, but remove
+      # every runtime/recovery entrypoint once the replacement owns Signal.
+      systemd.services = lib.genAttrs [
+        "hermes-agent"
+        "hermes-agent-log-relay"
+        "hermes-agent-mcp-recover"
+        "hermes-agent-sentinel-heartbeat"
+        "hermes-agent-weekly-pulse-seed"
+        "hermes-agent-daily-finance-sentinel-seed"
+        "hermes-agent-weekly-pulse-dry-run"
+        "hermes-agent-daily-finance-sentinel-dry-run"
+      ]
+        (_: { enable = lib.mkForce false; });
+      systemd.timers = lib.genAttrs [
+        "hermes-agent-mcp-recover"
+        "hermes-agent-sentinel-heartbeat"
+      ]
+        (_: { enable = lib.mkForce false; });
+    })
     {
       services.hermes-agent = {
         enable = true;
@@ -1114,10 +1134,11 @@ in
       # (widen the start-limit window per-service, or alert on restart churn)
       # is tracked separately and would repair them all at once.
       modules.alerting.rules."${serviceName}-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert
-          serviceName
-          "Hermes Agent"
-          "AI agent gateway";
+        lib.mkIf (!(config.services.financeSignalProduction.enable or false))
+          (forgeDefaults.mkSystemdServiceDownAlert
+            serviceName
+            "Hermes Agent"
+            "AI agent gateway");
 
       # The upstream native unit already uses NoNewPrivileges,
       # ProtectSystem=strict, PrivateTmp, and a dedicated user. Tighten the

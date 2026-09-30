@@ -96,6 +96,7 @@ in
     ./services/finance-ingestion.nix # Quota-guarded ingestion and independent local-state monitoring
     ./services/finance-snapshots.nix # Bounded post-ingestion export and aggregate checkpoint monitoring
     ./services/finance-signal.nix # Off-by-default manual report preparation and Ops-only capture staging
+    ./services/finance-signal-production.nix # Explicitly gated canonical capture, scheduled reports and local monitoring
     ./services/schoolhouse.nix # Schoology ingest + read-only MCP (loopback only)
     ./services/lading.nix # Amazon order ingest for the ledger (loopback only)
     ./services/enclosed.nix # Enclosed encrypted note sharing
@@ -139,6 +140,10 @@ in
     services.financeSignalStaging = {
       reportReader.enable = true;
       capture.enable = true;
+    };
+    services.financeSignalProduction = {
+      enable = true;
+      reportsNotBefore = "2026-10-01T00:00:00-04:00";
     };
 
     # Primary IP for DNS record generation
