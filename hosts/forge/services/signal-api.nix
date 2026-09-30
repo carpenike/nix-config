@@ -3,14 +3,14 @@
 # Signal delivery transport for the household-advisor system.
 #
 # signal-cli-rest-api runs a dedicated Signal bot account ("Household
-# Advisor"). Hermes owns interactive send/receive; homelab-mcp remains a
-# send-only future caller for the separate weekly financial pulse work.
+# Advisor"). Deterministic finance workers own reports and explicit-note
+# capture; the old Hermes runtime is retired.
 #
-#   hermes-agent  <->  signal-api container  <->  family Signal group
+#   finance workers <-> signal-api container <-> configured Signal groups
 #                  REST send / WebSocket receive
 #
 #   homelab-mcp   -->  signal-api container
-#                  future send only
+#                  separately approved interactive send-only tool
 #
 # The account registration is a ONE-TIME MANUAL PROCEDURE performed by a
 # human - see modules/nixos/services/signal-api/RUNBOOK.md. Until that runs,
@@ -52,14 +52,14 @@ in
         inherit podmanNetwork;
 
         # Who may talk to the unauthenticated API on this host:
-        #   hermes      - interactive Signal send/receive gateway
-        #   homelab-mcp - approved future send-only caller (`signal_send`)
+        #   hermes      - retained rollback identity; runtime is retired
+        #   homelab-mcp - deterministic report/capture workers + `signal_send`
         #   gatus       - the liveness check below
         #   root        - operators following the registration runbook
         #
-        # RECEIVE CONSUMER INVARIANT: hermes-agent is the only service that
-        # may attach to /v1/receive. Never add a second receiver; concurrent
-        # consumers contend for messages and can cause loss or duplication.
+        # RECEIVE CONSUMER INVARIANT: finance-signal-capture is the production
+        # owner after the September 2026 cutover. Stop it before an explicitly
+        # approved staging/rollback receiver; never run two active consumers.
         localAccess = {
           enable = true;
           subnet = podmanSubnet;
