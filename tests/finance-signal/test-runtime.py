@@ -334,6 +334,74 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(arguments, [executable, "listen"])
         self.assertEqual(passed, runtime.capture_environment(env, "18484"))
 
+    def test_report_preview_forces_ops_and_never_inherits_production_enablement(
+        self,
+    ) -> None:
+        class ReplacedProcess(BaseException):
+            pass
+
+        env = (
+            inputs()
+            | {
+                f"HOMELAB_MCP_SIGNAL_{key}": f"synthetic-{key}"
+                for key in runtime.SIGNAL_FIELDS
+            }
+            | {
+                "HOMELAB_MCP_SIGNAL_REPORTS_ENABLED": "true",
+                "HOMELAB_MCP_SIGNAL_REPORT_DB_PATH": str(runtime.PRODUCTION_DB),
+                "PATH": "/fixed/tools",
+            }
+        )
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch.object(runtime.os, "execve", side_effect=ReplacedProcess) as execute,
+            self.assertRaises(ReplacedProcess),
+        ):
+            runtime.main(
+                [
+                    "report-preview",
+                    "/fixture/homelab-finances-signal-report",
+                    "weekly",
+                    "18484",
+                ]
+            )
+        executable, arguments, passed = execute.call_args.args
+        self.assertEqual(
+            arguments,
+            [
+                executable,
+                "run",
+                "--kind",
+                "weekly",
+                "--native-config",
+                str(runtime.READER / "reader.json"),
+                "--ops-preview",
+                "--database",
+                str(runtime.STAGING_DB),
+                "--send",
+            ],
+        )
+        self.assertEqual(passed["HOMELAB_MCP_SIGNAL_REPORTS_ENABLED"], "false")
+        self.assertEqual(
+            passed["HOMELAB_MCP_SIGNAL_REPORT_DB_PATH"], str(runtime.STAGING_DB)
+        )
+        self.assertNotIn("HOMELAB_MCP_FINANCES_SIDECAR_TOKEN", passed)
+        self.assertNotIn("HOMELAB_MCP_EXPORT_PG_DSN", passed)
+        self.assertNotIn("HOMELAB_MCP_SIGNAL_CAPTURE_ENABLED", passed)
+
+    def test_report_preview_rejects_unknown_kind_before_exec(self) -> None:
+        with (
+            patch.object(runtime.os, "execve") as execute,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(
+                runtime.main(
+                    ["report-preview", "/fixture/report", "untrusted", "18484"]
+                ),
+                2,
+            )
+        execute.assert_not_called()
+
     def fake_producer(self, exit_code: int) -> Path:
         path = self.root / "native-producer"
         path.write_text(

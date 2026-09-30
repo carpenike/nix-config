@@ -273,6 +273,25 @@ def prepare(executable: str, kind: str, directory: Path) -> int:
         os.close(fd)
 
 
+def report_preview_environment(environ: Mapping[str, str], port: str) -> dict[str, str]:
+    """Use only transport coordinates and explicit test paths for an Ops preview."""
+    transport = capture_environment(environ, port)
+    result = {
+        f"HOMELAB_MCP_SIGNAL_{field}": transport[f"HOMELAB_MCP_SIGNAL_{field}"]
+        for field in SIGNAL_FIELDS
+    }
+    result.update(
+        HOMELAB_MCP_SIGNAL_BASE_URL=transport["HOMELAB_MCP_SIGNAL_BASE_URL"],
+        HOMELAB_MCP_SIGNAL_REPORTS_ENABLED="false",
+        HOMELAB_MCP_FINANCES_CONTEXT_DB_PATH=str(PRODUCTION_DB),
+        HOMELAB_MCP_SIGNAL_REPORT_DB_PATH=str(STAGING_DB),
+    )
+    for key in ("PATH", "SSL_CERT_FILE", "GIT_SSL_CAINFO"):
+        if key in environ:
+            result[key] = environ[key]
+    return result
+
+
 def main(argv: list[str]) -> int:
     try:
         os.umask(0o077)
@@ -286,6 +305,25 @@ def main(argv: list[str]) -> int:
             )
         elif len(argv) == 3 and argv[0] == "prepare":
             return prepare(argv[1], argv[2], REPORTS / "artifacts")
+        elif len(argv) == 4 and argv[0] == "report-preview":
+            if argv[2] not in ("daily", "weekly"):
+                raise InvalidInput("invalid_report_kind")
+            os.execve(
+                argv[1],
+                [
+                    argv[1],
+                    "run",
+                    "--kind",
+                    argv[2],
+                    "--native-config",
+                    str(READER / "reader.json"),
+                    "--ops-preview",
+                    "--database",
+                    str(STAGING_DB),
+                    "--send",
+                ],
+                report_preview_environment(os.environ, argv[3]),
+            )
         raise InvalidInput("invalid_arguments")
     except InvalidInput as exc:
         print(str(exc), file=sys.stderr)

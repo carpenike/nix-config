@@ -206,6 +206,7 @@ in
         }
         {
           assertion = signal.enable && signal.localAccess.enable
+            && signal.localAccess.subnet != null
             && builtins.elem mcp.serviceConfig.User signal.localAccess.allowedUsers;
           message = "finance-signal staging capture requires the existing Signal loopback UID guard to permit the MCP identity.";
         }
@@ -233,7 +234,10 @@ in
           ];
           RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
           IPAddressDeny = "any";
-          IPAddressAllow = [ "127.0.0.1/32" "::1/128" ];
+          # Podman's loopback publication DNATs to its isolated bridge before
+          # the cgroup filter. Keep the configured endpoint and host UID guard.
+          IPAddressAllow = [ "127.0.0.1/32" "::1/128" ]
+            ++ lib.optional (signal.localAccess.subnet != null) signal.localAccess.subnet;
           Restart = "on-failure";
           RestartSec = "30s";
           TimeoutStopSec = "60s";
@@ -260,6 +264,54 @@ in
           TimeoutStartSec = "15s";
           Restart = "no";
           StandardOutput = "journal";
+        };
+      };
+    })
+
+    (lib.mkIf (cfg.reportReader.enable && cfg.capture.enable) {
+      assertions = [{
+        assertion = lib.versionAtLeast (app.package.version or "0") "0.33.1";
+        message = "finance-signal Ops preview requires MCP >= 0.33.1 with complete Ops attachments.";
+      }];
+      systemd.services."finance-signal-report-preview@" = {
+        description = "MANUAL ONLY: send one %i report preview to Advisor Ops";
+        after = [
+          "zfs-service-datasets.service"
+          "postgresql-provision-databases.service"
+          "finance-report-reader-config.service"
+          "podman-signal-api.service"
+          "sops-install-secrets.service"
+        ];
+        requires = [
+          "zfs-service-datasets.service"
+          "postgresql-provision-databases.service"
+          "finance-report-reader-config.service"
+          "podman-signal-api.service"
+          "sops-install-secrets.service"
+        ];
+        unitConfig = mountGate;
+        path = [ pkgs.git ];
+        environment = {
+          SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+          GIT_SSL_CAINFO = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        };
+        serviceConfig = sandbox // {
+          Type = "oneshot";
+          EnvironmentFile = [ transportFile ];
+          ExecStart = "${helper} report-preview ${app.package}/bin/homelab-finances-signal-report %i ${toString signal.port}";
+          StateDirectory = [ "homelab-mcp/finance-reports" "homelab-mcp/finance-signal-staging" ];
+          StateDirectoryMode = "0700";
+          BindPaths = [ reportDir stagingDir ];
+          BindReadOnlyPaths = [ "${dataDir}/finances-ingest" readerDir "/run/postgresql" ];
+          ReadWritePaths = [ reportDir stagingDir ];
+          ReadOnlyPaths = [ "${dataDir}/finances-ingest" readerDir ];
+          RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+          TimeoutStartSec = "270s";
+          TimeoutStopSec = "45s";
+          KillMode = "control-group";
+          Restart = "no";
+          StandardOutput = "journal";
+          StandardError = "journal";
         };
       };
     })

@@ -6,7 +6,7 @@ let
   mkHost =
     { reader ? false
     , capture ? false
-    , version ? "0.33.0"
+    , version ? "0.33.1"
     , secret ? true
     , allowedUsers ? [ "homelab-mcp" ]
     }:
@@ -42,7 +42,7 @@ let
               signal-api = {
                 enable = true;
                 port = 18484;
-                localAccess = { enable = true; inherit allowedUsers; };
+                localAccess = { enable = true; subnet = "10.90.0.0/24"; inherit allowedUsers; };
               };
               postgresql.databases.homelab_finance = {
                 owner = "homelab-mcp-export";
@@ -98,6 +98,7 @@ let
   prepare = on.systemd.services."finance-report-prepare@";
   capture = on.systemd.services.finance-signal-capture-staging;
   status = on.systemd.services.finance-signal-staging-status;
+  preview = on.systemd.services."finance-signal-report-preview@";
   database = on.modules.services.postgresql.databases.homelab_finance;
   role = "finance-report-reader";
   newUnits = [
@@ -105,6 +106,7 @@ let
     "finance-report-prepare@"
     "finance-signal-capture-staging"
     "finance-signal-staging-status"
+    "finance-signal-report-preview@"
   ];
   checks = {
     real-secret-and-transport-units-order-startup =
@@ -124,6 +126,20 @@ let
       && !(readerOnly.systemd.services ? finance-signal-capture-staging)
       && !(captureOnly.systemd.services ? finance-report-reader-config)
       && !(captureOnly.modules.services.postgresql.databases.homelab_finance ? additionalRoles);
+    ops-preview-is-explicit-manual-and-isolated =
+      !(readerOnly.systemd.services ? "finance-signal-report-preview@")
+      && !(captureOnly.systemd.services ? "finance-signal-report-preview@")
+      && lib.hasSuffix
+        " report-preview ${on.services.homelab-mcp.package}/bin/homelab-finances-signal-report %i 18484"
+        preview.serviceConfig.ExecStart
+      && preview.serviceConfig.EnvironmentFile == [ "/run/secrets/homelab-mcp/finance-signal-env" ]
+      && preview.serviceConfig.ReadWritePaths == [
+        "/var/lib/homelab-mcp/finance-reports"
+        "/var/lib/homelab-mcp/finance-signal-staging"
+      ]
+      && preview.serviceConfig.Restart == "no"
+      && preview.serviceConfig.TimeoutStartSec == "270s"
+      && builtins.elem "finance-report-reader-config.service" preview.requires;
     release-and-uid-guards-fail-closed =
       stagingAssertionsPass on
       && !(stagingAssertionsPass old)
@@ -217,7 +233,7 @@ let
       && capture.serviceConfig.TimeoutStopSec == "60s"
       && capture.serviceConfig.KillMode == "control-group"
       && capture.serviceConfig.IPAddressDeny == "any"
-      && capture.serviceConfig.IPAddressAllow == [ "127.0.0.1/32" "::1/128" ];
+      && capture.serviceConfig.IPAddressAllow == [ "127.0.0.1/32" "::1/128" "10.90.0.0/24" ];
     persistent-consumers-require-existing-mcp-mount =
       lib.all
         (unit:

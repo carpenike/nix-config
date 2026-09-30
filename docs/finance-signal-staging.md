@@ -7,7 +7,7 @@ message, and never opens/migrates the existing production
 `finances-context.db` (the existing nine context rows must remain untouched).
 No production report/capture unit, timer, or boot target is installed here.
 
-The paired MCP pin is `0.33.0`; the root-only transport secret was provisioned
+The paired MCP pin is `0.33.1`; the root-only transport secret was provisioned
 from the exact existing registration, group IDs and verified human ACIs.
 Live acceptance and any eventual cutover remain separate gates. An old pin
 is rejected when either gate is enabled; no global pin acceptance is relaxed.
@@ -15,18 +15,43 @@ Hermes's sender, capture writer, credentials and history remain unchanged.
 The existing **08:00 daily / Friday 16:00 America/New_York** report slots remain
 the intended cadence, but are not activated by this module.
 
+The receiver's IP sandbox must allow both loopback and the Signal service's
+configured isolated Podman subnet. Published loopback traffic is DNATed before
+the cgroup filter; a loopback-only allowance timed out in the real staging test.
+The client still uses the loopback URL, and the host's existing UID firewall
+remains in force. Do not replace the configured endpoint with a container IP.
+
 ## Entrypoint boundaries
 
 | Executable | Contract |
 |---|---|
 | `homelab-finances-report` | Prepare-only `finances_reports.__main__`; used by the native preparation unit |
 | `homelab-finances-signal` | Listener and read-only listener status |
-| `homelab-finances-signal-report` | Durable `report_job:main` jobs and read-only job status; separate parent wiring |
+| `homelab-finances-signal-report` | Durable jobs/status; exposed only through an explicit manual Ops preview unit here |
 
 Do not replace the prepare-only entrypoint with the durable-job CLI. Its
 `run --kind daily|weekly --native-config PATH --ops-preview --database TEST_DB`
-interface, including the optional `--send`, is not activated by this module.
-Neither Ops sending nor family delivery is authorized by configuration staging.
+interface is used by the manual `finance-signal-report-preview@` unit below.
+Installing that unit neither starts it nor authorizes a send. Family delivery
+is never activated by this staging module.
+
+## Manual Ops delivery acceptance
+
+With explicit consent, `systemctl start finance-signal-report-preview@weekly`
+prepares and queues one Ops preview, including complete human-readable details
+as a bounded plain-text attachment. Its wrapper forces `--ops-preview`, the
+isolated staging database and `SIGNAL_REPORTS_ENABLED=false`; callers cannot
+redirect it to Family. It passes only the transport coordinates plus the
+already-projected native-reader paths. Accepted replays return the old receipt;
+unknown/reserved sends are not automatically repeated.
+
+Only one receive owner is allowed during capture acceptance. Pause the old
+Hermes receiver with explicit operator approval, start the Ops staging receiver,
+test notes and a reply to the known accepted weekly preview, then stop staging
+and restore the previous receiver unless cutover is separately approved.
+Document the interruption: messages arriving while disconnected may be lost;
+without the durable `noted` acknowledgment the sender must resend. Do not claim
+that this staging test changes production capture ownership.
 
 ## Explicit declaration gates
 
