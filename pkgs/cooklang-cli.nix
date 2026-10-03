@@ -38,7 +38,7 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-e47x9XzABpXO+qvTydrBOPU9KTZTYJkbJvWvpUUh7Bo=";
+  cargoHash = "sha256-DOXHQMYWyuArVwS+odyjImGCfzS4flNZM7NRSnLkLfc=";
 
   nativeBuildInputs = [ pkgs.perl ];
 
