@@ -28,7 +28,7 @@ mylib.mkContainerService {
   spec = {
     # Core service configuration
     port = 6052;
-    image = "ghcr.io/home-operations/esphome:2026.9.1@sha256:c42d7c962e3db7a8ad27d48da7b78812a8cc23f3ac15e9795ee307d09a47fdaf";
+    image = "ghcr.io/home-operations/esphome:2026.9.1@sha256:a88a04795c49dad16a31f9a598d579b8c5a825ab51343bb1f89caed86c0736a9";
     operationalProfile = "home-automation";
     displayName = "ESPHome";
     function = "esp_firmware";
