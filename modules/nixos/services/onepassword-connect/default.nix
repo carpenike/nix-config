@@ -125,7 +125,7 @@ in
       };
 
       onepassword-connect-sync = podmanLib.mkContainer "onepassword-connect-sync" {
-        image = "docker.io/1password/connect-sync:1.8.2@sha256:6297ca6136c0f0fb096bc64c49e1bc8df2aab35282ebff8c7bb60745ef176d0d";
+        image = "docker.io/1password/connect-sync:1.8.3@sha256:a760350c941a3e7c98dd66394e9fc3c7e68b6a0a2246a837c74084e534f75f6b";
         autoStart = true;
         volumes = [
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
