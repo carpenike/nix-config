@@ -278,7 +278,7 @@ in
 
       # Omada Controller with embedded MongoDB
       virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
-        image = "docker.io/mbentley/omada-controller:6.3.0.45@sha256:3470f2e34344f8581270e7389ea51338f5893ba034a4b348751b2b288d3bceef";
+        image = "docker.io/mbentley/omada-controller:6.3.0.45@sha256:c16db69ab8326bbb4d180987fa2a298277e17ad9e3fe9bc55b06722edd300a4b";
         environment = {
           "TZ" = "America/New_York";
           # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
