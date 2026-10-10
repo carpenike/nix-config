@@ -8,26 +8,26 @@
 {
   cooklang-cli = {
     pname = "cooklang-cli";
-    version = "v0.36.0";
+    version = "v0.38.1";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.36.0";
+      rev = "v0.38.1";
       fetchSubmodules = false;
-      sha256 = "sha256-ihsVvlyp//A4pNlt1+DlYWyz52enHVeU6uST7bxcwqw=";
+      sha256 = "sha256-XvEUpPrkgWxtBoInx6jM0gHF3igZcyf5ykR9Z3wQScc=";
     };
   };
   cooklang-federation = {
     pname = "cooklang-federation";
-    version = "29ab812ccb6c8a86b8147bae1bd3585d26372c4c";
+    version = "b736cfd05398c3365a5a908d8b395b41c62d1e4f";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "federation";
-      rev = "29ab812ccb6c8a86b8147bae1bd3585d26372c4c";
+      rev = "b736cfd05398c3365a5a908d8b395b41c62d1e4f";
       fetchSubmodules = false;
-      sha256 = "sha256-n7kNgUGRy9vvoS9lQKrb96Yjib3VeuuKqZwXbqly1e4=";
+      sha256 = "sha256-EXbsqBqpmY3CX5AQ8auHvcZoDI2VxNDTlVStX00mqGw=";
     };
-    date = "2026-09-13";
+    date = "2026-10-03";
   };
   shcopy = {
     pname = "shcopy";
@@ -66,13 +66,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v6.11.1";
+    version = "v6.12.1";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v6.10.0";
+      rev = "v6.12.1";
       fetchSubmodules = false;
-      sha256 = "sha256-sgzQ/hWlTgzGHt+H6a3xhKojU+jDcW/+Aj+Y61A8q/8=";
+      sha256 = "sha256-UPVDvBOcl7NWNmYAzEKUj3j2jgnja3MOw/idRAX9PMw=";
     };
   };
 }
