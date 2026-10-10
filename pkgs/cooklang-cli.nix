@@ -15,7 +15,7 @@ let
     pname = "cooklang-frontend-assets";
     inherit (src) version;
     inherit (src) src;
-    npmDepsHash = "sha256-n/pxjcgDqhlUC09ynWExxClVT9WixahpPYRU3GAvzBc=";
+    npmDepsHash = "sha256-zAtFsSpJFdthb0E8FLVRGWzGcReDsZxZF+NvHZ+wcY4=";
 
     # Two build scripts, so npmBuildScript (singular) does not fit.
     buildPhase = ''
@@ -38,7 +38,7 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-e47x9XzABpXO+qvTydrBOPU9KTZTYJkbJvWvpUUh7Bo=";
+  cargoHash = "sha256-gbJo6qzj2c3tzZuEjP8/XxJQjbZrYbjZAWIkqfpwhiM=";
 
   nativeBuildInputs = [ pkgs.perl ];
 

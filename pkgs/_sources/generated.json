@@ -13,16 +13,16 @@
             "name": null,
             "owner": "cooklang",
             "repo": "CookCLI",
-            "rev": "v0.36.0",
-            "sha256": "sha256-ihsVvlyp//A4pNlt1+DlYWyz52enHVeU6uST7bxcwqw=",
+            "rev": "v0.38.1",
+            "sha256": "sha256-XvEUpPrkgWxtBoInx6jM0gHF3igZcyf5ykR9Z3wQScc=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.36.0"
+        "version": "v0.38.1"
     },
     "cooklang-federation": {
         "cargoLock": null,
-        "date": "2026-09-13",
+        "date": "2026-10-03",
         "extract": null,
         "name": "cooklang-federation",
         "passthru": null,
@@ -34,12 +34,12 @@
             "name": null,
             "owner": "cooklang",
             "repo": "federation",
-            "rev": "29ab812ccb6c8a86b8147bae1bd3585d26372c4c",
-            "sha256": "sha256-n7kNgUGRy9vvoS9lQKrb96Yjib3VeuuKqZwXbqly1e4=",
+            "rev": "b736cfd05398c3365a5a908d8b395b41c62d1e4f",
+            "sha256": "sha256-EXbsqBqpmY3CX5AQ8auHvcZoDI2VxNDTlVStX00mqGw=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "29ab812ccb6c8a86b8147bae1bd3585d26372c4c"
+        "version": "b736cfd05398c3365a5a908d8b395b41c62d1e4f"
     },
     "shcopy": {
         "cargoLock": null,
@@ -118,11 +118,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v6.10.0",
-            "sha256": "sha256-sgzQ/hWlTgzGHt+H6a3xhKojU+jDcW/+Aj+Y61A8q/8=",
+            "rev": "v6.12.1",
+            "sha256": "sha256-UPVDvBOcl7NWNmYAzEKUj3j2jgnja3MOw/idRAX9PMw=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v6.10.0"
+        "version": "v6.12.1"
     }
 }
