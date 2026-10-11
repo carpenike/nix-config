@@ -311,7 +311,7 @@ in
       enabled = adoption.models;
       endpoint = endpoints.models;
       native_version = "v1.100.1";
-      image = "ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf";
+      image = "ghcr.io/berriai/litellm:v1.104.2@sha256:3d88bd757134a00e8c00237b85a021ab1f6d54abb9c1df750f411dbe7256a500";
       requirements = [
         "Provision distinct new Personal and Family inference credentials through SOPS and the declared runtime references."
         "Account labels are new Atrium purpose/ownership declarations, not discovered provider billing identities."
