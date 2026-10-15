@@ -32,6 +32,13 @@
       allowedVersions: '>=6 <7',
     },
     {
+      // Atrium gateway images require source-bound native qualification (#1267).
+      // Keep proposals visible, but never inherit generic minor/digest promotion.
+      matchDatasources: ['docker'],
+      matchPackageNames: ['ghcr.io/berriai/litellm'],
+      automerge: false,
+    },
+    {
       matchDatasources: [
         'docker',
       ],
