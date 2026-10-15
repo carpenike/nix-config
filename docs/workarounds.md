@@ -290,6 +290,18 @@ as everything else in this file.
 | **Check** | When `nixpkgs-unstable` lock advances past commit `be3620d`, remove this override entirely. |
 | **Impact** | Without fix: forge build fails on `open-webui-frontend-0.9.5`, blocking the entire system closure. |
 
+### yalexs - Standards-Compliant Refresh-Token Test Fixture
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-10-15 |
+| **Location** | `overlays/default.nix` (unstable Python extension, fixture-only `postPatch`) |
+| **Affects** | Home Assistant's yalexs 9.2.13 dependency test suite |
+| **Reason** | PyJWT 2.14 rejects the `=` padding in the header and signature of a synthetic expired JWT used by `test_async_refresh_token`. The token's payload remains `{"exp": 1337}`; this is a fixture-format failure, not a real authentication change. |
+| **Workaround** | Replace the fixture's two `e30=` header/signature fragments with unpadded `e30` in its test file. This is the exact upstream one-line correction without embedding a credential-shaped JWT assignment in a patch or changing secret-scanner policy. Keep the full existing test suite, dependency versions, runtime source, and signature-verification behavior unchanged. |
+| **Check** | Remove the patch and override when upstream ships the corrected fixture. |
+| **Upstream** | [Yale-Libs/yalexs#455](https://github.com/Yale-Libs/yalexs/issues/455) |
+
 ### inetutils - Darwin Build Failure (format-security)
 
 | Field | Value |

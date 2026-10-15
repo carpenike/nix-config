@@ -12,7 +12,7 @@
 #
 # To get the correct hash after a bump:
 # 1. Set hash to lib.fakeHash (or an empty string)
-# 2. Run: nix build .#caddy   (or push the change and read the CI failure)
+# 2. Run a host build (task nix:build-nixos host=<host>) or read the CI failure
 # 3. Copy the expected hash from the error message into the `hash` field
 #
 { pkgs }:
@@ -22,7 +22,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
     "github.com/caddy-dns/cloudflare@v0.2.4"
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
-    "github.com/greenpau/caddy-security@v1.1.64"
+    "github.com/greenpau/caddy-security@v1.4.1"
   ];
   # Hash re-pin log (re-pinning is expected with withPlugins; see header note):
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
@@ -41,5 +41,7 @@ pkgs.caddy.withPlugins {
   # (plugin versions unchanged). Hash captured from forge build failure.
   # Updated 2026-08-29: hash drifted again after flake.lock bump 6da305ba
   # (plugin versions unchanged). Hash captured from forge build failure.
-  hash = "sha256-zRBvH01Ds5t8DicchWxlgvXrUHMZcXYtYHXhu4I7a4I=";
+  # Updated 2026-10-15: pair Caddy 2.11.7 with caddy-security v1.4.1.
+  # Hash captured from the exact fixed-output source probe.
+  hash = "sha256-BepmVnuLWG3uhGfsfaY2D5XIgLXcaxovarPZNf/zs5g=";
 }
