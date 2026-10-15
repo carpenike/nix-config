@@ -5,6 +5,7 @@ name: Flake Health
 # This is the canonical answer to "did the latest flake.lock break the heavy
 # hosts" without making every PR pay the build cost. See nix-build.yml for
 # the per-PR (light hosts only) path.
+# Scheduled runs build main; manual runs build the ref selected by the operator.
 
 on:
   workflow_dispatch:
@@ -12,7 +13,7 @@ on:
     - cron: '0 8 * * *'  # daily at 08:00 UTC
 
 concurrency:
-  group: flake-health
+  group: flake-health-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -47,8 +48,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          ref: main
 
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3

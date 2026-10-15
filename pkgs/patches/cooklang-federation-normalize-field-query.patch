@@ -1,323 +1,129 @@
 diff --git a/src/crawler/mod.rs b/src/crawler/mod.rs
-index b3ed18f..2465575 100644
+index 4c87fb0..3d4a323 100644
 --- a/src/crawler/mod.rs
 +++ b/src/crawler/mod.rs
-@@ -7,6 +7,7 @@ pub mod scheduler;
-
- use crate::config::CrawlerConfig;
- use crate::db::{self, models::*, DbPool};
-+use crate::indexer::search::SearchIndex;
- use crate::error::{Error, Result};
- use crate::indexer::parse_cooklang_full;
- use crate::utils::validation;
-@@ -33,6 +34,7 @@ pub struct Crawler {
-     fetcher: Fetcher,
-     rate_limiters: Arc<Mutex<HashMap<String, Arc<RateLimiter>>>>,
-     config: CrawlerConfig,
-+    search_index: Option<Arc<SearchIndex>>,
- }
-
- impl Crawler {
-@@ -43,9 +45,14 @@ impl Crawler {
-             fetcher,
-             rate_limiters: Arc::new(Mutex::new(HashMap::new())),
-             config,
-+            search_index: None,
-         })
-     }
-
-+    pub fn set_search_index(&mut self, search_index: Arc<SearchIndex>) {
-+        self.search_index = Some(search_index);
-+    }
-+
-     /// Crawl a single feed by URL
-     pub async fn crawl_feed(&self, pool: &DbPool, feed_url: &str) -> Result<CrawlResult> {
-         info!("Crawling feed: {}", feed_url);
-@@ -166,18 +173,29 @@ impl Crawler {
-         let mut new_recipes = 0;
-         let mut updated_recipes = 0;
-         let mut skipped_recipes = 0;
-+        let mut indexed_recipe_ids = Vec::new();
-
-         for entry in parsed_feed.entries {
-             match self.process_entry(pool, feed.id, &entry).await {
--                Ok(ProcessResult::New) => new_recipes += 1,
--                Ok(ProcessResult::Updated) => updated_recipes += 1,
--                Ok(ProcessResult::Skipped) => skipped_recipes += 1,
-+                Ok((ProcessResult::New, recipe_id)) => {
-+                    new_recipes += 1;
-+                    indexed_recipe_ids.push(recipe_id);
-+                }
-+                Ok((ProcessResult::Updated, recipe_id)) => {
-+                    updated_recipes += 1;
-+                    indexed_recipe_ids.push(recipe_id);
-+                }
-+                Ok((ProcessResult::Skipped, _)) => skipped_recipes += 1,
-                 Err(e) => {
-                     warn!("Failed to process entry {}: {}", entry.id, e);
-                 }
-             }
-         }
-
-+        if let Err(e) = self.index_recipes(pool, &indexed_recipe_ids).await {
-+            warn!("Failed to update search index for feed {}: {}", feed_url, e);
-+        }
-+
-         // Mark feed as active (reset error count)
-         db::feeds::update_feed_status(pool, feed.id, "active", 0, None).await?;
-
-@@ -199,7 +217,7 @@ impl Crawler {
-         pool: &DbPool,
-         feed_id: i64,
-         entry: &ParsedEntry,
--    ) -> Result<ProcessResult> {
-+    ) -> Result<(ProcessResult, i64)> {
-         // Skip entries without enclosure URL (no .cook file)
-         let enclosure_url = entry
-             .enclosure_url
-@@ -258,7 +276,7 @@ impl Crawler {
-
-         if !should_fetch {
-             // Entry hasn't changed based on feed timestamp, skip fetch entirely
--            return Ok(ProcessResult::Skipped);
-+            return Ok((ProcessResult::Skipped, 0));
-         }
-
-         // Extract domain for rate limiting
-@@ -301,7 +319,7 @@ impl Crawler {
-                             entry.updated.as_ref(),
-                         )
-                         .await?;
--                        return Ok(ProcessResult::Skipped);
-+                        return Ok((ProcessResult::Skipped, 0));
-                     }
-                     Err(e) => {
-                         warn!(
-@@ -389,7 +407,7 @@ impl Crawler {
-                 }
-
-                 debug!("Updated recipe {}: {}", recipe.id, recipe.title);
--                ProcessResult::Updated
-+                (ProcessResult::Updated, recipe.id)
-             }
-             None => {
-                 // Determine image URL: prefer feed entry image, fallback to Cooklang metadata
-@@ -435,13 +453,53 @@ impl Crawler {
-                 }
-
-                 debug!("Created new recipe {}: {}", recipe.id, recipe.title);
--                ProcessResult::New
-+                (ProcessResult::New, recipe.id)
-             }
-         };
-
-         Ok(result)
-     }
-
-+    async fn index_recipes(&self, pool: &DbPool, recipe_ids: &[i64]) -> Result<()> {
-+        let Some(search_index) = &self.search_index else {
-+            return Ok(());
-+        };
-+
-+        if recipe_ids.is_empty() {
-+            return Ok(());
-+        }
-+
-+        let mut writer = search_index.writer()?;
-+
-+        for &recipe_id in recipe_ids {
-+            let recipe = db::recipes::get_recipe(pool, recipe_id).await?;
-+            let tags = db::tags::get_tags_for_recipe(pool, recipe_id).await?;
-+            let ingredients = db::ingredients::get_ingredients_for_recipe(pool, recipe_id)
-+                .await?
-+                .into_iter()
-+                .map(|ing| ing.name)
-+                .collect::<Vec<_>>();
-+
-+            let file_path = db::github::get_github_recipe_by_recipe_id(pool, recipe_id)
-+                .await?
-+                .map(|gh| gh.file_path);
-+
-+            search_index.index_recipe(
-+                &mut writer,
-+                &recipe,
-+                file_path.as_deref(),
-+                &tags,
-+                &ingredients,
-+            )?;
-+
-+            db::recipes::mark_recipe_indexed(pool, recipe_id).await?;
-+        }
-+
-+        search_index.commit(&mut writer)?;
-+
-+        Ok(())
-+    }
-+
-     async fn apply_rate_limit(&self, domain: &str) {
-         let mut limiters = self.rate_limiters.lock().await;
-
-@@ -490,6 +548,110 @@ mod tests {
-         assert!(crawler.is_ok());
+@@ -756,6 +756,83 @@ mod tests {
+         );
      }
 
 +    #[tokio::test]
-+    async fn test_rss_index_visibility_queries_and_rebuild() {
-+        use crate::indexer::search::SearchQuery;
++    async fn nix_patch_query_visibility_and_database_rebuild() {
++        use crate::indexer::{SearchIndex, SearchQuery};
 +
-+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-+            .max_connections(1)
-+            .connect("sqlite::memory:")
-+            .await
-+            .unwrap();
-+        db::run_migrations(&pool).await.unwrap();
-+        let feed = db::feeds::create_feed(
-+            &pool,
-+            &NewFeed {
-+                url: "https://example.invalid/recipes.xml".into(),
-+                title: None,
-+            },
-+        )
-+        .await
-+        .unwrap();
-+        let first = NewRecipe {
-+            feed_id: feed.id,
-+            external_id: "first".into(),
-+            title: "Summer tart".into(),
-+            source_url: None,
-+            enclosure_url: "https://example.invalid/first.cook".into(),
-+            content: Some("Mix ripe peaches.".into()),
-+            summary: None,
-+            servings: Some(4),
-+            total_time_minutes: Some(30),
-+            active_time_minutes: None,
-+            difficulty: None,
-+            image_url: None,
-+            published_at: None,
-+            content_hash: None,
-+            content_etag: None,
-+            content_last_modified: None,
-+            feed_entry_updated: None,
-+            locale: Some("en".into()),
-+            locale_source: None,
-+        };
-+        let second = NewRecipe {
-+            external_id: "second".into(),
-+            title: "Winter soup".into(),
-+            enclosure_url: "https://example.invalid/second.cook".into(),
-+            servings: Some(2),
-+            total_time_minutes: Some(15),
-+            ..first.clone()
-+        };
-+        let (first, _) = db::recipes::get_or_create_recipe(&pool, &first).await.unwrap();
-+        let (second, _) = db::recipes::get_or_create_recipe(&pool, &second).await.unwrap();
++        let (pool, recipe_id) = seeded_pool().await;
 +        let directory = tempfile::tempdir().unwrap();
 +        let index = Arc::new(SearchIndex::new(directory.path()).unwrap());
-+        let mut crawler = Crawler::new(CrawlerConfig {
-+            interval_seconds: 3600,
-+            max_feed_size: 5_242_880,
-+            max_recipe_size: 1_048_576,
-+            rate_limit: 1,
-+            user_agent: "TestBot/1.0".into(),
-+        })
-+        .unwrap();
-+        crawler.set_search_index(index.clone());
-+        crawler.index_recipes(&pool, &[first.id, second.id]).await.unwrap();
++        let crawler = Crawler::new(test_config())
++            .unwrap()
++            .with_search_index(index.clone());
++        crawler.index_changed_recipes(&pool, &[recipe_id]).await;
++        assert!(db::recipes::get_recipe(&pool, recipe_id)
++            .await
++            .unwrap()
++            .indexed_at
++            .is_some());
++
 +        let query = |text: &str, page, limit| SearchQuery {
 +            q: text.into(),
 +            page,
 +            limit,
 +            locale: None,
 +        };
-+
-+        for text in ["title: \tSummer", "servings: [4 TO 4]", "total_time: [30 TO 30]"] {
-+            let results = index.search(&query(text, 1, 10), 100).unwrap();
-+            assert_eq!(results.total, 1, "{text}");
-+            assert_eq!(results.results[0].recipe_id, first.id, "{text}");
++        for text in [
++            "title: \tChocolate",
++            "servings: [24 TO 24]",
++            "total_time: [45 TO 45]",
++        ] {
++            let result = index.search(&query(text, 1, 10), 100).unwrap();
++            assert_eq!(result.total, 1, "{text}");
++            assert_eq!(result.results[0].recipe_id, recipe_id, "{text}");
 +        }
-+        let all = index.search(&query(" \t", 1, 10), 100).unwrap();
-+        assert_eq!(all.total, 2);
-+        let page = index.search(&query("", 2, 100), 1).unwrap();
-+        assert_eq!((page.total, page.total_pages, page.results.len()), (2, 2, 1));
-+        let invalid = index.search(&query("unknown_field:value", 3, 10), 100).unwrap();
-+        assert_eq!((invalid.total, invalid.page, invalid.total_pages), (0, 3, 0));
-+        assert!(invalid.results.is_empty());
-+        for id in [first.id, second.id] {
-+            assert!(db::recipes::get_recipe(&pool, id).await.unwrap().indexed_at.is_some());
-+        }
++        assert_eq!(index.search(&query(" \t", 1, 10), 100).unwrap().total, 1);
++        assert!(index
++            .search(&query("unknown_field:value", 1, 10), 100)
++            .is_err());
++        assert!(index
++            .search(&query("", 2, 100), 1)
++            .unwrap()
++            .results
++            .is_empty());
++        assert_eq!(index.search(&query("", 1, 0), 0).unwrap().total, 1);
 +
-+        sqlx::query("UPDATE recipes SET title = ? WHERE id = ?")
-+            .bind("Autumn tart")
-+            .bind(first.id)
++        sqlx::query("UPDATE recipes SET title = 'Vanilla cake' WHERE id = ?")
++            .bind(recipe_id)
 +            .execute(&pool)
 +            .await
 +            .unwrap();
-+        crawler.index_recipes(&pool, &[first.id]).await.unwrap();
-+        assert_eq!(index.search(&query("summer", 1, 10), 100).unwrap().total, 0);
-+        let updated = index.search(&query("autumn", 1, 10), 100).unwrap();
-+        assert_eq!(updated.total, 1);
-+        assert_eq!(updated.results[0].recipe_id, first.id);
++        crawler.index_changed_recipes(&pool, &[recipe_id]).await;
++        assert_eq!(
++            index.search(&query("chocolate", 1, 10), 100).unwrap().total,
++            0
++        );
++        assert_eq!(
++            index.search(&query("vanilla", 1, 10), 100).unwrap().total,
++            1
++        );
 +
-+        db::recipes::delete_recipe(&pool, second.id).await.unwrap();
-+        assert_eq!(index.rebuild_from_database(&pool, 1).await.unwrap(), 1);
-+        let rebuilt = index.search(&query("", 1, 10), 100).unwrap();
-+        assert_eq!(rebuilt.total, 1);
-+        assert_eq!(rebuilt.results[0].recipe_id, first.id);
++        let mut phantom = db::recipes::get_recipe(&pool, recipe_id).await.unwrap();
++        phantom.id = i64::MAX;
++        phantom.title = "Ghost document".into();
++        {
++            let mut writer = index.locked_writer().await.unwrap();
++            index
++                .index_recipe(&mut writer, &phantom, None, &[], &[])
++                .unwrap();
++            index.commit(&mut writer).unwrap();
++        }
++        assert_eq!(index.search(&query("ghost", 1, 10), 100).unwrap().total, 1);
++        assert_eq!(index.rebuild_from_database(&pool, 0).await.unwrap(), 1);
++        assert_eq!(index.search(&query("ghost", 1, 10), 100).unwrap().total, 0);
++        assert_eq!(
++            index.search(&query("vanilla", 1, 10), 100).unwrap().total,
++            1
++        );
 +    }
 +
-     #[test]
-     fn test_resolve_image_url_absolute() {
-         let result = resolve_image_url(
-diff --git a/src/github/indexer.rs b/src/github/indexer.rs
-index 3094681..11d7189 100644
---- a/src/github/indexer.rs
-+++ b/src/github/indexer.rs
-@@ -278,6 +278,8 @@ impl GitHubIndexer {
-                     &tags,
-                     &ingredients,
-                 )?;
+     #[tokio::test]
+     async fn without_a_search_index_changed_recipes_are_left_alone() {
+         let (pool, recipe_id) = seeded_pool().await;
+diff --git a/src/indexer/extras.rs b/src/indexer/extras.rs
+index a3ab05a..aa81c59 100644
+--- a/src/indexer/extras.rs
++++ b/src/indexer/extras.rs
+@@ -46,6 +46,7 @@ impl IndexExtras {
+ /// feed title, then commit once. All database reads happen before the writer
+ /// is taken, so the writer gate is held only for the index writes.
+ /// Returns the number of recipes indexed.
++/// Only successfully committed rows are marked indexed in the database.
+ pub async fn reindex_recipes(
+     pool: &DbPool,
+     search_index: &SearchIndex,
+@@ -77,6 +78,11 @@ pub async fn reindex_recipes(
+         }
+         return Err(e);
+     }
++    drop(writer);
 +
-+                db::recipes::mark_recipe_indexed(&self.pool, recipe_id).await?;
-             }
++    for &recipe_id in recipe_ids {
++        db::recipes::mark_recipe_indexed(pool, recipe_id).await?;
++    }
 
-             // Single commit for all recipes
-diff --git a/src/indexer/schema.rs b/src/indexer/schema.rs
-index 8c910e5..e679403 100644
---- a/src/indexer/schema.rs
-+++ b/src/indexer/schema.rs
-@@ -57,11 +57,11 @@ impl RecipeSchema {
-         // Difficulty (faceted, filterable)
-         let difficulty = schema_builder.add_text_field("difficulty", STRING | STORED);
-
--        // Servings (filterable)
--        let servings = schema_builder.add_i64_field("servings", FAST | STORED);
-+        // Servings (filterable & searchable via range queries)
-+        let servings = schema_builder.add_i64_field("servings", INDEXED | FAST | STORED);
-
--        // Total time in minutes (filterable)
--        let total_time = schema_builder.add_i64_field("total_time", FAST | STORED);
-+        // Total time in minutes (filterable & searchable via range queries)
-+        let total_time = schema_builder.add_i64_field("total_time", INDEXED | FAST | STORED);
-
-         // File path (searchable, stored) - for GitHub recipes
-         let file_path = schema_builder.add_text_field("file_path", TEXT | STORED);
+     Ok(documents.len())
+ }
 diff --git a/src/indexer/search.rs b/src/indexer/search.rs
-index 576f2a7..13a28c1 100644
+index 90782e2..8a3e844 100644
 --- a/src/indexer/search.rs
 +++ b/src/indexer/search.rs
 @@ -1,4 +1,4 @@
 -use crate::db::models::Recipe;
 +use crate::db::{models::Recipe, DbPool};
  use crate::error::{Error, Result};
- use crate::indexer::locale::normalize_code;
- use crate::indexer::plain_text::instructions_text;
-@@ -9,7 +9,19 @@ use tantivy::collector::{Count, TopDocs};
- use tantivy::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
- use tantivy::schema::IndexRecordOption;
- use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
--use tracing::{debug, info};
-+use tracing::{debug, info, warn};
-+
+ use crate::indexer::extras::IndexExtras;
+ use crate::indexer::filters::{normalize_difficulty, SearchFilters, SortOrder};
+@@ -17,6 +17,18 @@ use tantivy::tokenizer::TokenStream;
+ use tantivy::{doc, DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
+ use tracing::{debug, info};
+
 +const FIELD_NAMES: [&str; 9] = [
 +    "title",
 +    "summary",
@@ -329,121 +135,63 @@ index 576f2a7..13a28c1 100644
 +    "total_time",
 +    "file_path",
 +];
-
++
  pub struct SearchIndex {
      index: Index,
-@@ -239,13 +251,31 @@ impl SearchIndex {
-         // dessert. Tantivy's default is OR, which turns field filters into suggestions.
-         query_parser.set_conjunction_by_default();
+     reader: IndexReader,
+@@ -332,11 +344,12 @@ impl SearchIndex {
 
+         // Parse unified query string. A whitespace-only `q` has no terms to
+         // parse and must not be treated as a query that matches nothing.
+-        let parsed_query = if query.q.trim().is_empty() {
 +        let normalized_query = normalize_field_queries(&query.q);
-+        let limit = query.limit.min(max_limit);
-+        let offset = (query.page.saturating_sub(1)) * limit;
-+
-         // Parse unified query string
--        let tantivy_query = if query.q.is_empty() {
-+        let tantivy_query = if normalized_query.trim().is_empty() {
++        let parsed_query = if normalized_query.trim().is_empty() {
              Box::new(tantivy::query::AllQuery) as Box<dyn Query>
          } else {
--            query_parser
+             query_parser
 -                .parse_query(&query.q)
--                .map_err(|e| Error::Search(format!("Invalid query: {e}")))?
-+            match query_parser.parse_query(&normalized_query) {
-+                Ok(q) => q,
-+                Err(e) => {
-+                    warn!(
-+                        original_query = %query.q,
-+                        normalized_query = %normalized_query,
-+                        "Invalid search query: {e}"
-+                    );
-+
-+                    return Ok(SearchResults {
-+                        results: vec![],
-+                        total: 0,
-+                        page: query.page,
-+                        total_pages: 0,
-+                    });
-+                }
-+            }
++                .parse_query(&normalized_query)
+                 .map_err(|e| Error::Validation(format!("Invalid query: {e}")))?
          };
 
-         // AND an exact locale term onto the parsed query when filtering. The locale
-@@ -267,10 +297,6 @@ impl SearchIndex {
-             None => tantivy_query,
-         };
-
--        // Calculate offset
--        let offset = (query.page.saturating_sub(1)) * query.limit;
--        let limit = query.limit.min(max_limit);
--
-         // Execute search: the page of hits plus a full count in one pass.
-         let (top_docs, total) = searcher
-             .search(
-@@ -354,6 +380,108 @@ impl SearchIndex {
-
+@@ -583,6 +596,33 @@ impl SearchIndex {
          Ok(())
      }
-+
-+    /// Rebuild the entire search index from the database
-+    pub async fn rebuild_from_database(
-+        &self,
-+        pool: &DbPool,
-+        batch_size: i64,
-+    ) -> Result<usize> {
-+        use crate::db::{github, ingredients, recipes, tags};
-+
-+        let effective_batch = batch_size.max(1);
-+        info!("Rebuilding search index from database (batch size: {effective_batch})");
-+
-+        let mut writer = self.writer()?;
-+        writer
-+            .delete_all_documents()
-+            .map_err(|e| Error::Search(format!("Failed to clear search index: {e}")))?;
-+
-+        let mut offset = 0i64;
-+        let mut total_indexed = 0usize;
-+
-+        loop {
-+            let recipes_batch = recipes::list_all_recipes(pool, effective_batch, offset).await?;
-+            if recipes_batch.is_empty() {
-+                break;
-+            }
-+
-+            for recipe in recipes_batch {
-+                let tags = tags::get_tags_for_recipe(pool, recipe.id).await?;
-+                let ingredients_data = ingredients::get_ingredients_for_recipe(pool, recipe.id).await?;
-+                let ingredient_names = ingredients_data
-+                    .into_iter()
-+                    .map(|ing| ing.name)
-+                    .collect::<Vec<_>>();
-+
-+                let file_path = github::get_github_recipe_by_recipe_id(pool, recipe.id)
-+                    .await?
-+                    .map(|github_recipe| github_recipe.file_path);
-+
-+                self.index_recipe(
-+                    &mut writer,
-+                    &recipe,
-+                    file_path.as_deref(),
-+                    &tags,
-+                    &ingredient_names,
-+                )?;
-+
-+                recipes::mark_recipe_indexed(pool, recipe.id).await?;
-+                total_indexed += 1;
-+            }
-+
-+            offset += effective_batch;
+
++    /// Rebuild search from the durable database before accepting requests.
++    pub async fn rebuild_from_database(&self, pool: &DbPool, batch_size: i64) -> Result<usize> {
++        let batch_size = batch_size.max(1);
++        {
++            let mut writer = self.locked_writer().await?;
++            writer
++                .delete_all_documents()
++                .map_err(|e| Error::Search(format!("Failed to clear search index: {e}")))?;
++            self.commit(&mut writer)?;
 +        }
 +
-+        self.commit(&mut writer)?;
++        let mut offset = 0;
++        let mut total_indexed = 0;
++        loop {
++            let recipes = crate::db::recipes::list_all_recipes(pool, batch_size, offset).await?;
++            if recipes.is_empty() {
++                break;
++            }
++            let ids = recipes.iter().map(|recipe| recipe.id).collect::<Vec<_>>();
++            total_indexed += crate::indexer::extras::reindex_recipes(pool, self, &ids).await?;
++            offset += batch_size;
++        }
 +
-+        info!("Search index rebuild complete: {total_indexed} recipes indexed");
-+
++        info!("Search index rebuilt from {total_indexed} database recipes");
 +        Ok(total_indexed)
 +    }
-+}
 +
+     /// Optimize the search index (merge segments)
+     pub async fn optimize(&self) -> Result<()> {
+         use tantivy::TantivyDocument;
+@@ -597,6 +637,42 @@ impl SearchIndex {
+     }
+ }
+
 +fn normalize_field_queries(input: &str) -> String {
 +    if !input.contains(':') {
 +        return input.to_string();
@@ -452,80 +200,47 @@ index 576f2a7..13a28c1 100644
 +    let chars: Vec<char> = input.chars().collect();
 +    let mut normalized = String::with_capacity(chars.len());
 +    let mut idx = 0;
-+
 +    while idx < chars.len() {
 +        let ch = chars[idx];
 +        normalized.push(ch);
-+
 +        if ch == ':' {
 +            let mut field_start = idx;
-+
 +            while field_start > 0 {
-+                let prev = chars[field_start - 1];
-+                if prev.is_alphanumeric() || prev == '_' {
++                let previous = chars[field_start - 1];
++                if previous.is_alphanumeric() || previous == '_' {
 +                    field_start -= 1;
 +                } else {
 +                    break;
 +                }
 +            }
-+
 +            let field = chars[field_start..idx]
 +                .iter()
 +                .collect::<String>()
 +                .to_ascii_lowercase();
-+
 +            if FIELD_NAMES.iter().any(|candidate| candidate == &field) {
 +                while idx + 1 < chars.len() && chars[idx + 1].is_whitespace() {
 +                    idx += 1;
 +                }
 +            }
 +        }
-+
 +        idx += 1;
 +    }
-+
 +    normalized
- }
-
- #[cfg(test)]
++}
++
+ /// First stored string value of `field`, if any.
+ fn stored_str(doc: &tantivy::TantivyDocument, field: tantivy::schema::Field) -> Option<String> {
+     match doc.get_first(field)? {
 diff --git a/src/main.rs b/src/main.rs
-index 4c91bd5..58eed57 100644
+index 8b295f8..3094665 100644
 --- a/src/main.rs
 +++ b/src/main.rs
-@@ -139,14 +139,24 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
-     let search_index = SearchIndex::new(&index_path)?;
+@@ -138,6 +138,8 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
+     let index_path = std::path::PathBuf::from(&settings.search.index_path);
+     let search_index = Arc::new(SearchIndex::new(&index_path)?);
      info!("Search index initialized at {:?}", index_path);
++    let indexed = search_index.rebuild_from_database(&pool, 500).await?;
++    info!("Search index synchronized with {indexed} database recipes");
 
-+    let indexed_count = search_index
-+        .rebuild_from_database(&pool, 500)
-+        .await
-+        .map_err(|e| Error::Internal(format!("Failed to rebuild search index: {e}")))?;
-+    info!("Search index synchronized with {indexed_count} recipes");
-+
-+    let search_index = Arc::new(search_index);
-+
-     // Initialize crawler
--    let crawler = Arc::new(federation::crawler::Crawler::new(settings.crawler.clone())?);
-+    let mut crawler = federation::crawler::Crawler::new(settings.crawler.clone())?;
-+    crawler.set_search_index(search_index.clone());
-+    let crawler = Arc::new(crawler);
-     info!("Crawler initialized");
-
-     // Start background scheduler
-     let scheduler = Arc::new(federation::crawler::scheduler::Scheduler::new(
-         pool.clone(),
--        crawler,
-+        crawler.clone(),
-         settings.crawler.interval_seconds,
-     ));
-     let _scheduler_handle = scheduler.start();
-@@ -155,9 +165,6 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
-         settings.crawler.interval_seconds
-     );
-
--    // Wrap search index in Arc for sharing
--    let search_index = Arc::new(search_index);
--
-     // Initialize GitHub indexer if enabled
-     let github_indexer = {
-         let github_config = federation::github::GitHubConfig::from_env();
+     // Initialize crawler; it indexes the recipes each crawl creates or updates
+     let crawler = Arc::new(
