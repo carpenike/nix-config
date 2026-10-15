@@ -457,6 +457,19 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Upstream** | N/A (host hardware/driver enumeration issue, not an upstream bug) |
 | **Impact** | Without fix: hardware decode fails, decoder dies, no camera frames or detections. |
 
+### Atrium Model Authority - Local HTTPS Origin Resolution
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-10-15 |
+| **Location** | `hosts/forge/services/atrium-models.nix` |
+| **Reason** | Forge hostname lookups intermittently take about five seconds. A real GET-only controller dry-run reproduced `native_request_failed` with a transport `OSError` (`errno=16`), delaying completed publications beyond their existing freshness contract. |
+| **Workaround** | Only while model adoption is enabled, map `llm.holthome.net` to local Caddy through `127.0.0.1`. Keep the configured HTTPS endpoint, issuer, certificate verification, role credentials, backend firewall, and 80-second health threshold unchanged. This is an authority-bound local application connection, not a blanket set of monitoring aliases. |
+| **Evidence** | With ordinary resolution, individual native reads repeatedly took about five seconds and a full dry-run failed. With process-local loopback resolution and otherwise identical TLS/authentication, three complete 56-request plans each took about 1.35 seconds with no slow requests or transport errors and identical action counts. A separate unauthenticated DNS-only probe also reproduced a five-second lookup. |
+| **Validation** | The composition check requires the mapping only for adopted models, preserves the public HTTPS issuer/endpoint, and checks that unadopted/disabled configurations remain untouched. After guarded deployment, verify normal name resolution and multiple completed reconciler/health timer cycles without manual state changes or paid inference. |
+| **Check** | Diagnose the NSS/DNS path and remeasure before removing the mapping. Do not broaden it to services that do not run on this host. |
+| **Upstream** | [Resolution investigation #1262](https://github.com/carpenike/nix-config/issues/1262) |
+
 ### NFS Media Mount - Soft Mount to Prevent System Freeze
 
 | Field | Value |
