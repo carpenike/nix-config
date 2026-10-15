@@ -220,6 +220,12 @@ in
       ];
     })
     (lib.mkIf adopted {
+      # WORKAROUND (2026-10-15): Host lookup stalls exceed publication freshness.
+      # Affects: colocated model control; the HTTPS issuer and TLS checks stay unchanged.
+      # Upstream: https://github.com/carpenike/nix-config/issues/1262
+      # Check: Recheck NSS/DNS timing before removing this scoped local-origin mapping.
+      networking.hosts."127.0.0.1" = [ "llm.holthome.net" ];
+
       services.atriumLitellmAdmission = {
         enable = true;
         environment = "production";
