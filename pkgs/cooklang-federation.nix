@@ -8,15 +8,15 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-2W74W/Cx3GUWKxcvpTgp72J9vWCXF/LZiTkXwarp5tA=";
+  cargoHash = "sha256-CLCf/VbzZkNFgags8dLleiWBW9HtrLG43H4082ZM2sw=";
 
   # WORKAROUND (2026-02-11): Wire RSS-crawled recipes into the Tantivy search index.
   # Affects: cooklang-federation (search/filter for RSS-sourced recipes)
   # Upstream: not filed (https://github.com/cooklang/federation — repo has no
   #   issue tracker enabled).
-  # Refreshed against 29ab812 (2026-09-14): RSS indexing and numeric INDEXED
-  #   flags are still absent upstream. Its commit() now reloads readers, so
-  #   reuse that helper for RSS/rebuild visibility instead of duplicating it.
+  # Refreshed against b736cfd (2026-10-15): RSS indexing and numeric INDEXED
+  #   flags are now upstream. Reuse its shared writer/reindex helpers; retain
+  #   field-query normalization, indexed timestamps and startup rebuilds.
   # Check: compare each hunk at source bumps; remove only proven redundancy.
   #   Preserve field-query normalization, clamped pagination, numeric ranges,
   #   RSS new/update indexing and startup rebuilds.
@@ -76,7 +76,12 @@ rustPlatform.buildRustPackage {
       fi
   '';
 
-  doCheck = false;
+  doCheck = true;
+  cargoTestFlags = [ "--lib" ];
+  checkFlags = [
+    "indexer::"
+    "crawler::tests::"
+  ];
 
   meta = with lib; {
     description = "Cooklang Federation server for distributed recipe search";
