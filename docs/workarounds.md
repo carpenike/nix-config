@@ -469,6 +469,19 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Upstream** | N/A (host hardware/driver enumeration issue, not an upstream bug) |
 | **Impact** | Without fix: hardware decode fails, decoder dies, no camera frames or detections. |
 
+### Atrium Model Authority - Local HTTPS Origin Resolution
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-10-15 |
+| **Location** | `hosts/forge/services/atrium-models.nix` |
+| **Reason** | Forge hostname lookups intermittently take about five seconds. A real GET-only controller dry-run reproduced `native_request_failed` with a transport `OSError` (`errno=16`), delaying completed publications beyond their existing freshness contract. |
+| **Workaround** | Only while model adoption is enabled, map `llm.holthome.net` to local Caddy through `127.0.0.1`. Keep the configured HTTPS endpoint, issuer, certificate verification, role credentials, backend firewall, and 80-second health threshold unchanged. This is an authority-bound local application connection, not a blanket set of monitoring aliases. |
+| **Evidence** | With ordinary resolution, individual native reads repeatedly took about five seconds and a full dry-run failed. With process-local loopback resolution and otherwise identical TLS/authentication, three complete 56-request plans each took about 1.35 seconds with no slow requests or transport errors and identical action counts. A separate unauthenticated DNS-only probe also reproduced a five-second lookup. |
+| **Validation** | The composition check requires the mapping only for adopted models, preserves the public HTTPS issuer/endpoint, and checks that unadopted/disabled configurations remain untouched. After guarded deployment, verify normal name resolution and multiple completed reconciler/health timer cycles without manual state changes or paid inference. |
+| **Check** | Diagnose the NSS/DNS path and remeasure before removing the mapping. Do not broaden it to services that do not run on this host. |
+| **Upstream** | [Resolution investigation #1262](https://github.com/carpenike/nix-config/issues/1262) |
+
 ### NFS Media Mount - Soft Mount to Prevent System Freeze
 
 | Field | Value |
@@ -480,15 +493,18 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | If NFS reliability becomes an issue (data corruption from partial writes), consider switching back to `hard` with `timeo=300` and adding a systemd watchdog. |
 | **Tradeoff** | `soft` mount risks returning EIO on transient network issues, which could cause media service errors. This is far safer than `hard`-mount freezes that require physical intervention. |
 
-### Restic Backup Memory Limit Raised to 2G on Forge
+### Restic Backup Memory Floor and Go Heap Budget on Forge
 
 | Field | Value |
 |-------|-------|
 | **Added** | 2026-05-07 |
+| **Updated** | 2026-10-15 |
 | **Location** | `hosts/forge/infrastructure/backup.nix` (`modules.services.backup.performance.resources`) |
-| **Reason** | The module-default 512 MiB `MemoryMax` for auto-discovered restic backup jobs (`modules/nixos/services/backup/default.nix`) was too low for forge: services with thousands of snapshots (paperless / home-assistant: 1545 each) consistently hit the cgroup limit at ~511 MB RSS just loading the restic index. On 2026-05-07, six services (`paperless`, `worldmonitor`, `zigbee2mqtt`, `home-assistant`, `esphome`, `pinchflat`) were OOM-killed and never recovered, triggering `ResticBackupStale` alerts. Smaller-repo services hit the limit too but recovered on retry. |
-| **Workaround** | Set host-level defaults `performance.resources = { memory = "2G"; memoryReservation = "1G"; cpus = "1.5"; }`. Per-service overrides (scrypted, plex) still win because the orchestrator falls back to `performance.resources` only when `service.backup.resources` is null. |
-| **Check** | When restic itself ships meaningful index-memory improvements (tracking issue: <https://github.com/restic/restic/issues/2523>) or if forge moves to a smaller-RAM host. |
+| **Reason** | The module-default 512 MiB `MemoryMax` was too low for Forge's repository indexes. By 2026-10-15, index allocation peaks also OOM-killed 12 NAS backup jobs at the raised 2 GiB limit. The shared backup slice is capped at 4 GiB, so increasing individual limits would not safely address aggregate usage. |
+| **Workaround** | Retain `performance.resources = { memory = "2G"; memoryReservation = "1G"; cpus = "1.5"; }` and the shared 4 GiB slice cap. Enabled `nas-primary` jobs with an effective `2G` budget additionally receive `GOGC=20` and `GOMEMLIMIT=1536MiB`. Offsite jobs and differently sized overrides remain unchanged. The tuning is attached through the discovered job registry and shared unit-name helper, so disabled jobs do not acquire units. |
+| **Evidence** | A Restic 0.18.1 backup dry-run against the live NAS repository and an empty source completed in 46.5 seconds with a 1.5 GiB peak and no swap, under the unchanged 2 GiB cgroup cap. This verifies index loading, not a completed application backup. |
+| **Validation** | `backup-phase0` checks every enabled job's tuning scope and unchanged hard limits. After guarded deployment, run `task backup:validate-restic job=service-pocketid -- --run` and the other affected jobs; require complete snapshots, fresh success metrics, restored timers, and snapshot/lock cleanup. |
+| **Check** | Re-profile when Restic ships meaningful index-memory improvements (tracking issue: <https://github.com/restic/restic/issues/2523>), the NAS index grows materially, or a job's resource budget changes. |
 | **Related** | Same OOM pattern previously addressed per-service for scrypted (2026-02-21) and plex; this generalises the fix to the host default so future services benefit automatically. |
 
 ### pgBackRest Auto-Retry on Transient NFS Errors

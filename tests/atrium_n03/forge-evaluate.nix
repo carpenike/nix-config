@@ -100,6 +100,15 @@ let
     qualified-gateway-image = c.modules.services.litellm.image
       == builtins.replaceStrings [ "@" ] [ ":${gateway.native_version}@" ] gateway.image
       && runtime.adoption.models.image == c.modules.services.litellm.image;
+    adopted-model-authority-resolves-locally =
+      let controller = builtins.fromJSON modelAdopted.environment.etc."atrium/runtime/model-controller.json".text;
+      in
+      lib.elem "llm.holthome.net" (modelAdopted.networking.hosts."127.0.0.1" or [ ])
+      && controller.endpoint == runtime.endpoints.models
+      && controller.issuer == runtime.endpoints.models;
+    unadopted-model-authority-resolution-unchanged =
+      !(lib.elem "llm.holthome.net" (c.networking.hosts."127.0.0.1" or [ ]))
+      && !(lib.elem "llm.holthome.net" (disabled.networking.hosts."127.0.0.1" or [ ]));
     version-aware-desired-state = gatewayDocuments.litellm.native_version
       == c.services.atrium.litellmVersion;
     real-packages-installed = lib.elem packages.resolver c.environment.systemPackages

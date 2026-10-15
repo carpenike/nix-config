@@ -889,8 +889,26 @@
                     && !(service.serviceConfig ? SuccessExitStatus);
                 resultScript = forge.systemd.services.restic-backup-service-actual.script;
                 snapshotModule = builtins.readFile ./modules/nixos/services/backup/snapshots.nix;
+                enabledJobs = lib.filterAttrs
+                  (_: job: job.enable)
+                  forge.modules.services.backup._internal.allJobs;
+                memoryBudgetIsCorrect = jobName:
+                  let
+                    job = enabledJobs.${jobName};
+                    service = forge.systemd.services.${forge.modules.services.backup._internal.unitName jobName};
+                    tuned = job.repository == "nas-primary" && job.resources.memory == "2G";
+                  in
+                  if tuned then
+                    service.environment.GOGC == "20"
+                      && service.environment.GOMEMLIMIT == "1536MiB"
+                      && service.serviceConfig.MemoryMax == "2G"
+                  else
+                    !(service.environment ? GOGC)
+                      && !(service.environment ? GOMEMLIMIT);
               in
               assert lib.all jobIsProtected affectedJobs;
+              assert lib.all memoryBudgetIsCorrect (builtins.attrNames enabledJobs);
+              assert forge.systemd.slices.restic-backups.sliceConfig.MemoryMax == "4G";
               assert lib.hasInfix ''exit "$restic_exit"'' resultScript;
               assert lib.hasInfix "restic_backup_result" resultScript;
               assert lib.hasInfix "result_complete=1" resultScript;
