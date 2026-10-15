@@ -92,8 +92,8 @@ in
         # The module default of 512M MemoryMax has caused repeated OOM kills on
         # forge as restic repositories grow (paperless/home-assistant hit ~511MB
         # RSS just loading the index — at 1545+ snapshots this is unavoidable).
-        # Forge has 31 GiB RAM with backup jobs staggered across the night, so
-        # raising the floor to 2G/1G is essentially free.
+        # Keep the 2G hard floor and bound Go heap growth below it for NAS
+        # jobs below; raising limits alone does not bound index allocations.
         #
         # Per-service overrides (scrypted, plex) still win because they set
         # `service.backup.resources` explicitly — see the fallback logic in
@@ -174,6 +174,21 @@ in
           };
         };
       };
+
+      # WORKAROUND (2026-10-15): Bound shared NAS index allocation peaks.
+      # Affects: Forge's 2G NAS backup jobs; the 4G aggregate cap is unchanged.
+      # Upstream: https://github.com/restic/restic/issues/2523
+      # Check: Re-profile after Restic index-memory improvements; see docs/workarounds.md.
+      systemd.services = lib.mapAttrs'
+        (jobName: _: lib.nameValuePair (config.modules.services.backup._internal.unitName jobName) {
+          environment = {
+            GOGC = "20";
+            GOMEMLIMIT = "1536MiB";
+          };
+        })
+        (lib.filterAttrs
+          (_: job: job.enable && job.repository == "nas-primary" && job.resources.memory == "2G")
+          config.modules.services.backup._internal.allJobs);
 
       # Forge-specific backup monitoring alerts
       # Standard Restic alerts are co-located with the backup service module
