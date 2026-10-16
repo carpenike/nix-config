@@ -73,6 +73,16 @@ let
       services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
     }];
   }).config;
+  nonForgeModel = (forge.extendModules {
+    modules = [{
+      services.atriumForge.adoption.models = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+      networking.hostName = lib.mkForce "atrium-origin-fixture";
+    }];
+  }).config;
+  hasModelAlias = configuration:
+    lib.any (names: lib.elem "llm.holthome.net" names)
+      (builtins.attrValues configuration.networking.hosts);
   nativeAdopted = (forge.extendModules {
     modules = [{
       services.atriumForge.adoption.native = true;
@@ -103,12 +113,16 @@ let
     adopted-model-authority-resolves-locally =
       let controller = builtins.fromJSON modelAdopted.environment.etc."atrium/runtime/model-controller.json".text;
       in
-      lib.elem "llm.holthome.net" (modelAdopted.networking.hosts."127.0.0.1" or [ ])
+      lib.elem "llm.holthome.net" (modelAdopted.networking.hosts.${modelAdopted.my.hostIp} or [ ])
       && controller.endpoint == runtime.endpoints.models
       && controller.issuer == runtime.endpoints.models;
+    model-authority-preserves-consumer-address-policy =
+      !lib.hasPrefix "127." modelAdopted.my.hostIp
+      && modelAdopted.my.hostIp != "0.0.0.0"
+      && !(lib.elem "llm.holthome.net" (modelAdopted.networking.hosts."127.0.0.1" or [ ]));
+    fixture-host-does-not-inherit-production-origin = !hasModelAlias nonForgeModel;
     unadopted-model-authority-resolution-unchanged =
-      !(lib.elem "llm.holthome.net" (c.networking.hosts."127.0.0.1" or [ ]))
-      && !(lib.elem "llm.holthome.net" (disabled.networking.hosts."127.0.0.1" or [ ]));
+      !hasModelAlias c && !hasModelAlias disabled;
     version-aware-desired-state = gatewayDocuments.litellm.native_version
       == c.services.atrium.litellmVersion;
     real-packages-installed = lib.elem packages.resolver c.environment.systemPackages
