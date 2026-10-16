@@ -36,7 +36,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       # Pinned via docs/requirements.txt for reproducible doc builds
       # (everything else in this repo is pinned); Renovate's pip_requirements
