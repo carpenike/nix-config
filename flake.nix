@@ -507,6 +507,19 @@
 
           # Checks for CI
           checks = {
+            renovate-extraction = pkgs.runCommand "renovate-extraction-tests"
+              {
+                nativeBuildInputs = [
+                  (pkgs.python3.withPackages (python: [ python.json5 python.google-re2 ]))
+                ];
+              }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                export RENOVATE_CONFIG=${./.github/renovate.json5}
+                export PLEX_MODULE=${./modules/nixos/services/plex/default.nix}
+                python3 ${./tests/renovate/test_extraction.py}
+                touch "$out"
+              '';
             finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
               (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
             finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {

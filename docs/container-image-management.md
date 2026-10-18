@@ -69,7 +69,8 @@ image = lib.mkOption {
 
 ### Host Configuration
 
-Pin versions at the host level where Renovate can manage them:
+Pin host-specific versions at the host level. Renovate also tracks image option
+defaults used directly by hosts:
 
 ```nix
 # In hosts/forge/default.nix
@@ -84,37 +85,20 @@ modules.services.sonarr = {
 
 ### Setup
 
-Create or update `renovate.json` in your repository root:
+The authoritative configuration is
+[`.github/renovate.json5`](https://github.com/carpenike/nix-config/blob/main/.github/renovate.json5). Its Docker custom managers
+recognize literal assignments to `image`, `default`, and fields ending in
+`Image`, including dotted attributes such as `container.image`. They support
+the configured registries (`ghcr.io`, `docker.io`, `lscr.io`, `quay.io`) and
+Docker Hub `org/repo` shorthand, with tags and optional SHA-256 digests.
 
-```json
-{
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
-  "nix": {
-    "enabled": true
-  },
-  "packageRules": [
-    {
-      "matchDatasources": ["docker"],
-      "pinDigests": true,
-      "separateMinorPatch": true,
-      "semanticCommits": "enabled",
-      "commitMessagePrefix": "feat(containers):"
-    }
-  ],
-  "regexManagers": [
-    {
-      "fileMatch": ["\\.nix$"],
-      "matchStrings": [
-        "image\\s*=\\s*\"(?<depName>[^:@]+):(?<currentValue>[^@\"]+)(@(?<currentDigest>sha256:[a-f0-9]+))?\""
-      ],
-      "datasourceTemplate": "docker"
-    }
-  ]
-}
-```
+Keep these declarations on their own assignment lines. `#`-commented assignments,
+`example` attributes, interpolated strings, and variable references are not
+dependency declarations for these managers.
+
+An option default is a real dependency when the host does not override it.
+Before this coverage was added, Plex and other enabled services silently missed
+updates because their literals used `default = "..."`, not `image = "..."`.
 
 ### How It Works
 
@@ -137,23 +121,19 @@ Create or update `renovate.json` in your repository root:
   };
 ```
 
-## Current Status
+## Update Ownership
 
-### Services with Pinned Versions ✅
-- **Omada Controller**: `mbentley/omada-controller:6.2.10.17` (MongoDB 8; Renovate constrained to v6)
-- **UniFi Controller**: `jacobalberty/unifi-docker:v8.4.62`
-- **1Password Connect API**: `1password/connect-api:1.7.2`
-- **1Password Connect Sync**: `1password/connect-sync:1.7.2`
+| Dependency | Update owner |
+| --- | --- |
+| OCI image tags and digests, including module defaults | Renovate Docker custom managers |
+| nixpkgs and other moving flake inputs | `.github/workflows/update-flake-lock.yml`; Renovate's Nix manager is disabled |
+| Sources generated from `pkgs/nvfetcher.toml` | `.github/workflows/update-nvfetcher.yml`; Renovate updates are disabled for `pkgs/_sources/**` |
+| Custom GitHub releases with Nix hashes | Renovate proposes versions; maintainers refresh hashes and build before merging |
+| Intentionally gated application commits | The application's reviewed release/cutover process |
 
-### Services Needing Configuration ⚠️
-- **Sonarr**: Now configurable via `image` option (default: `:latest`)
-  - Update in `hosts/forge/default.nix` to pin version
-
-### Action Items
-1. Pin Sonarr image in host configuration
-2. Set up Renovate bot in GitHub repository
-3. Configure regex manager for `.nix` file detection
-4. Enable `pinDigests` for automatic digest pinning
+Updating nixpkgs does not update a service running from a pinned OCI image.
+Likewise, restarting a container or pulling its existing digest cannot advance
+it to a new application version. A merged image update must still be deployed.
 
 ## Migration Guide
 
@@ -239,14 +219,34 @@ Consider enabling:
 
 **Problem**: Renovate doesn't find your image definitions
 
-**Solution**: Ensure regex pattern matches your syntax
-```nix
-# This works
-image = "registry/image:tag";
+**Solution**: Check that the effective image is listed in
+[Dependency Dashboard #145](https://github.com/carpenike/nix-config/issues/145),
+not just that Renovate is opening unrelated PRs. These forms are supported:
 
-# This also works
-image = "registry/image:tag@sha256:...";
+```nix
+image = "ghcr.io/example/service:1.2.3";
+container.image = "ghcr.io/example/service:1.2.3@sha256:...";
+image = lib.mkOption {
+  type = lib.types.str;
+  default = "ghcr.io/example/service:1.2.3@sha256:...";
+};
 ```
+
+The extraction regression check parses the real JSON5 configuration and runs
+its patterns with RE2, the regex engine used by Renovate. CI runs it in the
+required lint job:
+
+```bash
+# Apple Silicon macOS
+nix build --no-link .#checks.aarch64-darwin.renovate-extraction
+
+# x86-64 Linux
+nix build --no-link .#checks.x86_64-linux.renovate-extraction
+```
+
+Dashboard visibility establishes detection, not successful version lookup,
+safe upgrades, deployment, or vulnerability clearance. Investigate registry
+lookup warnings and blocked PRs separately.
 
 ### Image Pull Failures
 
@@ -282,5 +282,5 @@ image = "registry/image:tag@sha256:...";
 - Check for stuck/abandoned PRs
 - Update this documentation as needed
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-10-18
 **Maintainer**: System Administrator
