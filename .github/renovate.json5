@@ -44,6 +44,16 @@
       automerge: false,
     },
     {
+      // Forge pins are qualified release artifacts; keep module fallback proposals visible.
+      matchDatasources: ['docker'],
+      matchPackageNames: ['ghcr.io/berriai/litellm'],
+      matchFileNames: [
+        'hosts/forge/atrium/runtime.nix',
+        'hosts/forge/services/litellm.nix',
+      ],
+      enabled: false,
+    },
+    {
       matchDatasources: [
         'docker',
       ],

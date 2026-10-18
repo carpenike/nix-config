@@ -7,12 +7,12 @@ local Python implementation or run a second product test suite.
 
 Deployment-owned files remain:
 
-* [`litellm-controller-isolated.nix`](../../hosts/forge/atrium/litellm-controller-isolated.nix):
+* [`litellm-controller-isolated.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/atrium/litellm-controller-isolated.nix):
   isolated-host guard, package selection, users/groups, credential-path references,
   state paths and timer/service settings.
-* [`tests/atrium_n04/host.nix`](../../tests/atrium_n04/host.nix),
-  [`fixture.nix`](../../tests/atrium_n04/fixture.nix) and
-  [`evaluate.nix`](../../tests/atrium_n04/evaluate.nix):
+* [`tests/atrium_n04/host.nix`](https://github.com/carpenike/nix-config/blob/main/tests/atrium_n04/host.nix),
+  [`fixture.nix`](https://github.com/carpenike/nix-config/blob/main/tests/atrium_n04/fixture.nix) and
+  [`evaluate.nix`](https://github.com/carpenike/nix-config/blob/main/tests/atrium_n04/evaluate.nix):
   host configuration values and deployment-consumption assertions.
 
 `checks.<system>.atrium-n04-package-smoke` verifies the exported CLI's `--help`;

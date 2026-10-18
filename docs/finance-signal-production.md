@@ -1,6 +1,6 @@
 # Production finance Signal wiring
 
-The [production module](../hosts/forge/services/finance-signal-production.nix)
+The [production module](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/finance-signal-production.nix)
 is **opt-in, default off**. Forge now selects it explicitly for the approved
 cutover. The parent retirement block masks Hermes runtime/recovery units while
 preserving history and backups; the [manual staging module](finance-signal-staging.md)

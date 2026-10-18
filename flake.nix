@@ -348,12 +348,7 @@
 
                 # ===== Security =====
                 # Detect secrets before they're committed
-                gitleaks = {
-                  enable = true;
-                  name = "gitleaks";
-                  entry = "${pkgs.gitleaks}/bin/gitleaks protect --staged --redact --verbose";
-                  pass_filenames = false;
-                };
+                gitleaks.enable = true;
               };
 
               # Global exclude patterns

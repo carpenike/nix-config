@@ -35,7 +35,7 @@ it is neither modified nor copied here. There is **no local-model prerequisite**
 
 ## Authoritative declarations
 
-[`hosts/forge/atrium/registry.nix`](../../hosts/forge/atrium/registry.nix)
+[`hosts/forge/atrium/registry.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/atrium/registry.nix)
 is the complete concrete permission ceiling. It consumes the actual cloud
 inventory in `hosts/forge/services/litellm.nix` and the pinned Home MCP
 source-exported catalog. It never creates a parallel tool catalog.
@@ -341,7 +341,7 @@ before enabling it. Until then, the existing native service behavior is unchange
 
 All four `services.atriumForge.adoption` switches default to false:
 `models`, `native`, `whiskey`, `whiskeyText`. The owner-selected
-[`adoption.nix`](../../hosts/forge/atrium/adoption.nix) now selects
+[`adoption.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/atrium/adoption.nix) now selects
 **models and Home MCP**; Whiskey routes and Whiskey text remain off.
 Native preparation is an explicit owner command before applying this selection,
 not an activation-time initializer.

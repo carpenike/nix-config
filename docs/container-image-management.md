@@ -126,10 +126,19 @@ updates because their literals used `default = "..."`, not `image = "..."`.
 | Dependency | Update owner |
 | --- | --- |
 | OCI image tags and digests, including module defaults | Renovate Docker custom managers |
+| Source-qualified Forge LiteLLM image pins | Atrium's qualification/release process; Renovate proposes only reusable-module fallback updates |
 | nixpkgs and other moving flake inputs | `.github/workflows/update-flake-lock.yml`; Renovate's Nix manager is disabled |
 | Sources generated from `pkgs/nvfetcher.toml` | `.github/workflows/update-nvfetcher.yml`; Renovate updates are disabled for `pkgs/_sources/**` |
 | Custom GitHub releases with Nix hashes | Renovate proposes versions; maintainers refresh hashes and build before merging |
 | Intentionally gated application commits | The application's reviewed release/cutover process |
+
+LiteLLM proposals remain visible and manual through
+`modules/nixos/services/litellm/default.nix`. The qualified pins in
+`hosts/forge/atrium/runtime.nix` and `hosts/forge/services/litellm.nix` are
+excluded from generic Docker updates. Updating the fallback does not upgrade
+Forge; Forge promotion still requires
+[source-bound qualification](https://github.com/carpenike/nix-config/issues/1267)
+and coordinated immutable release pins.
 
 Updating nixpkgs does not update a service running from a pinned OCI image.
 Likewise, restarting a container or pulling its existing digest cannot advance

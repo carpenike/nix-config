@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import copy
+import faulthandler
 import hashlib
 import http.client
 import json
@@ -27,6 +28,34 @@ from homelab_mcp.native_profile import NativeProfileSettings
 
 ENVIRONMENT = {"HOME": "/", "LANG": "C.UTF-8", "PYTHONNOUSERSITE": "1"}
 STEP = "setup"
+STARTED = time.monotonic()
+STEP_STARTED = STARTED
+COMMAND = 0
+
+
+def progress(**fields):
+    print(
+        json.dumps(
+            {
+                "stage": STEP,
+                "elapsed_seconds": round(time.monotonic() - STARTED, 3),
+                **fields,
+            },
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def stage(name):
+    global STEP, STEP_STARTED
+    now = time.monotonic()
+    if name != STEP:
+        progress(event="stage-finished", seconds=round(now - STEP_STARTED, 3))
+    STEP, STEP_STARTED = name, now
+    progress(event="stage-started")
+    faulthandler.dump_traceback_later(60, repeat=True, file=sys.stderr)
 
 
 def load(path):
@@ -73,6 +102,11 @@ def directory(path, identity=None):
 
 
 def executed(argv, identity=None):
+    global COMMAND
+    COMMAND += 1
+    command = COMMAND
+    started = time.monotonic()
+    progress(event="command-started", command=command)
     kwargs = (
         {}
         if identity is None
@@ -82,17 +116,32 @@ def executed(argv, identity=None):
             "extra_groups": [],
         }
     )
-    return subprocess.run(
-        [str(value) for value in argv],
-        env=ENVIRONMENT,
-        cwd="/",
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        timeout=100,
-        check=False,
-        umask=0o077,
-        **kwargs,
-    )
+    try:
+        result = subprocess.run(
+            [str(value) for value in argv],
+            env=ENVIRONMENT,
+            cwd="/",
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=100,
+            check=False,
+            umask=0o077,
+            **kwargs,
+        )
+        progress(
+            event="command-finished",
+            command=command,
+            seconds=round(time.monotonic() - started, 3),
+            returncode=result.returncode,
+        )
+        return result
+    except subprocess.TimeoutExpired:
+        progress(
+            event="command-timed-out",
+            command=command,
+            seconds=round(time.monotonic() - started, 3),
+        )
+        raise
 
 
 def successful(argv, identity=None):
@@ -410,8 +459,8 @@ def edited(path, value):
         replace(path, original)
 
 
-def tests(fixture_path, fixture, configuration):
-    global STEP
+def tests(fixture_path, fixture, configuration, suite):
+    stage("setup")
     root = Path(fixture["root"])
     assert root.is_relative_to("/run") and not root.exists(), (
         "private_fresh_fixture_required"
@@ -606,261 +655,278 @@ def tests(fixture_path, fixture, configuration):
                 path.name for path in (root / "trust").iterdir()
             } == trust_members, "extra_tls_files"
 
-        STEP = "read-only-plan-and-consent"
-        planned = invoke()
-        assert planned["mode"] == "plan" and not planned["approved"]
-        assert (
-            planned["deny_validation"] == "on-apply"
-            and planned["finance_grants"] == "append"
-        )
-        invoke(apply=True, failure="explicit_apply_confirmation_required")
-        invoke(
-            apply=True,
-            confirmation="another-installation",
-            failure="explicit_apply_confirmation_required",
-        )
-        invoke(
-            confirmation=configuration["installation"],
-            failure="explicit_apply_confirmation_required",
-        )
-        invoke(identity=configuration["native_identity"], failure="owner_root_required")
-        invoke(variant("extra-command", command=["sh", "-c", "true"]), failure="")
-        invoke(variant("boolean-schema", schema_version=True), failure="")
-        untouched()
-        results.append(STEP)
-
-        STEP = "named-identity-plan-and-refusals"
+        template = load(configuration["native_template"])
+        denial = root / "native" / "denial"
         native_name = pwd.getpwuid(configuration["native_identity"]["uid"]).pw_name
         named_config = variant("named-native-account", native_identity=native_name)
-        named_plan = invoke(named_config)
-        assert named_plan["mode"] == "plan" and not named_plan["approved"]
-        assert named_plan["deny_history"] == "initialize"
-        assert named_plan["finance_grants"] == "append"
-        untouched()
-        for name, reference in (
-            ("unknown", "atrium-missing-fixture"),
-            ("root", "root"),
-            ("invalid", "../homelab-mcp"),
-            ("oversized", "x" * 33),
-        ):
-            apply(variant(f"{name}-account", native_identity=reference), failure="")
+        if suite != "money-upgrade":
+            stage("read-only-plan-and-consent")
+            planned = invoke()
+            assert planned["mode"] == "plan" and not planned["approved"]
+            assert (
+                planned["deny_validation"] == "on-apply"
+                and planned["finance_grants"] == "append"
+            )
+            invoke(apply=True, failure="explicit_apply_confirmation_required")
+            invoke(
+                apply=True,
+                confirmation="another-installation",
+                failure="explicit_apply_confirmation_required",
+            )
+            invoke(
+                confirmation=configuration["installation"],
+                failure="explicit_apply_confirmation_required",
+            )
+            invoke(
+                identity=configuration["native_identity"], failure="owner_root_required"
+            )
+            invoke(variant("extra-command", command=["sh", "-c", "true"]), failure="")
+            invoke(variant("boolean-schema", schema_version=True), failure="")
             untouched()
-        foreign_name = pwd.getpwuid(fixture["foreign_identity"]["uid"]).pw_name
-        apply(
-            variant("foreign-account", native_identity=foreign_name),
-            failure="unsafe_custody",
-        )
-        untouched()
-        resolver_name = pwd.getpwuid(configuration["resolver_identity"]["uid"]).pw_name
-        apply(
-            variant("duplicate-account", native_identity=resolver_name),
-            failure="distinct_service_identities_required",
-        )
-        untouched()
-        results.append(STEP)
+            results.append(STEP)
 
-        STEP = "public-jwks-refusals"
-        for source, modes in (
-            (
-                "native",
-                (
-                    "private",
-                    "malformed",
-                    "duplicate",
-                    "invalid-key",
-                    "redirect",
-                    "oversized",
-                    "unbounded",
-                ),
-            ),
-            ("resolver", ("private", "invalid-key")),
-        ):
-            for mode in modes:
-                replace(
-                    root / "server-mode.json",
-                    {"native": "valid", "resolver": "valid"} | {source: mode},
-                )
-                apply(failure="")
+            stage("named-identity-plan-and-refusals")
+            named_plan = invoke(named_config)
+            assert named_plan["mode"] == "plan" and not named_plan["approved"]
+            assert named_plan["deny_history"] == "initialize"
+            assert named_plan["finance_grants"] == "append"
+            untouched()
+            for name, reference in (
+                ("unknown", "atrium-missing-fixture"),
+                ("root", "root"),
+                ("invalid", "../homelab-mcp"),
+                ("oversized", "x" * 33),
+            ):
+                apply(variant(f"{name}-account", native_identity=reference), failure="")
                 untouched()
-        replace(root / "server-mode.json", {"native": "valid", "resolver": "valid"})
-        assert not (root / "public-server" / "redirect-followed").exists()
-        write(
-            root / "wrong-ca.pem", (root / "trust" / "issuer-ca.crt.pem").read_bytes()
-        )
-        apply(variant("untrusted-ca", ca_bundle=str(root / "wrong-ca.pem")), failure="")
-        results.append(STEP)
-
-        STEP = "current-nix-binding"
-        template = load(configuration["native_template"])
-        wrong = copy.deepcopy(template)
-        wrong["resource"]["audience"] = "another-deployment"
-        apply(
-            template_variant("wrong-binding", wrong),
-            failure="fresh_profile_binding_conflict",
-        )
-        wrong = copy.deepcopy(template)
-        wrong["resource"]["target"] = (
-            configuration["native_issuer"] + "/cc/views/personal-finance"
-        )
-        apply(
-            template_variant("wrong-default-route", wrong),
-            failure="fresh_profile_binding_conflict",
-        )
-        apply(
-            variant(
-                "redirect-origin", native_jwks_url=configuration["resolver_jwks_url"]
-            ),
-            failure="public_endpoint_binding_conflict",
-        )
-        untouched()
-        results.append(STEP)
-
-        STEP = "unsafe-input-custody"
-        linked = root / "linked-config.json"
-        linked.symlink_to(fixture["config"])
-        apply(linked, failure="symlink_input")
-        unsafe = variant("writable-config")
-        unsafe.chmod(0o666)
-        apply(unsafe, failure="unsafe_custody")
-        unsafe.chmod(0o644)
-        signer = Path(configuration["native_signing_key"])
-        held = signer.with_name("held-key.pem")
-        os.rename(signer, held)
-        try:
-            signer.symlink_to(held)
-            apply(failure="symlink_input")
-            signer.unlink()
-            apply(failure="")
-            assert not signer.exists(), "missing_signer_was_regenerated"
-        finally:
-            os.rename(held, signer)
-        old_owner = (signer.stat().st_uid, signer.stat().st_gid)
-        try:
-            os.chown(
-                signer,
-                fixture["foreign_identity"]["uid"],
-                fixture["foreign_identity"]["gid"],
+            foreign_name = pwd.getpwuid(fixture["foreign_identity"]["uid"]).pw_name
+            apply(
+                variant("foreign-account", native_identity=foreign_name),
+                failure="unsafe_custody",
             )
-            apply(failure="unsafe_custody")
-        finally:
-            os.chown(signer, *old_owner)
-        old_mode = stat.S_IMODE(signer.stat().st_mode)
-        try:
-            signer.chmod(0o644)
-            apply(failure="unsafe_custody")
-        finally:
-            signer.chmod(old_mode)
-        native_link = root / "native" / "linked-state.db"
-        native_link.symlink_to(native_database)
-        apply(
-            variant("linked-state", native_oauth_database=str(native_link)),
-            failure="symlink_input",
-        )
-        apply(
-            variant(
-                "incorrect-old-guess",
-                native_oauth_database=str(root / "native" / "oauth-state.sqlite3"),
-            ),
-            failure="",
-        )
-        assert not (root / "native" / "oauth-state.sqlite3").exists()
-        ancestor = root / "policy-link"
-        ancestor.symlink_to(root / "policy", target_is_directory=True)
-        apply(
-            variant("linked-directory", policy_directory=str(ancestor)),
-            failure="symlink_input",
-        )
-        (root / "policy").chmod(0o777)
-        try:
-            apply(failure="unsafe_custody")
-        finally:
-            (root / "policy").chmod(0o755)
-        assert retained(configuration) == baseline
-        untouched()
-        results.append(STEP)
-
-        STEP = "partial-history-refusal"
-        denial = root / "native" / "denial"
-        directory(denial, configuration["native_identity"])
-        write(
-            denial / "initialization.started",
-            b"interrupted\n",
-            mode=0o600,
-            identity=configuration["native_identity"],
-        )
-        partial = fingerprint(denial / "initialization.started")
-        apply(failure="partial_deny_history")
-        assert fingerprint(denial / "initialization.started") == partial
-        (denial / "initialization.started").unlink()
-        denial.rmdir()
-        wrong_profile = {
-            "resource": template["resource"],
-            "cutover_at": int(time.time()) - 100,
-            "legacy_refresh_until": int(time.time()) + 100,
-            "legacy_mappings": [],
-        }
-        write(root / "policy" / "native-profile.json", wrong_profile, mode=0o400)
-        apply(failure="fresh_profile_binding_conflict")
-        assert load(root / "policy" / "native-profile.json") == wrong_profile
-        (root / "policy" / "native-profile.json").unlink()
-        results.append(STEP)
-
-        STEP = "missing-native-history-schema"
-        schema_inventory = (
-            "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
-        )
-        faults = [
-            (table, f"DROP TABLE {table}")
-            for table in (
-                "consumed_refresh",
-                "oauth_client",
-                "refresh_token",
-                "revoked_refresh_family",
-            )
-        ] + [("consumed-column", "ALTER TABLE consumed_refresh DROP COLUMN client_id")]
-        for name, mutation in faults:
-            damaged = root / "native" / f"missing-{name}.db"
-            clone_database(native_database, damaged, configuration["native_identity"])
-            change(damaged, mutation)
-            inventory = query(damaged, schema_inventory)
-            unchanged = fingerprint(damaged)
-            damaged_config = variant(
-                f"missing-history-{name}", native_oauth_database=str(damaged)
-            )
-            invoke(damaged_config, failure="native_oauth_history_schema_mismatch")
-            apply(damaged_config, failure="native_oauth_history_schema_mismatch")
-            assert query(damaged, schema_inventory) == inventory, (
-                "native_schema_was_recreated"
-            )
-            assert fingerprint(damaged) == unchanged, "native_history_was_rewritten"
-            assert not (root / "policy" / "native-adoption.approved").exists()
             untouched()
-        results.append(STEP)
+            resolver_name = pwd.getpwuid(
+                configuration["resolver_identity"]["uid"]
+            ).pw_name
+            apply(
+                variant("duplicate-account", native_identity=resolver_name),
+                failure="distinct_service_identities_required",
+            )
+            untouched()
+            results.append(STEP)
 
-        STEP = "failed-grant-append-no-approval"
-        failed_policy = root / "failed-policy"
-        directory(failed_policy)
-        failed_template = copy.deepcopy(template)
-        failed_template["deny"]["state_directory"] = str(
-            root / "native" / "failed-denial"
-        )
-        bad_grants = load(configuration["finance_grants"])
-        bad_grants["grants"][1]["subject"] = "synthetic-unenrolled"
-        write(root / "failed-grants.json", bad_grants)
-        failed_config = template_variant(
-            "failed-append",
-            failed_template,
-            policy_directory=str(failed_policy),
-            finance_grants=str(root / "failed-grants.json"),
-        )
-        apply(failed_config, failure="finance_append_failed")
-        assert not (failed_policy / "native-adoption.approved").exists()
-        assert (root / "native" / "failed-denial" / "owner.json").exists()
-        assert query(database, "SELECT * FROM grants ORDER BY id") == ordinary
-        assert retained(configuration) == baseline
-        results.append(STEP)
+            stage("public-jwks-refusals")
+            for source, modes in (
+                (
+                    "native",
+                    (
+                        "private",
+                        "malformed",
+                        "duplicate",
+                        "invalid-key",
+                        "redirect",
+                        "oversized",
+                        "unbounded",
+                    ),
+                ),
+                ("resolver", ("private", "invalid-key")),
+            ):
+                for mode in modes:
+                    replace(
+                        root / "server-mode.json",
+                        {"native": "valid", "resolver": "valid"} | {source: mode},
+                    )
+                    apply(failure="")
+                    untouched()
+            replace(root / "server-mode.json", {"native": "valid", "resolver": "valid"})
+            assert not (root / "public-server" / "redirect-followed").exists()
+            write(
+                root / "wrong-ca.pem",
+                (root / "trust" / "issuer-ca.crt.pem").read_bytes(),
+            )
+            apply(
+                variant("untrusted-ca", ca_bundle=str(root / "wrong-ca.pem")),
+                failure="",
+            )
+            results.append(STEP)
 
-        STEP = "fresh-preparation"
+            stage("current-nix-binding")
+            wrong = copy.deepcopy(template)
+            wrong["resource"]["audience"] = "another-deployment"
+            apply(
+                template_variant("wrong-binding", wrong),
+                failure="fresh_profile_binding_conflict",
+            )
+            wrong = copy.deepcopy(template)
+            wrong["resource"]["target"] = (
+                configuration["native_issuer"] + "/cc/views/personal-finance"
+            )
+            apply(
+                template_variant("wrong-default-route", wrong),
+                failure="fresh_profile_binding_conflict",
+            )
+            apply(
+                variant(
+                    "redirect-origin",
+                    native_jwks_url=configuration["resolver_jwks_url"],
+                ),
+                failure="public_endpoint_binding_conflict",
+            )
+            untouched()
+            results.append(STEP)
+
+            stage("unsafe-input-custody")
+            linked = root / "linked-config.json"
+            linked.symlink_to(fixture["config"])
+            apply(linked, failure="symlink_input")
+            unsafe = variant("writable-config")
+            unsafe.chmod(0o666)
+            apply(unsafe, failure="unsafe_custody")
+            unsafe.chmod(0o644)
+            signer = Path(configuration["native_signing_key"])
+            held = signer.with_name("held-key.pem")
+            os.rename(signer, held)
+            try:
+                signer.symlink_to(held)
+                apply(failure="symlink_input")
+                signer.unlink()
+                apply(failure="")
+                assert not signer.exists(), "missing_signer_was_regenerated"
+            finally:
+                os.rename(held, signer)
+            old_owner = (signer.stat().st_uid, signer.stat().st_gid)
+            try:
+                os.chown(
+                    signer,
+                    fixture["foreign_identity"]["uid"],
+                    fixture["foreign_identity"]["gid"],
+                )
+                apply(failure="unsafe_custody")
+            finally:
+                os.chown(signer, *old_owner)
+            old_mode = stat.S_IMODE(signer.stat().st_mode)
+            try:
+                signer.chmod(0o644)
+                apply(failure="unsafe_custody")
+            finally:
+                signer.chmod(old_mode)
+            native_link = root / "native" / "linked-state.db"
+            native_link.symlink_to(native_database)
+            apply(
+                variant("linked-state", native_oauth_database=str(native_link)),
+                failure="symlink_input",
+            )
+            apply(
+                variant(
+                    "incorrect-old-guess",
+                    native_oauth_database=str(root / "native" / "oauth-state.sqlite3"),
+                ),
+                failure="",
+            )
+            assert not (root / "native" / "oauth-state.sqlite3").exists()
+            ancestor = root / "policy-link"
+            ancestor.symlink_to(root / "policy", target_is_directory=True)
+            apply(
+                variant("linked-directory", policy_directory=str(ancestor)),
+                failure="symlink_input",
+            )
+            (root / "policy").chmod(0o777)
+            try:
+                apply(failure="unsafe_custody")
+            finally:
+                (root / "policy").chmod(0o755)
+            assert retained(configuration) == baseline
+            untouched()
+            results.append(STEP)
+
+            stage("partial-history-refusal")
+            directory(denial, configuration["native_identity"])
+            write(
+                denial / "initialization.started",
+                b"interrupted\n",
+                mode=0o600,
+                identity=configuration["native_identity"],
+            )
+            partial = fingerprint(denial / "initialization.started")
+            apply(failure="partial_deny_history")
+            assert fingerprint(denial / "initialization.started") == partial
+            (denial / "initialization.started").unlink()
+            denial.rmdir()
+            wrong_profile = {
+                "resource": template["resource"],
+                "cutover_at": int(time.time()) - 100,
+                "legacy_refresh_until": int(time.time()) + 100,
+                "legacy_mappings": [],
+            }
+            write(root / "policy" / "native-profile.json", wrong_profile, mode=0o400)
+            apply(failure="fresh_profile_binding_conflict")
+            assert load(root / "policy" / "native-profile.json") == wrong_profile
+            (root / "policy" / "native-profile.json").unlink()
+            results.append(STEP)
+
+            stage("missing-native-history-schema")
+            schema_inventory = (
+                "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name"
+            )
+            faults = [
+                (table, f"DROP TABLE {table}")
+                for table in (
+                    "consumed_refresh",
+                    "oauth_client",
+                    "refresh_token",
+                    "revoked_refresh_family",
+                )
+            ] + [
+                (
+                    "consumed-column",
+                    "ALTER TABLE consumed_refresh DROP COLUMN client_id",
+                )
+            ]
+            for name, mutation in faults:
+                damaged = root / "native" / f"missing-{name}.db"
+                clone_database(
+                    native_database, damaged, configuration["native_identity"]
+                )
+                change(damaged, mutation)
+                inventory = query(damaged, schema_inventory)
+                unchanged = fingerprint(damaged)
+                damaged_config = variant(
+                    f"missing-history-{name}", native_oauth_database=str(damaged)
+                )
+                invoke(damaged_config, failure="native_oauth_history_schema_mismatch")
+                apply(damaged_config, failure="native_oauth_history_schema_mismatch")
+                assert query(damaged, schema_inventory) == inventory, (
+                    "native_schema_was_recreated"
+                )
+                assert fingerprint(damaged) == unchanged, "native_history_was_rewritten"
+                assert not (root / "policy" / "native-adoption.approved").exists()
+                untouched()
+            results.append(STEP)
+
+            stage("failed-grant-append-no-approval")
+            failed_policy = root / "failed-policy"
+            directory(failed_policy)
+            failed_template = copy.deepcopy(template)
+            failed_template["deny"]["state_directory"] = str(
+                root / "native" / "failed-denial"
+            )
+            bad_grants = load(configuration["finance_grants"])
+            bad_grants["grants"][1]["subject"] = "synthetic-unenrolled"
+            write(root / "failed-grants.json", bad_grants)
+            failed_config = template_variant(
+                "failed-append",
+                failed_template,
+                policy_directory=str(failed_policy),
+                finance_grants=str(root / "failed-grants.json"),
+            )
+            apply(failed_config, failure="finance_append_failed")
+            assert not (failed_policy / "native-adoption.approved").exists()
+            assert (root / "native" / "failed-denial" / "owner.json").exists()
+            assert query(database, "SELECT * FROM grants ORDER BY id") == ordinary
+            assert retained(configuration) == baseline
+            results.append(STEP)
+
+        stage("fresh-preparation")
         prepared = apply(named_config)
         assert prepared["approved"] and prepared["deny_history"] == "initialize"
         assert (
@@ -895,33 +961,36 @@ def tests(fixture_path, fixture, configuration):
         assert retained(configuration) == baseline
         results.append(STEP)
 
-        STEP = "resuming-completed-preparation-artifacts"
-        failed_publications = {
-            name: fingerprint(failed_policy / name)
-            for name in artifacts
-            if name != "native-adoption.approved"
-        }
-        failed_owner = (root / "native" / "failed-denial" / "owner.json").read_bytes()
-        failed_cutover = load(failed_policy / "native-profile.json")["cutover_at"]
-        replace(root / "failed-grants.json", load(configuration["finance_grants"]))
-        recovered = apply(failed_config)
-        assert recovered["approved"] and recovered["cutover_at"] == failed_cutover
-        assert (
-            recovered["finance_grants"] == "reuse"
-            and recovered["deny_history"] == "reuse"
-        )
-        assert {
-            name: fingerprint(failed_policy / name)
-            for name in artifacts
-            if name != "native-adoption.approved"
-        } == failed_publications
-        assert (
-            root / "native" / "failed-denial" / "owner.json"
-        ).read_bytes() == failed_owner
-        assert retained(configuration) == baseline
-        results.append(STEP)
+        if suite != "money-upgrade":
+            stage("resuming-completed-preparation-artifacts")
+            failed_publications = {
+                name: fingerprint(failed_policy / name)
+                for name in artifacts
+                if name != "native-adoption.approved"
+            }
+            failed_owner = (
+                root / "native" / "failed-denial" / "owner.json"
+            ).read_bytes()
+            failed_cutover = load(failed_policy / "native-profile.json")["cutover_at"]
+            replace(root / "failed-grants.json", load(configuration["finance_grants"]))
+            recovered = apply(failed_config)
+            assert recovered["approved"] and recovered["cutover_at"] == failed_cutover
+            assert (
+                recovered["finance_grants"] == "reuse"
+                and recovered["deny_history"] == "reuse"
+            )
+            assert {
+                name: fingerprint(failed_policy / name)
+                for name in artifacts
+                if name != "native-adoption.approved"
+            } == failed_publications
+            assert (
+                root / "native" / "failed-denial" / "owner.json"
+            ).read_bytes() == failed_owner
+            assert retained(configuration) == baseline
+            results.append(STEP)
 
-        STEP = "matching-retry-preserves-history"
+        stage("matching-retry-preserves-history")
         successful(
             phase_command + ["populate-denial"], configuration["native_identity"]
         )
@@ -949,450 +1018,485 @@ def tests(fixture_path, fixture, configuration):
         assert retained(configuration) == baseline
         results.append(STEP)
 
-        STEP = "retained-three-grant-money-upgrade"
-        upgrade_root = root / "money-upgrade"
-        directory(upgrade_root)
-        upgrade_state = upgrade_root / "resolver"
-        directory(upgrade_state, configuration["resolver_identity"])
-        upgrade_database = upgrade_state / "resolver.sqlite3"
-        clone_database(database, upgrade_database, configuration["resolver_identity"])
-        full_seed = load(configuration["finance_grants"])
-        for grant in full_seed["grants"]:
-            change(upgrade_database, "DELETE FROM grants WHERE id=?", (grant["id"],))
-        write(
-            upgrade_state / "foundation.initialized",
-            (configuration["installation"] + "\n").encode(),
-            mode=0o600,
-            identity=configuration["resolver_identity"],
-        )
-        new_settings = load(configuration["resolver_config"]) | {
-            "state_directory": str(upgrade_state)
-        }
-        old_policy = load(new_settings["policy_path"])
-        old_money = old_policy["instances"].pop("personal-money")
-        for template_id in old_money["route_templates"]:
-            old_policy["route_templates"].pop(template_id)
-        old_policy_path = upgrade_root / "old-policy.json"
-        write(old_policy_path, old_policy)
-        old_settings = new_settings | {"policy_path": str(old_policy_path)}
-        old_settings_path = upgrade_root / "old-resolver.json"
-        new_settings_path = upgrade_root / "new-resolver.json"
-        write(old_settings_path, old_settings)
-        write(new_settings_path, new_settings)
-        legacy_seed = full_seed | {
-            "grants": [
+        if suite != "retention":
+            stage("retained-three-grant-money-upgrade")
+            upgrade_root = root / "money-upgrade"
+            directory(upgrade_root)
+            upgrade_state = upgrade_root / "resolver"
+            directory(upgrade_state, configuration["resolver_identity"])
+            upgrade_database = upgrade_state / "resolver.sqlite3"
+            clone_database(
+                database, upgrade_database, configuration["resolver_identity"]
+            )
+            full_seed = load(configuration["finance_grants"])
+            for grant in full_seed["grants"]:
+                change(
+                    upgrade_database, "DELETE FROM grants WHERE id=?", (grant["id"],)
+                )
+            write(
+                upgrade_state / "foundation.initialized",
+                (configuration["installation"] + "\n").encode(),
+                mode=0o600,
+                identity=configuration["resolver_identity"],
+            )
+            new_settings = load(configuration["resolver_config"]) | {
+                "state_directory": str(upgrade_state)
+            }
+            old_policy = load(new_settings["policy_path"])
+            old_money = old_policy["instances"].pop("personal-money")
+            for template_id in old_money["route_templates"]:
+                old_policy["route_templates"].pop(template_id)
+            old_policy_path = upgrade_root / "old-policy.json"
+            write(old_policy_path, old_policy)
+            old_settings = new_settings | {"policy_path": str(old_policy_path)}
+            old_settings_path = upgrade_root / "old-resolver.json"
+            new_settings_path = upgrade_root / "new-resolver.json"
+            write(old_settings_path, old_settings)
+            write(new_settings_path, new_settings)
+            legacy_seed = full_seed | {
+                "grants": [
+                    grant
+                    for grant in full_seed["grants"]
+                    if grant["request"]["instance"] != "personal-money"
+                ]
+            }
+            legacy_seed_path = upgrade_root / "old-finance.json"
+            write(legacy_seed_path, legacy_seed)
+            upgrade_policy = upgrade_root / "policy"
+            directory(upgrade_policy)
+            write(
+                upgrade_policy / "native-profile.json",
+                load(root / "policy" / "native-profile.json"),
+                mode=0o400,
+            )
+            legacy_template = copy.deepcopy(load(configuration["native_template"]))
+            legacy_template["issuance"]["policy_path"] = str(old_policy_path)
+            legacy_config = template_variant(
+                "legacy-money-predecessor",
+                legacy_template,
+                policy_directory=str(upgrade_policy),
+                resolver_config=str(old_settings_path),
+                finance_grants=str(legacy_seed_path),
+            )
+            legacy_prepared = apply(legacy_config)
+            assert (
+                legacy_prepared["approved"]
+                and legacy_prepared["finance_grants"] == "append"
+            )
+            assert len(query(upgrade_database, "SELECT * FROM grants")) == 4
+            upgrade_config = variant(
+                "money-upgrade-config",
+                policy_directory=str(upgrade_policy),
+                resolver_config=str(new_settings_path),
+            )
+            money_grant = next(
                 grant
                 for grant in full_seed["grants"]
-                if grant["request"]["instance"] != "personal-money"
-            ]
-        }
-        legacy_seed_path = upgrade_root / "old-finance.json"
-        write(legacy_seed_path, legacy_seed)
-        upgrade_policy = upgrade_root / "policy"
-        directory(upgrade_policy)
-        write(
-            upgrade_policy / "native-profile.json",
-            load(root / "policy" / "native-profile.json"),
-            mode=0o400,
-        )
-        legacy_template = copy.deepcopy(load(configuration["native_template"]))
-        legacy_template["issuance"]["policy_path"] = str(old_policy_path)
-        legacy_config = template_variant(
-            "legacy-money-predecessor",
-            legacy_template,
-            policy_directory=str(upgrade_policy),
-            resolver_config=str(old_settings_path),
-            finance_grants=str(legacy_seed_path),
-        )
-        legacy_prepared = apply(legacy_config)
-        assert (
-            legacy_prepared["approved"]
-            and legacy_prepared["finance_grants"] == "append"
-        )
-        assert len(query(upgrade_database, "SELECT * FROM grants")) == 4
-        upgrade_config = variant(
-            "money-upgrade-config",
-            policy_directory=str(upgrade_policy),
-            resolver_config=str(new_settings_path),
-        )
-        money_grant = next(
-            grant
-            for grant in full_seed["grants"]
-            if grant["request"]["instance"] == "personal-money"
-        )
-        money_id = money_grant["id"]
-        original_grants = query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-        old_approval = load(upgrade_policy / "native-adoption.approved")
-        old_publications = {
-            name: fingerprint(upgrade_policy / name) for name in artifacts
-        }
-        denial_before, clock_before = deny_snapshot(configuration)
-        planned = invoke(upgrade_config)
-        assert planned["finance_grants"] == "append-money" and not planned["approved"]
-        assert not planned["fresh_sign_in"] and planned["deny_history"] == "reuse"
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == original_grants
-        )
-        assert deny_snapshot(configuration) == (denial_before, clock_before)
-        assert {
-            name: fingerprint(upgrade_policy / name) for name in artifacts
-        } == old_publications
-        results.append(STEP)
-
-        STEP = "money-upgrade-requires-complete-matching-approved-predecessor"
-        approval_path = upgrade_policy / "native-adoption.approved"
-        held_approval = upgrade_policy / "held-approval"
-        os.rename(approval_path, held_approval)
-        try:
-            apply(upgrade_config, failure="partial_finance_grants")
-        finally:
-            os.rename(held_approval, approval_path)
-        with edited(approval_path, old_approval | {"finance_grants_sha256": "0" * 64}):
-            apply(upgrade_config, failure="approval_conflict")
-        legacy_id = legacy_seed["grants"][0]["id"]
-        change(upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (legacy_id,))
-        try:
-            apply(upgrade_config, failure="")
-        finally:
-            change(
-                upgrade_database, "UPDATE grants SET active=1 WHERE id=?", (legacy_id,)
+                if grant["request"]["instance"] == "personal-money"
             )
-        change(
-            upgrade_database,
-            "UPDATE grants SET max_lifetime_seconds=901 WHERE id=?",
-            (legacy_id,),
-        )
-        try:
-            apply(upgrade_config, failure="finance_grant_conflict")
-        finally:
-            change(
-                upgrade_database,
-                "UPDATE grants SET max_lifetime_seconds=900 WHERE id=?",
-                (legacy_id,),
+            money_id = money_grant["id"]
+            original_grants = query(
+                upgrade_database, "SELECT * FROM grants ORDER BY id"
             )
-        change(
-            upgrade_database,
-            "UPDATE grants SET id=? WHERE id=?",
-            (legacy_id + ".held", legacy_id),
-        )
-        try:
-            apply(upgrade_config, failure="partial_finance_grants")
-        finally:
-            change(
-                upgrade_database,
-                "UPDATE grants SET id=? WHERE id=?",
-                (legacy_id, legacy_id + ".held"),
+            old_approval = load(upgrade_policy / "native-adoption.approved")
+            old_publications = {
+                name: fingerprint(upgrade_policy / name) for name in artifacts
+            }
+            denial_before, clock_before = deny_snapshot(configuration)
+            planned = invoke(upgrade_config)
+            assert (
+                planned["finance_grants"] == "append-money" and not planned["approved"]
             )
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == original_grants
-        )
-        assert load(approval_path) == old_approval
-        assert {
-            name: fingerprint(upgrade_policy / name)
-            for name in artifacts
-            if name != "native-adoption.approved"
-        } == {
-            name: value
-            for name, value in old_publications.items()
-            if name != "native-adoption.approved"
-        }
-        old_publications["native-adoption.approved"] = fingerprint(approval_path)
-        assert retained(configuration) == baseline
-        results.append(STEP)
-
-        STEP = "failed-money-only-append-retains-approved-predecessor"
-        bad_money_seed = copy.deepcopy(full_seed)
-        next(
-            grant
-            for grant in bad_money_seed["grants"]
-            if grant["request"]["instance"] == "personal-money"
-        )["subject"] = "synthetic-unenrolled-money"
-        bad_money_seed_path = upgrade_root / "bad-money-subject.json"
-        write(bad_money_seed_path, bad_money_seed)
-        failed_upgrade = variant(
-            "failed-money-upgrade",
-            policy_directory=str(upgrade_policy),
-            resolver_config=str(new_settings_path),
-            finance_grants=str(bad_money_seed_path),
-        )
-        temporary_before = set(Path("/run").glob("atrium-native-grants-*"))
-        apply(failed_upgrade, failure="finance_append_failed")
-        assert set(Path("/run").glob("atrium-native-grants-*")) == temporary_before
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == original_grants
-        )
-        assert (
-            fingerprint(approval_path) == old_publications["native-adoption.approved"]
-        )
-        archive_path = upgrade_policy / "native-adoption.before-money.approved"
-        assert load(archive_path) == old_approval
-        with edited(archive_path, old_approval | {"deny_installation": "0" * 32}):
-            apply(upgrade_config, failure="approval_conflict")
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == original_grants
-        )
-        results.append(STEP)
-
-        STEP = "money-only-append-preserves-existing-grants-signers-and-history"
-        upgraded = apply(upgrade_config)
-        assert upgraded["approved"] and upgraded["finance_grants"] == "append-money"
-        assert not upgraded["fresh_sign_in"]
-        assert upgraded["cutover_at"] == legacy_prepared["cutover_at"]
-        assert (
-            query(
-                upgrade_database,
-                "SELECT * FROM grants WHERE id<>? ORDER BY id",
-                (money_id,),
+            assert not planned["fresh_sign_in"] and planned["deny_history"] == "reuse"
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == original_grants
             )
-            == original_grants
-        )
-        assert query(
-            upgrade_database, "SELECT count(*) FROM grants WHERE id=?", (money_id,)
-        ) == [(1,)]
-        assert load(archive_path) == old_approval
-        assert (
-            load(approval_path)["finance_grants_sha256"]
-            != old_approval["finance_grants_sha256"]
-        )
-        assert {
-            name: fingerprint(upgrade_policy / name)
-            for name in artifacts
-            if name != "native-adoption.approved"
-        } == {
-            name: value
-            for name, value in old_publications.items()
-            if name != "native-adoption.approved"
-        }
-        after_history, after_clock = deny_snapshot(configuration)
-        assert after_history == denial_before and after_clock >= clock_before
-        assert retained(configuration) == baseline
-        upgraded_grants = query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-        upgraded_approval = fingerprint(approval_path)
-        assert apply(upgrade_config)["finance_grants"] == "reuse"
-        assert fingerprint(approval_path) == upgraded_approval
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == upgraded_grants
-        )
-        results.append(STEP)
+            assert deny_snapshot(configuration) == (denial_before, clock_before)
+            assert {
+                name: fingerprint(upgrade_policy / name) for name in artifacts
+            } == old_publications
+            results.append(STEP)
 
-        STEP = "money-append-resumes-before-approval-without-reinserting"
-        replace(approval_path, old_approval)
-        resumed = apply(upgrade_config)
-        assert resumed["approved"] and resumed["finance_grants"] == "reuse"
-        assert not resumed["fresh_sign_in"]
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == upgraded_grants
-        )
-        assert load(archive_path) == old_approval
-        results.append(STEP)
-
-        STEP = "money-upgrade-never-resurrects-revoked-or-lost-money-grants"
-        change(upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (money_id,))
-        try:
-            apply(upgrade_config, failure="")
-            assert query(
-                upgrade_database, "SELECT active FROM grants WHERE id=?", (money_id,)
-            ) == [(0,)]
-        finally:
+            stage("money-upgrade-requires-complete-matching-approved-predecessor")
+            approval_path = upgrade_policy / "native-adoption.approved"
+            held_approval = upgrade_policy / "held-approval"
+            os.rename(approval_path, held_approval)
+            try:
+                apply(upgrade_config, failure="partial_finance_grants")
+            finally:
+                os.rename(held_approval, approval_path)
+            with edited(
+                approval_path, old_approval | {"finance_grants_sha256": "0" * 64}
+            ):
+                apply(upgrade_config, failure="approval_conflict")
+            legacy_id = legacy_seed["grants"][0]["id"]
             change(
-                upgrade_database, "UPDATE grants SET active=1 WHERE id=?", (money_id,)
-            )
-        change(
-            upgrade_database,
-            "UPDATE grants SET id=? WHERE id=?",
-            (money_id + ".held", money_id),
-        )
-        try:
-            apply(upgrade_config, failure="approval_conflict")
-            assert query(
-                upgrade_database, "SELECT count(*) FROM grants WHERE id=?", (money_id,)
-            ) == [(0,)]
-        finally:
-            change(
-                upgrade_database,
-                "UPDATE grants SET id=? WHERE id=?",
-                (money_id, money_id + ".held"),
-            )
-        assert (
-            query(upgrade_database, "SELECT * FROM grants ORDER BY id")
-            == upgraded_grants
-        )
-        assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
-        assert retained(configuration) == baseline
-        results.append(STEP)
-
-        STEP = "existing-original-cutover-time"
-        resumed_policy = root / "resumed-policy"
-        directory(resumed_policy)
-        old_cutover = int(time.time()) - 3600
-        old_profile = profile.model_dump(mode="json") | {
-            "cutover_at": old_cutover,
-            "legacy_refresh_until": old_cutover,
-        }
-        write(resumed_policy / "native-profile.json", old_profile, mode=0o400)
-        original_profile = fingerprint(resumed_policy / "native-profile.json")
-        resumed = variant("resumed", policy_directory=str(resumed_policy))
-        assert apply(resumed)["cutover_at"] == old_cutover
-        assert fingerprint(resumed_policy / "native-profile.json") == original_profile
-        assert retained(configuration) == baseline
-        results.append(STEP)
-
-        STEP = "existing-public-conflicts"
-        replace(
-            root / "server-mode.json", {"native": "changed-key", "resolver": "valid"}
-        )
-        apply(failure="retained_signer_mismatch")
-        replace(root / "server-mode.json", {"native": "valid", "resolver": "valid"})
-        bad_receipt = load(root / "policy" / "native-adoption.approved") | {
-            "deny_installation": "0" * 32
-        }
-        with edited(root / "policy" / "native-adoption.approved", bad_receipt):
-            apply(failure="approval_conflict")
-        for name in (
-            "native-profile.json",
-            "native-jwks.json",
-            "native-adoption.approved",
-        ):
-            with edited(root / "policy" / name, None):
-                apply(failure="invalid_existing_artifact")
-        private_keys = load(root / "policy" / "native-jwks.json")
-        private_keys["keys"][0]["d"] = "DO-NOT-LOG-PRIVATE-FIELD"
-        with edited(root / "policy" / "native-jwks.json", private_keys):
-            apply(failure="existing_public_artifact_conflict")
-        missing_policy = root / "lone-approval"
-        directory(missing_policy)
-        write(
-            missing_policy / "native-adoption.approved",
-            load(root / "policy" / "native-adoption.approved"),
-            mode=0o400,
-        )
-        apply(
-            variant("lone-approval-config", policy_directory=str(missing_policy)),
-            failure="approval_conflict",
-        )
-        assert sorted(path.name for path in missing_policy.iterdir()) == [
-            "native-adoption.approved"
-        ]
-        path = root / "policy" / "native-profile.json"
-        os.chown(
-            path, fixture["foreign_identity"]["uid"], fixture["foreign_identity"]["gid"]
-        )
-        try:
-            apply(failure="unsafe_custody")
-        finally:
-            os.chown(path, 0, 0)
-        results.append(STEP)
-
-        STEP = "partial-and-mismatched-grants"
-        grant_id = load(configuration["finance_grants"])["grants"][0]["id"]
-        for column, value in (("active", 0), ("max_lifetime_seconds", 901)):
-            original = query(
-                database, f"SELECT {column} FROM grants WHERE id=?", (grant_id,)
-            )[0][0]
-            change(
-                database, f"UPDATE grants SET {column}=? WHERE id=?", (value, grant_id)
+                upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (legacy_id,)
             )
             try:
-                apply(failure="")
-                assert query(
-                    database, f"SELECT {column} FROM grants WHERE id=?", (grant_id,)
-                ) == [(value,)]
+                apply(upgrade_config, failure="")
             finally:
+                change(
+                    upgrade_database,
+                    "UPDATE grants SET active=1 WHERE id=?",
+                    (legacy_id,),
+                )
+            change(
+                upgrade_database,
+                "UPDATE grants SET max_lifetime_seconds=901 WHERE id=?",
+                (legacy_id,),
+            )
+            try:
+                apply(upgrade_config, failure="finance_grant_conflict")
+            finally:
+                change(
+                    upgrade_database,
+                    "UPDATE grants SET max_lifetime_seconds=900 WHERE id=?",
+                    (legacy_id,),
+                )
+            change(
+                upgrade_database,
+                "UPDATE grants SET id=? WHERE id=?",
+                (legacy_id + ".held", legacy_id),
+            )
+            try:
+                apply(upgrade_config, failure="partial_finance_grants")
+            finally:
+                change(
+                    upgrade_database,
+                    "UPDATE grants SET id=? WHERE id=?",
+                    (legacy_id, legacy_id + ".held"),
+                )
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == original_grants
+            )
+            assert load(approval_path) == old_approval
+            assert {
+                name: fingerprint(upgrade_policy / name)
+                for name in artifacts
+                if name != "native-adoption.approved"
+            } == {
+                name: value
+                for name, value in old_publications.items()
+                if name != "native-adoption.approved"
+            }
+            old_publications["native-adoption.approved"] = fingerprint(approval_path)
+            assert retained(configuration) == baseline
+            results.append(STEP)
+
+            stage("failed-money-only-append-retains-approved-predecessor")
+            bad_money_seed = copy.deepcopy(full_seed)
+            next(
+                grant
+                for grant in bad_money_seed["grants"]
+                if grant["request"]["instance"] == "personal-money"
+            )["subject"] = "synthetic-unenrolled-money"
+            bad_money_seed_path = upgrade_root / "bad-money-subject.json"
+            write(bad_money_seed_path, bad_money_seed)
+            failed_upgrade = variant(
+                "failed-money-upgrade",
+                policy_directory=str(upgrade_policy),
+                resolver_config=str(new_settings_path),
+                finance_grants=str(bad_money_seed_path),
+            )
+            temporary_before = set(Path("/run").glob("atrium-native-grants-*"))
+            apply(failed_upgrade, failure="finance_append_failed")
+            assert set(Path("/run").glob("atrium-native-grants-*")) == temporary_before
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == original_grants
+            )
+            assert (
+                fingerprint(approval_path)
+                == old_publications["native-adoption.approved"]
+            )
+            archive_path = upgrade_policy / "native-adoption.before-money.approved"
+            assert load(archive_path) == old_approval
+            with edited(archive_path, old_approval | {"deny_installation": "0" * 32}):
+                apply(upgrade_config, failure="approval_conflict")
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == original_grants
+            )
+            results.append(STEP)
+
+            stage("money-only-append-preserves-existing-grants-signers-and-history")
+            upgraded = apply(upgrade_config)
+            assert upgraded["approved"] and upgraded["finance_grants"] == "append-money"
+            assert not upgraded["fresh_sign_in"]
+            assert upgraded["cutover_at"] == legacy_prepared["cutover_at"]
+            assert (
+                query(
+                    upgrade_database,
+                    "SELECT * FROM grants WHERE id<>? ORDER BY id",
+                    (money_id,),
+                )
+                == original_grants
+            )
+            assert query(
+                upgrade_database, "SELECT count(*) FROM grants WHERE id=?", (money_id,)
+            ) == [(1,)]
+            assert load(archive_path) == old_approval
+            assert (
+                load(approval_path)["finance_grants_sha256"]
+                != old_approval["finance_grants_sha256"]
+            )
+            assert {
+                name: fingerprint(upgrade_policy / name)
+                for name in artifacts
+                if name != "native-adoption.approved"
+            } == {
+                name: value
+                for name, value in old_publications.items()
+                if name != "native-adoption.approved"
+            }
+            after_history, after_clock = deny_snapshot(configuration)
+            assert after_history == denial_before and after_clock >= clock_before
+            assert retained(configuration) == baseline
+            upgraded_grants = query(
+                upgrade_database, "SELECT * FROM grants ORDER BY id"
+            )
+            upgraded_approval = fingerprint(approval_path)
+            assert apply(upgrade_config)["finance_grants"] == "reuse"
+            assert fingerprint(approval_path) == upgraded_approval
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == upgraded_grants
+            )
+            results.append(STEP)
+
+            stage("money-append-resumes-before-approval-without-reinserting")
+            replace(approval_path, old_approval)
+            resumed = apply(upgrade_config)
+            assert resumed["approved"] and resumed["finance_grants"] == "reuse"
+            assert not resumed["fresh_sign_in"]
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == upgraded_grants
+            )
+            assert load(archive_path) == old_approval
+            results.append(STEP)
+
+            stage("money-upgrade-never-resurrects-revoked-or-lost-money-grants")
+            change(
+                upgrade_database, "UPDATE grants SET active=0 WHERE id=?", (money_id,)
+            )
+            try:
+                apply(upgrade_config, failure="")
+                assert query(
+                    upgrade_database,
+                    "SELECT active FROM grants WHERE id=?",
+                    (money_id,),
+                ) == [(0,)]
+            finally:
+                change(
+                    upgrade_database,
+                    "UPDATE grants SET active=1 WHERE id=?",
+                    (money_id,),
+                )
+            change(
+                upgrade_database,
+                "UPDATE grants SET id=? WHERE id=?",
+                (money_id + ".held", money_id),
+            )
+            try:
+                apply(upgrade_config, failure="approval_conflict")
+                assert query(
+                    upgrade_database,
+                    "SELECT count(*) FROM grants WHERE id=?",
+                    (money_id,),
+                ) == [(0,)]
+            finally:
+                change(
+                    upgrade_database,
+                    "UPDATE grants SET id=? WHERE id=?",
+                    (money_id, money_id + ".held"),
+                )
+            assert (
+                query(upgrade_database, "SELECT * FROM grants ORDER BY id")
+                == upgraded_grants
+            )
+            assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
+            assert retained(configuration) == baseline
+            results.append(STEP)
+
+        if suite != "money-upgrade":
+            stage("existing-original-cutover-time")
+            resumed_policy = root / "resumed-policy"
+            directory(resumed_policy)
+            old_cutover = int(time.time()) - 3600
+            old_profile = profile.model_dump(mode="json") | {
+                "cutover_at": old_cutover,
+                "legacy_refresh_until": old_cutover,
+            }
+            write(resumed_policy / "native-profile.json", old_profile, mode=0o400)
+            original_profile = fingerprint(resumed_policy / "native-profile.json")
+            resumed = variant("resumed", policy_directory=str(resumed_policy))
+            assert apply(resumed)["cutover_at"] == old_cutover
+            assert (
+                fingerprint(resumed_policy / "native-profile.json") == original_profile
+            )
+            assert retained(configuration) == baseline
+            results.append(STEP)
+
+            stage("existing-public-conflicts")
+            replace(
+                root / "server-mode.json",
+                {"native": "changed-key", "resolver": "valid"},
+            )
+            apply(failure="retained_signer_mismatch")
+            replace(root / "server-mode.json", {"native": "valid", "resolver": "valid"})
+            bad_receipt = load(root / "policy" / "native-adoption.approved") | {
+                "deny_installation": "0" * 32
+            }
+            with edited(root / "policy" / "native-adoption.approved", bad_receipt):
+                apply(failure="approval_conflict")
+            for name in (
+                "native-profile.json",
+                "native-jwks.json",
+                "native-adoption.approved",
+            ):
+                with edited(root / "policy" / name, None):
+                    apply(failure="invalid_existing_artifact")
+            private_keys = load(root / "policy" / "native-jwks.json")
+            private_keys["keys"][0]["d"] = "DO-NOT-LOG-PRIVATE-FIELD"
+            with edited(root / "policy" / "native-jwks.json", private_keys):
+                apply(failure="existing_public_artifact_conflict")
+            missing_policy = root / "lone-approval"
+            directory(missing_policy)
+            write(
+                missing_policy / "native-adoption.approved",
+                load(root / "policy" / "native-adoption.approved"),
+                mode=0o400,
+            )
+            apply(
+                variant("lone-approval-config", policy_directory=str(missing_policy)),
+                failure="approval_conflict",
+            )
+            assert sorted(path.name for path in missing_policy.iterdir()) == [
+                "native-adoption.approved"
+            ]
+            path = root / "policy" / "native-profile.json"
+            os.chown(
+                path,
+                fixture["foreign_identity"]["uid"],
+                fixture["foreign_identity"]["gid"],
+            )
+            try:
+                apply(failure="unsafe_custody")
+            finally:
+                os.chown(path, 0, 0)
+            results.append(STEP)
+
+            stage("partial-and-mismatched-grants")
+            grant_id = load(configuration["finance_grants"])["grants"][0]["id"]
+            for column, value in (("active", 0), ("max_lifetime_seconds", 901)):
+                original = query(
+                    database, f"SELECT {column} FROM grants WHERE id=?", (grant_id,)
+                )[0][0]
                 change(
                     database,
                     f"UPDATE grants SET {column}=? WHERE id=?",
-                    (original, grant_id),
+                    (value, grant_id),
                 )
-        change(
-            database,
-            "UPDATE grants SET id=? WHERE id=?",
-            (grant_id + ".held", grant_id),
-        )
-        try:
-            apply(failure="partial_finance_grants")
-            assert query(
-                database, "SELECT count(*) FROM grants WHERE id=?", (grant_id,)
-            ) == [(0,)]
-        finally:
+                try:
+                    apply(failure="")
+                    assert query(
+                        database, f"SELECT {column} FROM grants WHERE id=?", (grant_id,)
+                    ) == [(value,)]
+                finally:
+                    change(
+                        database,
+                        f"UPDATE grants SET {column}=? WHERE id=?",
+                        (original, grant_id),
+                    )
             change(
                 database,
                 "UPDATE grants SET id=? WHERE id=?",
-                (grant_id, grant_id + ".held"),
+                (grant_id + ".held", grant_id),
             )
-        assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
-        results.append(STEP)
+            try:
+                apply(failure="partial_finance_grants")
+                assert query(
+                    database, "SELECT count(*) FROM grants WHERE id=?", (grant_id,)
+                ) == [(0,)]
+            finally:
+                change(
+                    database,
+                    "UPDATE grants SET id=? WHERE id=?",
+                    (grant_id, grant_id + ".held"),
+                )
+            assert query(database, "SELECT * FROM grants ORDER BY id") == grants_before
+            results.append(STEP)
 
-        STEP = "retained-deny-conflicts"
-        owner = denial / "owner.json"
-        with edited(owner, load(owner) | {"binding": "0" * 64}):
-            apply(failure="deny_binding_conflict")
-        held_owner = root / "native" / "held-owner.json"
-        os.rename(owner, held_owner)
-        try:
-            apply(failure="partial_deny_history")
-            assert not owner.exists()
-        finally:
-            os.rename(held_owner, owner)
-        deny_db = denial / "denial.sqlite"
-        original = query(deny_db, "SELECT document FROM snapshot")[0][0]
-        damaged = json.loads(original)
-        damaged["document"] = "invalid-synthetic-signature"
-        change(deny_db, "UPDATE snapshot SET document=?", (json.dumps(damaged),))
-        signature_policy = root / "signature-policy"
-        directory(signature_policy)
-        try:
+            stage("retained-deny-conflicts")
+            owner = denial / "owner.json"
+            with edited(owner, load(owner) | {"binding": "0" * 64}):
+                apply(failure="deny_binding_conflict")
+            held_owner = root / "native" / "held-owner.json"
+            os.rename(owner, held_owner)
+            try:
+                apply(failure="partial_deny_history")
+                assert not owner.exists()
+            finally:
+                os.rename(held_owner, owner)
+            deny_db = denial / "denial.sqlite"
+            original = query(deny_db, "SELECT document FROM snapshot")[0][0]
+            damaged = json.loads(original)
+            damaged["document"] = "invalid-synthetic-signature"
+            change(deny_db, "UPDATE snapshot SET document=?", (json.dumps(damaged),))
+            signature_policy = root / "signature-policy"
+            directory(signature_policy)
+            try:
+                apply(
+                    variant(
+                        "invalid-deny-signature",
+                        policy_directory=str(signature_policy),
+                    ),
+                    failure="deny_validation_failed",
+                )
+                assert not (signature_policy / "native-adoption.approved").exists()
+                assert (
+                    json.loads(query(deny_db, "SELECT document FROM snapshot")[0][0])
+                    == damaged
+                )
+            finally:
+                change(deny_db, "UPDATE snapshot SET document=?", (original,))
+            after, _ = deny_snapshot(configuration)
+            assert after == history
+            results.append(STEP)
+
+            stage("retained-native-adoption-conflict")
+            cloned = root / "native" / "conflicting-state.db"
+            clone_database(native_database, cloned, configuration["native_identity"])
+            change(
+                cloned,
+                "INSERT INTO native_deny_adoption VALUES (1,?,?)",
+                ("0" * 64, "0" * 32),
+            )
             apply(
-                variant(
-                    "invalid-deny-signature", policy_directory=str(signature_policy)
+                variant("lost-native-history", native_oauth_database=str(cloned)),
+                failure="retained_deny_history_missing",
+            )
+            change(cloned, "DELETE FROM native_deny_adoption")
+            change(
+                cloned,
+                "INSERT INTO native_profile_cutover VALUES (1,1,?,?,?,?)",
+                (
+                    configuration["native_issuer"],
+                    profile.cutover_at - 1,
+                    profile.cutover_at - 1,
+                    json.dumps(template["resource"]),
                 ),
-                failure="deny_validation_failed",
             )
-            assert not (signature_policy / "native-adoption.approved").exists()
-            assert (
-                json.loads(query(deny_db, "SELECT document FROM snapshot")[0][0])
-                == damaged
+            apply(
+                variant("changed-native-cutover", native_oauth_database=str(cloned)),
+                failure="retained_cutover_conflict",
             )
-        finally:
-            change(deny_db, "UPDATE snapshot SET document=?", (original,))
-        after, _ = deny_snapshot(configuration)
-        assert after == history
-        results.append(STEP)
-
-        STEP = "retained-native-adoption-conflict"
-        cloned = root / "native" / "conflicting-state.db"
-        clone_database(native_database, cloned, configuration["native_identity"])
-        change(
-            cloned,
-            "INSERT INTO native_deny_adoption VALUES (1,?,?)",
-            ("0" * 64, "0" * 32),
-        )
-        apply(
-            variant("lost-native-history", native_oauth_database=str(cloned)),
-            failure="retained_deny_history_missing",
-        )
-        change(cloned, "DELETE FROM native_deny_adoption")
-        change(
-            cloned,
-            "INSERT INTO native_profile_cutover VALUES (1,1,?,?,?,?)",
-            (
-                configuration["native_issuer"],
-                profile.cutover_at - 1,
-                profile.cutover_at - 1,
-                json.dumps(template["resource"]),
-            ),
-        )
-        apply(
-            variant("changed-native-cutover", native_oauth_database=str(cloned)),
-            failure="retained_cutover_conflict",
-        )
-        assert retained(configuration) == baseline
-        results.append(STEP)
+            assert retained(configuration) == baseline
+            results.append(STEP)
         assert apply()["approved"]
         assert retained(configuration) == baseline
         assert {path.name for path in (root / "trust").iterdir()} == trust_members
@@ -1400,7 +1504,7 @@ def tests(fixture_path, fixture, configuration):
             resolver + ["tls", "--plan", configuration["tls_plan"], "status"],
             configuration["trust_identity"],
         )
-        STEP = "retained-replay-after-reopen"
+        stage("retained-replay-after-reopen")
         write(
             root / "native" / "check-replay",
             b"check\n",
@@ -1413,10 +1517,15 @@ def tests(fixture_path, fixture, configuration):
         ) == [(1,)]
         assert query(native_database, "SELECT count(*) FROM refresh_token") == [(0,)]
         results.append(STEP)
+        progress(
+            event="stage-finished",
+            seconds=round(time.monotonic() - STEP_STARTED, 3),
+        )
         print(
             json.dumps(
                 {
                     "kind": "atrium.native-cutover-fixture",
+                    "suite": suite,
                     "passed": results,
                     "native_oauth_history_preserved": True,
                     "signers_rotated": False,
@@ -1428,6 +1537,7 @@ def tests(fixture_path, fixture, configuration):
             )
         )
     finally:
+        faulthandler.cancel_dump_traceback_later()
         for process in (server, native):
             if process is not None:
                 process.terminate()
@@ -1440,6 +1550,9 @@ def main():
     parser.add_argument(
         "--phase", choices=("native-history", "public-server", "populate-denial")
     )
+    parser.add_argument(
+        "--suite", choices=("all", "retention", "money-upgrade"), default="all"
+    )
     args = parser.parse_args()
     fixture = load(args.fixture)
     configuration = load(fixture["config"])
@@ -1451,7 +1564,7 @@ def main():
         populate_denial(configuration)
     else:
         try:
-            tests(args.fixture, fixture, configuration)
+            tests(args.fixture, fixture, configuration, args.suite)
         except (
             AssertionError,
             OSError,
