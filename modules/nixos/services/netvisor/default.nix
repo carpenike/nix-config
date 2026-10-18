@@ -68,7 +68,7 @@ in
 
     daemonImage = lib.mkOption {
       type = lib.types.str;
-      default = "docker.io/mayanayza/netvisor-daemon:v0.11.6@sha256:496978ccb06ed0b0665f2edeef7c5eef1635511d1fced4e29b022eae33dcbe9b";
+      default = "docker.io/mayanayza/netvisor-daemon:v0.11.9@sha256:e0bf71467e1f5ddcb94d7ab034dbfab6779e31aae2ccfe63842b78e504ccd7bf";
       description = "NetVisor daemon container image with digest for immutability.";
     };
 
