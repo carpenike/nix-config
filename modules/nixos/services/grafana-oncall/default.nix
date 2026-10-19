@@ -92,7 +92,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "grafana/oncall:v1.16.7@sha256:173a1e6139f30d881f2df58d480990579287e0ee2f3eb279d978a71ea968ae55";
+      default = "grafana/oncall:v1.16.11@sha256:9abc7342e10022da5893867789a91112fe366b3cd064a07a32d752f9de395fe5";
       description = ''
         Grafana OnCall container image with pinned digest.
         Override to upgrade to newer versions.
