@@ -62,7 +62,7 @@ in
     # Container images
     serverImage = lib.mkOption {
       type = lib.types.str;
-      default = "docker.io/mayanayza/netvisor-server:v0.11.6@sha256:3ccb0ce3fbca84a06c28e2adbf7983b78628399414a2472ae4f506b7e3e8d0c5";
+      default = "docker.io/mayanayza/netvisor-server:v0.11.9@sha256:063d391a59205920f06cc226ee48179da28b8399fddcad4f63bfd684eb3d53d6";
       description = "NetVisor server container image with digest for immutability.";
     };
 
