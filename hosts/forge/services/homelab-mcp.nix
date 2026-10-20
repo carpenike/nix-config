@@ -149,6 +149,24 @@ in
           # claim). Empty upstream default = any PocketID user. Parsed as
           # JSON by pydantic, so this must be a JSON array literal.
           HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
+          # DCR redirect_uri prefix allowlist. Setting it REPLACES the upstream
+          # default, so the first eight entries copy that default verbatim
+          # (homelab-mcp 70f96a3, config.py oauth_redirect_uri_allowlist).
+          # Added: Grok's MCP connector, which registers as Cursor's client and
+          # submits Cursor's agent callback (observed 2026-10-20: the default
+          # list dropped it and /oauth/authorize failed with
+          # invalid_redirect_uri). Exact URL rather than a cursor.com/ prefix.
+          HOMELAB_MCP_OAUTH_REDIRECT_URI_ALLOWLIST = builtins.toJSON [
+            "https://claude.ai/"
+            "https://claude.com/"
+            "https://vscode.dev/redirect"
+            "https://insiders.vscode.dev/redirect"
+            "http://127.0.0.1:"
+            "http://127.0.0.1/"
+            "http://localhost:"
+            "http://localhost/"
+            "https://www.cursor.com/agents/mcp/oauth/callback"
+          ];
           HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON ({
             advisor = [ "finances://" ];
           } // lib.mapAttrs (_: scope: scope.resources) atriumScopes);
