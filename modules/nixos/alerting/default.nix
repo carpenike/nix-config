@@ -262,6 +262,54 @@ in
       };
     };
 
+    # Additional webhook receiver that forwards alerts to Ryan's assistant (Grok Bot).
+    # Purely additive: its route uses `continue = true`, so the primary
+    # OnCall/Pushover routing below it is unchanged.
+    receivers.grokbot = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Forward alerts to the Grok Bot assistant webhook in addition to the normal receivers.";
+      };
+
+      urlSecret = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "SOPS secret name that contains the full Grok Bot webhook URL.";
+      };
+
+      authSecret = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          SOPS secret name that contains the authorization credentials for the
+          webhook (the part of the Authorization header after the scheme word).
+          Set to null to send no Authorization header.
+        '';
+      };
+
+      authType = mkOption {
+        type = types.str;
+        default = "Bearer";
+        description = "Authorization scheme sent with the credentials (Authorization: <authType> <credentials>).";
+      };
+
+      matchers = mkOption {
+        type = types.listOf types.str;
+        default = [ "severity=~\"medium|high|critical\"" ];
+        description = ''
+          Alertmanager matchers selecting which alerts are forwarded to Grok Bot.
+          The Watchdog heartbeat is always excluded.
+        '';
+      };
+
+      maxAlerts = mkOption {
+        type = types.int;
+        default = 20;
+        description = "Maximum number of alerts included in a single webhook payload (0 = unlimited).";
+      };
+    };
+
     rules = mkOption {
       type = types.attrsOf ruleSubmodule;
       default = { };
@@ -450,6 +498,18 @@ in
           }
         ]
         ++
+        # Grok Bot webhook secrets must exist when the receiver is enabled
+        (lib.optionals cfg.receivers.grokbot.enable [
+          {
+            assertion = cfg.receivers.grokbot.urlSecret != null && builtins.hasAttr cfg.receivers.grokbot.urlSecret config.sops.secrets;
+            message = "modules.alerting: Grok Bot webhook URL secret '${toString cfg.receivers.grokbot.urlSecret}' not found in sops.secrets. Either define the secret or disable receivers.grokbot.";
+          }
+          {
+            assertion = cfg.receivers.grokbot.authSecret == null || builtins.hasAttr cfg.receivers.grokbot.authSecret config.sops.secrets;
+            message = "modules.alerting: Grok Bot webhook auth secret '${toString cfg.receivers.grokbot.authSecret}' not found in sops.secrets. Either define the secret, set authSecret = null, or disable receivers.grokbot.";
+          }
+        ])
+        ++
         # PromQL rules must have expr set
         (map
           (r:
@@ -624,6 +684,16 @@ in
                 # Send frequently to maintain heartbeat
                 group_interval = "1m";
                 repeat_interval = "1m";
+              })
+              # Forward a copy of alerts to Grok Bot. `continue = true` means this
+              # route never terminates matching, so the OnCall/Pushover routes
+              # below (and the root default) behave exactly as without it.
+              # The Watchdog heartbeat is always excluded.
+              ++ (lib.optional cfg.receivers.grokbot.enable {
+                matchers = cfg.receivers.grokbot.matchers ++ [ "alertname!=\"Watchdog\"" ];
+                receiver = "grokbot";
+                continue = true;
+                repeat_interval = "12h";
               })
               # Meta-monitoring alerts go directly to Pushover (bypass OnCall to avoid circular dependency)
               # If OnCall is down, we still want to know about monitoring issues
@@ -826,6 +896,23 @@ in
                 follow_redirects = true;
               };
             }];
+          })
+          # Append the Grok Bot assistant webhook receiver if enabled
+          ++ (lib.optional cfg.receivers.grokbot.enable {
+            name = "grokbot";
+            webhook_configs = [
+              ({
+                url_file = config.sops.secrets.${cfg.receivers.grokbot.urlSecret}.path;
+                send_resolved = true;
+                # Cap payload size; Alertmanager reports truncatedAlerts when exceeded
+                max_alerts = cfg.receivers.grokbot.maxAlerts;
+              } // lib.optionalAttrs (cfg.receivers.grokbot.authSecret != null) {
+                http_config.authorization = {
+                  type = cfg.receivers.grokbot.authType;
+                  credentials_file = config.sops.secrets.${cfg.receivers.grokbot.authSecret}.path;
+                };
+              })
+            ];
           });
         };
       } // {
