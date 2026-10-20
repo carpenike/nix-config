@@ -260,6 +260,19 @@ in
             owner = "root";
             group = "alertmanager";
           };
+
+          # Grok Bot assistant webhook (Alertmanager receivers.grokbot)
+          # url: full webhook URL; auth: credential part of the Authorization header
+          "alerting/grokbot-webhook-url" = {
+            mode = "0440";
+            owner = "root";
+            group = "alertmanager";
+          };
+          "alerting/grokbot-webhook-auth" = {
+            mode = "0440";
+            owner = "root";
+            group = "alertmanager";
+          };
         }
         // optionalAttrs beszelAgentEnabled {
           # Beszel agent SSH key (generated in hub UI)
