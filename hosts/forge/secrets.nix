@@ -31,6 +31,7 @@ let
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
   zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
+  openprojectEnabled = config.modules.services.openproject.enable or false;
   minifluxEnabled = config.modules.services.miniflux.enable or false;
   n8nEnabled = config.modules.services.n8n.enable or false;
   openWebuiEnabled = config.modules.services.open-webui.enable or false;
@@ -719,6 +720,37 @@ in
             mode = "0400";
             owner = "tracearr";
             group = "tracearr";
+          };
+        }
+        // optionalAttrs openprojectEnabled {
+          # OpenProject (hosts/forge/services/openproject.nix). All three are
+          # consumed only through the sops.templates."openproject-env" file.
+          # See docs/services/openproject.md for the exact sops entries to add.
+          #
+          # Rails SECRET_KEY_BASE. Generate with: openssl rand -hex 64
+          "openproject/secret_key_base" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Role password for the shared PostgreSQL instance. Hex only - it is
+          # embedded verbatim in DATABASE_URL. Generate with: openssl rand -hex 32
+          # group=postgres and mode=0440 so postgresql-provision-databases can read it
+          "openproject/database_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Initial password for the seeded `admin` account (first seed only;
+          # OpenProject forces a change at first login). Must meet the default
+          # password rules (>=10 chars, lower+upper+digit+special), e.g.
+          # printf '%s!' "$(openssl rand -base64 24)"
+          "openproject/admin_password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
           };
         }
         // optionalAttrs tududiEnabled {

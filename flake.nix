@@ -1031,6 +1031,7 @@
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
                 lading = manifest.datasets."tank/services/lading";
                 musicAssistant = manifest.datasets."tank/services/music-assistant";
+                openproject = manifest.datasets."tank/services/openproject";
                 legacyDirectPreseed = forge.systemd.services.preseed-mealie;
                 legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
                 legacyFactoryPreseed = forge.systemd.services.preseed-qbittorrent;
@@ -1133,7 +1134,7 @@
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames;
+                == 56 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames;
               assert manifest.summary.byClass == {
                 critical = 15 + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
@@ -1143,7 +1144,9 @@
                 # every boot and the manifest could not see it at all.
                 # 17 since 2026-09-04: copilot-api (new) and litellm
                 # (re-enabled) both declare `standard`.
-                standard = 17 + builtins.length agentHostStateNames;
+                # 18 since 2026-10-20: openproject (new) declares `standard`
+                # with an offsite tier for its attachments dataset.
+                standard = 18 + builtins.length agentHostStateNames;
                 system = 2;
               };
               assert builtins.all
@@ -1193,6 +1196,14 @@
               assert lading.policy.allowEmptyBootstrap;
               assert !(builtins.hasAttr "lading" failClosedUnits);
               assert musicAssistant.coverage.automatedRestore;
+              # OpenProject attachments: every tier including R2 offsite. The
+              # records themselves live in PostgreSQL (pgBackRest). Empty
+              # bootstrap is allowed for the first deploy only - when that is
+              # flipped, move openproject into standardServicePaths and
+              # failClosedUnits (main unit podman-openproject-seeder).
+              assert openproject.classification == "standard";
+              assert openproject.missingRequiredTiers == [ ];
+              assert openproject.coverage.offsiteBackup;
               assert builtins.all
                 (name:
                   let
@@ -1362,8 +1373,12 @@
                 # coverage are asserted below, independently of these totals.
                 # The opt-in Agent Host adds one dataset, two backup jobs and
                 # three timers; keep the disabled baseline covered as well.
+                # 2026-10-20, 150 -> 153 timers, 65 -> 66 snapshot datasets and
+                # 73 -> 75 restic jobs: openproject (new) brings
+                # restic-backup-service-openproject, restic-backup-openproject-offsite
+                # and syncoid-tank-services-openproject for its attachments dataset.
               assert builtins.length expectedTimers
-                == 150 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers;
+                == 153 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
@@ -1373,13 +1388,13 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 65 + builtins.length agentHostStates;
+                == 66 + builtins.length agentHostStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (atriumStateNames ++ agentHostStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 73 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates;
+                == 75 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
                   && enabledResticJobs."${name}-offsite".useSnapshots

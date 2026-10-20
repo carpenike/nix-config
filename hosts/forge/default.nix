@@ -113,6 +113,7 @@ in
     ./services/thelounge.nix # TheLounge IRC web client
     ./services/tracearr.nix # Tracearr media server account sharing detection
     ./services/tududi.nix # Tududi task and productivity management
+    ./services/openproject.nix # OpenProject task queue for the Grok bots
     ./services/apprise.nix # Apprise notification gateway
     ./services/frigate.nix # Frigate NVR service
     ./services/go2rtc.nix # go2rtc camera streaming relay (Scrypted → WebRTC → HA)
