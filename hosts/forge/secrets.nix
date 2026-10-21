@@ -435,6 +435,24 @@ in
             restartUnits = [ "homelab-mcp.service" ];
           };
 
+          # AES-256-GCM key that seals Pocket ID's refresh token in the
+          # homelab-mcp OAuth state DB (Atrium C12; mcp#96). The DB is
+          # snapshotted and replicated (syncoid to nas-1, restic offsite), so
+          # the token must not sit there in plaintext. Delivered to the unit
+          # with systemd LoadCredential (services/homelab-mcp.nix), which the
+          # app reads as $CREDENTIALS_DIRECTORY/pocketid_token_key.
+          # Value: base64 of exactly 32 random bytes, one line:
+          #   openssl rand -base64 32
+          # With HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE=true the service refuses
+          # to start without it. Rotating or losing it is safe but costs one
+          # reconnect per affected connector (stored tokens read as absent).
+          "homelab-mcp/pocketid_token_key" = {
+            mode = "0400";
+            owner = "homelab-mcp";
+            group = "homelab-mcp";
+            restartUnits = [ "homelab-mcp.service" ];
+          };
+
           # Actual sidecar credentials. This dotenv is consumed only by the
           # homelab-mcp Actual sidecar unit.
           # Required keys: ACTUAL_PASSWORD, ACTUAL_BUDGET_SYNC_ID,
