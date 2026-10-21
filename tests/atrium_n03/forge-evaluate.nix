@@ -165,7 +165,7 @@ let
       && nativeCatalog.scopes.atrium-personal-read.resources == [ ]
       && nativeCatalog.scopes.atrium-family-read.resources == [ ];
     explicit-native-read-ceilings =
-      registry.instances.personal-data-read.scopes == [ "atrium-personal-read" ]
+      registry.instances.personal-data-read.scopes == [ "atrium-personal-read" "atrium-personal-school" "atrium-personal-recipes" ]
       && registry.instances.family-home-read.scopes == [ "atrium-family-read" ]
       && registry.instances.personal-data-read.access == "read-only"
       && registry.instances.family-home-read.access == "read-only"

@@ -25,6 +25,8 @@ let
         "native_bootstrap"
         "native_bootstrap_config"
         "finance_grants"
+        "school_grants"
+        "outings_grants"
       ];
     retained-native-account-resolved-by-name = plan.native_identity
       == c.systemd.services.homelab-mcp.serviceConfig.User

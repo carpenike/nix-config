@@ -51,6 +51,8 @@ let
       inherit (runtime.native) deny;
     };
     finance_grants = jsonFile "atrium-native-preparation-grants.json" composition.bootstrap.financeClients;
+    school_grants = jsonFile "atrium-native-preparation-school.json" composition.bootstrap.schoolClients;
+    outings_grants = jsonFile "atrium-native-preparation-outings.json" composition.bootstrap.outingsClients;
     native_issuer = runtime.endpoints.native;
     native_jwks_url = "${runtime.endpoints.native}/oauth/jwks.json";
     resolver_jwks_url = "${runtime.endpoints.resolver}/.well-known/jwks.json";

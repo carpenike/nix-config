@@ -206,6 +206,9 @@ in
         "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
         "atrium/bootstrap/finance-clients.json".text = json bootstrap.financeClients;
+        "atrium/bootstrap/school-clients.json".text = json bootstrap.schoolClients;
+        "atrium/bootstrap/home-services-grant.json".text = json bootstrap.homeServicesClients;
+        "atrium/bootstrap/outings-clients.json".text = json bootstrap.outingsClients;
         "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
@@ -298,6 +301,21 @@ in
             Type = "oneshot";
             PrivateNetwork = true;
             ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/finance-clients.json";
+          };
+        };
+        # Manual, once: the widened Home Services (/mcp) grant (school + recipe
+        # reads). Not wanted by any target; a second run refuses with
+        # grant_already_exists rather than duplicating it.
+        atrium-grant-home-services = (mounted [ runtime.paths.resolver ]) // {
+          description = "Explicit widened Home Services read grant (school and recipe reads)";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          serviceConfig = (privateState "atrium-resolver") // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/home-services-grant.json";
           };
         };
         atrium-trust-initialize = (mounted [ runtime.paths.trust ]) // {

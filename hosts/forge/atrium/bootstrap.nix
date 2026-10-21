@@ -57,6 +57,27 @@ in
     "cc.personal.ryan.status"
     "cc.personal.ryan.money"
   ];
+  # Kept out of the finance seed: that plan requires every grant domain to
+  # match the Personal /mcp profile. This view is Family wing and owner-only.
+  schoolClients = seed [
+    "cc.family.holt.school"
+  ];
+  # The Home Services (/mcp) widening. The standing ordinary
+  # `cc.personal.ryan.data-read.baseline` grant keeps its original
+  # atrium-personal-read-only limits (seed-policy never rewrites a grant), and
+  # the resolver requires a request to fit ONE grant. So a client signing in
+  # with the widened view scopes needs this second, explicitly appended grant
+  # on the same template. Apply once by hand after deploy, before reconnecting:
+  #   systemctl start atrium-grant-home-services.service
+  homeServicesClients = seed [ "cc.personal.ryan.data-read" ] // {
+    grants = map (grant: grant // { id = "cc.personal.ryan.data-read.home-services"; })
+      (seed [ "cc.personal.ryan.data-read" ]).grants;
+  };
+  # Kept out of the finance and school seeds. The overview is an ambit read,
+  # not a Home MCP scope, and it stays owner-only.
+  outingsClients = seed [
+    "cc.family.holt.outings"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;

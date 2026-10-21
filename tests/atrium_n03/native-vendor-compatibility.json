@@ -1,65 +1,9 @@
 {
   "schema_version": 1,
   "kind": "atrium.native-vendor-source-comparison",
-  "application_revision": "eb6842c22c218e26aeb5efac8753339374d97721",
-  "native_revision": "70f96a35d05f9bfa9e422e3a5d17903953345222",
-  "vendor_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "application_revision": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
+  "native_revision": "64493c6c5f6cb666f291b8287efdd7014b8de818",
+  "vendor_revision": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
   "scope": "Exact source applicability comparison, not a new native authentication gate. Every unlisted source member and digest must remain identical.",
-  "reviewed_changes": {
-    "nix/pwa.nix": {
-      "previous_sha256": null,
-      "current_sha256": "06c03af98b41dcc3ba92324284b87ae93322928fca03f3f173ffd513601be0b2",
-      "reason": "New separately consumed static browser hosting module."
-    },
-    "nix/tests/pwa-fixture.nix": {
-      "previous_sha256": null,
-      "current_sha256": "4bf7b0c584314f6340267e13d9e96e7c0b6ce48a35f92db9526de970c3d4b4e2",
-      "reason": "New browser-only fixture, not imported by Home MCP."
-    },
-    "nix/tests/pwa-hosting.nix": {
-      "previous_sha256": null,
-      "current_sha256": "cd80bb3cee9389feb71e9f0f7b015b44f1b26973341187e5378870588e351832",
-      "reason": "New browser-only hosting check, not imported by Home MCP."
-    },
-    "nix/tests/pwa.nix": {
-      "previous_sha256": null,
-      "current_sha256": "f16ab90f7ec965affaad1b13592496a8a8e9e40c912fe60e569be6f828146960",
-      "reason": "New browser module check, not imported by Home MCP."
-    },
-    "nix/types.nix": {
-      "previous_sha256": "0cb3aed9790f8e20a5c804896d83bd8f1b1877b130b7b23f6c49dccab3b68f78",
-      "current_sha256": "4703981f62d5cd52da67b0d791a1cf7f2ac65c952f2eb93d00b21bf424603300",
-      "reason": "Exports existing origin/httpsUri types for the browser module; registry generator and validator are unchanged."
-    },
-    "resolver/MANIFESTS.md": {
-      "previous_sha256": "de127c4fb85514b79258253c793599e90e1051e82efbaafa610e70ba204d1405",
-      "current_sha256": "f12d04f22bd69724e3309029da583743981488ff363cbd9b6ba9b3f0884df044",
-      "reason": "Discovery and opt-in Money module documentation, not executable consumer behavior."
-    },
-    "resolver/README.md": {
-      "previous_sha256": "6b85b51b47680583be03bc4a097fddb8bcf712faae42e72731e3d6a2d569d45d",
-      "current_sha256": "e779c7111c094d9dcc50403c34b35e2a14d0092fccbaaa72d88fd670210ee06b",
-      "reason": "Browser discovery documentation, not executable consumer behavior."
-    },
-    "resolver/src/atrium_resolver/app.py": {
-      "previous_sha256": "9b88dc08182d3494ab05a5b1f800a8ff8fd1e65b2a177d31d1ee48c6c294ddd0",
-      "current_sha256": "05ed84bce1b29d338aa9b24db8320d32fefe66470d9d131b634c3d928edf4f1a",
-      "reason": "Non-minting browser discovery and opt-in module header negotiation; Home MCP does not run the resolver application."
-    },
-    "resolver/src/atrium_resolver/manifests.py": {
-      "previous_sha256": "feb0d31f8706d6ba6cd4a73a4efefa9ddf95c5fe69987f6af23a78dae200568d",
-      "current_sha256": "e6e1b7ad92a75a80eeaa4013d16254cfcbb5e9dded5db704ae482fe32203dd73",
-      "reason": "Non-minting descriptions with opt-in, current-owner/read-only Money capability metadata; Home MCP does not invoke the manifest service."
-    },
-    "resolver/src/atrium_resolver/policy.py": {
-      "previous_sha256": "e8dc1a9e4fac4f21dbe890cfa749f4a2cd1f01dcc63e9b9aef9699695e9ba78b",
-      "current_sha256": "cbf6b52935b8cd7112d0b96da1dd87096503f8235c12ffa875bc04f349534873",
-      "reason": "Discovery accepts an optional wing filter. Home MCP's imported Decision and PolicyDenied definitions are unchanged and checked separately against the installed native package."
-    },
-    "resolver/tests/test_discovery.py": {
-      "previous_sha256": null,
-      "current_sha256": "26f30c4303621aecc9cfe023b7588fc9c894aa962a0f6d52a75a0c90dd736aef",
-      "reason": "Discovery and module negotiation tests, not imported by Home MCP."
-    }
-  }
+  "reviewed_changes": {}
 }

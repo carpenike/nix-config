@@ -15,8 +15,8 @@ let
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   catalog = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"));
-  scopes = [ "atrium-personal-read" "atrium-family-read" ]
-    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" ];
+  scopes = [ "atrium-personal-read" "atrium-family-read" "atrium-family-school" ]
+    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" "school" "recipes" ];
   tools = config: builtins.fromJSON
     config.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
   resources = config: builtins.fromJSON
@@ -44,7 +44,23 @@ let
       && catalog.scopes.atrium-personal-status.resources == [ ]
       && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" "finances_cashflow" "finances_balance_history" ]
       && catalog.scopes.atrium-personal-money.resources == [ ]
-      && catalog.scopes.atrium-personal-money.permissions == [ "read" ];
+      && catalog.scopes.atrium-personal-money.permissions == [ "read" ]
+      && catalog.scopes.atrium-family-school.tools == [ "school_parent_today" ]
+      && catalog.scopes.atrium-family-school.resources == [ ]
+      && catalog.scopes.atrium-family-school.permissions == [ "read" ]
+      && !lib.elem "school_parent_today" catalog.scopes.hermes.tools
+      && !lib.elem "school_parent_today" catalog.scopes.atrium-family-read.tools
+      && !lib.elem "school_parent_today" catalog.scopes.advisor.tools
+      && lib.all (tool: lib.hasPrefix "school_" tool) catalog.scopes.atrium-personal-school.tools
+      && lib.elem "school_parent_today" catalog.scopes.atrium-personal-school.tools
+      && catalog.scopes.atrium-personal-school.resources == [ ]
+      && catalog.scopes.atrium-personal-school.permissions == [ "read" ]
+      && catalog.scopes.atrium-personal-recipes.tools
+      == [ "cooklang_list_recipes" "cooklang_get_recipe" "cooklang_search_federation" "cooklang_build_shopping_list" ]
+      && catalog.scopes.atrium-personal-recipes.resources == [ ]
+      && catalog.scopes.atrium-personal-recipes.permissions == [ "read" ]
+      && lib.all (scope: !lib.any (lib.hasPrefix "school_") catalog.scopes.${scope}.tools)
+      [ "hermes" "advisor" "atrium-family-read" "atrium-personal-scribe" "atrium-personal-status" "atrium-personal-money" ];
     honest-write-permissions = lib.all
       (scope: catalog.scopes.${scope}.permissions == [ "read" "write" ])
       [ "atrium-personal-finance" "atrium-personal-scribe" ]
@@ -56,7 +72,7 @@ let
         (scope: catalog.scopes.${scope}.permissions == [ "read" ]
         && catalog.scopes.${scope}.resources == [ ])
         [ "atrium-personal-read" "atrium-family-read" ]
-      && registry.instances.personal-data-read.scopes == [ "atrium-personal-read" ]
+      && registry.instances.personal-data-read.scopes == [ "atrium-personal-read" "atrium-personal-school" "atrium-personal-recipes" ]
       && registry.instances.family-home-read.scopes == [ "atrium-family-read" ]
       && registry.instances.personal-data-read.access == "read-only"
       && registry.instances.family-home-read.access == "read-only";
@@ -83,6 +99,60 @@ let
       [ "personal-scribe" "personal-status" ];
     money-is-owner-only = registry.instances.personal-money.acl
       == { principals = [ "ryan" ]; groups = [ ]; };
+    school-is-owner-family = registry.instances.family-school.domain == "family:holt"
+      && registry.instances.family-school.route == "/cc/views/family-school"
+      && registry.instances.family-school.scopes == [ "atrium-family-school" ]
+      && registry.instances.family-school.access == "read-only"
+      && registry.instances.family-school.ownerPrincipal == "ryan"
+      && registry.instances.family-school.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.routeTemplates."cc.family.holt.school".domain == "family:holt"
+      && registry.routeTemplates."cc.family.holt.school".instance == "family-school"
+      && registry.routeTemplates."cc.family.holt.school".scopes == [ "atrium-family-school" ]
+      && registry.routeTemplates."cc.family.holt.school".permissions == [ ]
+      && registry.routeTemplates."cc.family.holt.school".acl == registry.instances.family-school.acl
+      && map (grant: grant.request.template_id) bootstrap.schoolClients.grants == [ "cc.family.holt.school" ]
+      && (builtins.head bootstrap.schoolClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.schoolClients.grants).can_delegate
+      && (builtins.head bootstrap.schoolClients.grants).request.domain == "family:holt"
+      && (builtins.head bootstrap.schoolClients.grants).request.scopes == [ "atrium-family-school" ]
+      && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
+      && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.ordinary.grants);
+    home-services-grant-is-separate-personal-read = map (grant: grant.id) bootstrap.homeServicesClients.grants
+      == [ "cc.personal.ryan.data-read.home-services" ]
+      && (builtins.head bootstrap.homeServicesClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.homeServicesClients.grants).can_delegate
+      && (builtins.head bootstrap.homeServicesClients.grants).request.domain == "personal:ryan"
+      && (builtins.head bootstrap.homeServicesClients.grants).request.instance == "personal-data-read"
+      && (builtins.head bootstrap.homeServicesClients.grants).request.scopes
+      == [ "atrium-personal-read" "atrium-personal-school" "atrium-personal-recipes" ]
+      && (builtins.head bootstrap.homeServicesClients.grants).request.permissions == [ ]
+      && !lib.elem "cc.personal.ryan.data-read.home-services" (map (grant: grant.id) bootstrap.ordinary.grants);
+    outings-is-owner-family = registry.instances.family-outings.domain == "family:holt"
+      && registry.instances.family-outings.deployment == "ambit"
+      && registry.instances.family-outings.route == "/cc/views/family-outings"
+      && registry.instances.family-outings.scopes == [ ]
+      && registry.instances.family-outings.permissions == [ "read" ]
+      && registry.instances.family-outings.access == "read-only"
+      && registry.instances.family-outings.audience == "ambit"
+      && registry.instances.family-outings.ownerPrincipal == "ryan"
+      && registry.instances.family-outings.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.deployments.ambit.adapter == "ambit"
+      && registry.deployments.ambit.endpoint == "https://ambit.holthome.net"
+      && registry.routeTemplates."cc.family.holt.outings".instance == "family-outings"
+      && registry.routeTemplates."cc.family.holt.outings".scopes == [ ]
+      && registry.routeTemplates."cc.family.holt.outings".permissions == [ "read" ]
+      && registry.routeTemplates."cc.family.holt.outings".acl == registry.instances.family-outings.acl
+      && map (grant: grant.request.template_id) bootstrap.outingsClients.grants == [ "cc.family.holt.outings" ]
+      && (builtins.head bootstrap.outingsClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.outingsClients.grants).can_delegate
+      && (builtins.head bootstrap.outingsClients.grants).request.domain == "family:holt"
+      && (builtins.head bootstrap.outingsClients.grants).request.permissions == [ "read" ]
+      && (builtins.head bootstrap.outingsClients.grants).request.scopes == [ ]
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.schoolClients.grants)
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.ordinary.grants)
+      && !lib.elem "family-outings"
+      (builtins.head runtime.nativePolicyTemplate.native_policy.adapters).views;
     ordinary-groups-still-required = lib.all
       (name: registry.instances.${name}.acl.principals == [ ])
       [ "personal-data-read" "family-home-read" ]
@@ -95,6 +165,7 @@ let
         "personal-scribe"
         "personal-status"
         "personal-money"
+        "family-school"
       ];
     default-public-resource-unchanged = runtime.native.resource == {
       id = "personal-data-read";

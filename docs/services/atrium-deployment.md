@@ -190,14 +190,14 @@ release follow-up updates `tests/atrium_n03/pins.json` to the actual selected
 application and native consumer. These are current composition expectations,
 not historical runtime receipts.
 
-Home MCP's `1762ecb` dependency and its artifact lock remain unchanged. The
-current app's credential profiles, policy schema and native-policy wire code
-are byte-identical to that vendor source; its PWA/discovery additions do not
-make the entire `nix`, `profiles` and `resolver` trees identical. Instead,
-`native-vendor-compatibility.json` lists exactly the eleven reviewed changed or
-added files, with old and current digests and source identities. Every unlisted
-member and digest must still match. Negative controls reject changed credential
-contracts, unreviewed additions and a different vendor revision.
+Home MCP now vendors Atrium `0da7baa`, the same revision selected for the
+application. Its policy parser accepts the read-only ambit adapter, so the
+shared resolver document can include the Family Outings deployment. The
+selected native revision also answers the Atrium origin preflight for the
+Family School view. Ambit remains outside the Home MCP view list. `native-vendor-compatibility.json`
+has no reviewed overlay because the vendored `nix`, `profiles`, and `resolver`
+trees match that revision. Negative controls still reject changed credential
+contracts, unreviewed additions, and a different vendor revision.
 
 The installed-native policy check complements that source comparison with the
 actual consuming parser and unchanged imported decision/error definitions.

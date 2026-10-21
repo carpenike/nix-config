@@ -42,6 +42,16 @@ in
           AMBIT_OIDC_ISSUER = "https://id.${config.networking.domain}";
           AMBIT_OIDC_CLIENT_ID = serviceName;
           PUBLIC_READ = true;
+          # The adopted overview. The household id is the seeded row, not a
+          # client-supplied value. A missing deny feed keeps the route closed.
+          ATRIUM_ISSUER = "https://atrium.holthome.net";
+          ATRIUM_JWKS_URI = "https://atrium.holthome.net/.well-known/jwks.json";
+          ATRIUM_DENY_FEED_URI = "https://atrium.holthome.net/v1/deny-feed";
+          ATRIUM_HOUSEHOLD_ID = "home";
+          ATRIUM_PRINCIPAL = "ryan";
+          ATRIUM_DOMAIN = "family:holt";
+          ATRIUM_INSTANCE_ID = "family-outings";
+          ATRIUM_TARGET = "https://${serviceDomain}/cc/views/family-outings";
         };
 
         environmentFile = config.sops.templates."ambit-env".path;

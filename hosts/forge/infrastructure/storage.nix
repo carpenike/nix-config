@@ -15,6 +15,23 @@ in
   # Service-specific datasets are configured in their respective service files
   # following the contribution pattern (e.g., services/sonarr.nix configures tank/services/sonarr)
 
+  # Pin the replication target (nas-1) in /etc/hosts so replication does not
+  # depend on DNS. On 2026-10-20 a ~6 minute resolver blip ("Could not resolve
+  # hostname nas-1.holthome.net") failed every syncoid job at once; some then
+  # fell back to full sends that nas-1 refused. The NFS backup mounts in
+  # backup.nix use the same hostname and benefit too. Address comes from
+  # forgeDefaults.replication.targetAddress (hosts/forge/lib/defaults.nix).
+  networking.hosts =
+    let
+      repl = forgeDefaults.replication;
+    in
+    lib.mkIf (repl != null && repl.targetAddress != null) {
+      ${repl.targetAddress} = lib.unique [
+        repl.targetHost
+        (builtins.head (lib.splitString "." repl.targetHost))
+      ];
+    };
+
   modules.backup.sanoid = {
     enable = true;
     sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
@@ -596,7 +613,10 @@ in
           > 0
         )
       '';
-      for = "10m";
+      # Matches the generic SystemdUnitFailed (for = "5m") so the inhibit rule in
+      # modules/nixos/alerting (SyncoidUnitFailed suppresses SystemdUnitFailed for
+      # the same syncoid unit) is in effect before either alert is notified.
+      for = "5m";
       severity = "high";
       labels = { service = "syncoid"; category = "replication"; };
       annotations = {
