@@ -127,10 +127,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05/R06 admission plus the SCH-UX-02 Family School today client.
-    # Host service activation and the Family view grant are configured separately.
+    # ATR-N05/R06 admission, the Family School today client, and the C11 Outings overview.
+    # Host service activation and the Family view grants are configured separately.
     atrium = {
-      url = "github:carpenike/atrium/2745cc50061400ba298cd19835f6870629433352";
+      url = "github:carpenike/atrium/2d9ae714ef9ed58f981c1483c3587409d1b6ae50";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
