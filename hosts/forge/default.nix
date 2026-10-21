@@ -128,6 +128,7 @@ in
     ./services/esphome.nix # ESPHome dashboard and firmware builder
     ./services/termix.nix # Termix SSH web terminal
     ./services/whiskeywhiskeywhiskey.nix # Operation W.W.W. command center (carpenike/whiskey-whiskey-whiskey)
+    ./services/whiskey-funnel-report # Weekly warwed.com funnel report (file + textfile metric)
     ./services/marginalia.nix # Marginalia — cook log service (carpenike/marginalia)
     ./services/ambit.nix # Ambit household outings planner (carpenike/ambit)
     ./services/replog.nix # RepLog — self-hosted family fitness tracker (carpenike/replog)
