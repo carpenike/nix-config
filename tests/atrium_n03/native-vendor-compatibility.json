@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "kind": "atrium.native-vendor-source-comparison",
-  "application_revision": "eb6842c22c218e26aeb5efac8753339374d97721",
-  "native_revision": "70f96a35d05f9bfa9e422e3a5d17903953345222",
+  "application_revision": "2745cc50061400ba298cd19835f6870629433352",
+  "native_revision": "f4a575d7f583c7c8eb6ad47defe83b611f0af7b9",
   "vendor_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
   "scope": "Exact source applicability comparison, not a new native authentication gate. Every unlisted source member and digest must remain identical.",
   "reviewed_changes": {
@@ -43,13 +43,13 @@
     },
     "resolver/src/atrium_resolver/app.py": {
       "previous_sha256": "9b88dc08182d3494ab05a5b1f800a8ff8fd1e65b2a177d31d1ee48c6c294ddd0",
-      "current_sha256": "05ed84bce1b29d338aa9b24db8320d32fefe66470d9d131b634c3d928edf4f1a",
-      "reason": "Non-minting browser discovery and opt-in module header negotiation; Home MCP does not run the resolver application."
+      "current_sha256": "8b9a1c72fc6b689bc2a2b1c30484f01afc365b422639eb49a49d960888d6e782",
+      "reason": "Non-minting browser discovery and opt-in module header negotiation, including the Family School today module; Home MCP does not run the resolver application."
     },
     "resolver/src/atrium_resolver/manifests.py": {
       "previous_sha256": "feb0d31f8706d6ba6cd4a73a4efefa9ddf95c5fe69987f6af23a78dae200568d",
-      "current_sha256": "e6e1b7ad92a75a80eeaa4013d16254cfcbb5e9dded5db704ae482fe32203dd73",
-      "reason": "Non-minting descriptions with opt-in, current-owner/read-only Money capability metadata; Home MCP does not invoke the manifest service."
+      "current_sha256": "6eed3e5244f2e05c309f78113809fbde5a5411c75255e6c109526e6d74ebfef8",
+      "reason": "Non-minting descriptions with opt-in Money and Family School today capability metadata; Home MCP does not invoke the manifest service."
     },
     "resolver/src/atrium_resolver/policy.py": {
       "previous_sha256": "e8dc1a9e4fac4f21dbe890cfa749f4a2cd1f01dcc63e9b9aef9699695e9ba78b",
@@ -58,8 +58,8 @@
     },
     "resolver/tests/test_discovery.py": {
       "previous_sha256": null,
-      "current_sha256": "26f30c4303621aecc9cfe023b7588fc9c894aa962a0f6d52a75a0c90dd736aef",
-      "reason": "Discovery and module negotiation tests, not imported by Home MCP."
+      "current_sha256": "0678075145391f3c245d379b83d1b9af4895bcc6413c44082735249e53a3d78c",
+      "reason": "Discovery and Money/Family School module negotiation tests, not imported by Home MCP."
     }
   }
 }
