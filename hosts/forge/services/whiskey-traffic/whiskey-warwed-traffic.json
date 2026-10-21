@@ -1136,6 +1136,267 @@
           "instant": true
         }
       ]
+    },
+    {
+      "type": "row",
+      "title": "Weekly funnel report (whiskey-funnel-report, Mon 07:00; Prometheus textfile metrics)",
+      "id": 22,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": [],
+      "description": "Latest weekly run. Full report: /var/lib/whiskey-traffic/funnel-report/latest.md on Forge."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "source=server: request lines (bots included); source=human: public page view lines.",
+      "id": 23,
+      "type": "table",
+      "title": "Funnel stages (last 7 days at run time)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, stage, source) (whiskey_funnel_stage)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 24,
+      "type": "table",
+      "title": "Partiful RSVP snapshot",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, state) (whiskey_funnel_rsvp)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 25,
+      "type": "table",
+      "title": "Competition entries",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, scope) (whiskey_funnel_entries)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 26,
+      "type": "stat",
+      "title": "Report age",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 47
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "time() - max(whiskey_funnel_report_last_run_timestamp_seconds)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 27,
+      "type": "stat",
+      "title": "Report errors",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 47
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max(whiskey_funnel_report_errors)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
     }
   ]
 }
