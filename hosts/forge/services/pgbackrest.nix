@@ -51,12 +51,15 @@ let
     StartLimitIntervalSec = "2h";
   };
 
+  # Low CPU priority: forge's i9-9900K has little thermal headroom, and these
+  # jobs should yield to interactive services rather than compete with them.
   backupResourceConfig = {
-    CPUWeight = 50;
+    CPUWeight = 20;
+    CPUSchedulingPolicy = "batch";
     IOWeight = 50;
     MemoryHigh = "1G";
     MemoryMax = "2G";
-    Nice = 5;
+    Nice = 10;
     TimeoutStartSec = "8h";
   };
 
@@ -1078,7 +1081,13 @@ in
       description = "pgBackRest incremental backup timer";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "hourly"; # Every hour
+        # Every hour at :40-:45, not on the hour. At HH:00-HH:05 this used
+        # to coincide with sanoid's hourly snapshot/prune run and a
+        # quarter-hourly syncoid batch, pushing the CPU above 95 C. :40 falls
+        # in the gap after the :30 syncoid batch (whose jobs are spread over
+        # :30-:40). Still hourly, so the RPO is unchanged; WAL archiving
+        # continues to provide PITR between incrementals.
+        OnCalendar = "*:40";
         Persistent = true;
         RandomizedDelaySec = "5m";
       };

@@ -208,7 +208,8 @@ let
   # grouped per (alertname, instance) instead, so one incident produces one
   # notification per receiver; every affected unit is still listed in the
   # payload (.Alerts). group_wait is long enough to collect units that fail a
-  # few minutes apart (syncoid timers carry RandomizedDelaySec = 5m).
+  # few minutes apart (syncoid timers are spread over RandomizedDelaySec = 10m;
+  # later failures in the same incident arrive as one group_interval update).
   incidentGroupedAlertnames = [ "SystemdUnitFailed" "SyncoidUnitFailed" ];
   incidentGroupedMatcher = "alertname=~\"${lib.concatStringsSep "|" incidentGroupedAlertnames}\"";
   incidentGrouping = {

@@ -765,6 +765,11 @@ in
       serviceConfig = {
         Type = "oneshot";
         User = "root";
+        # Share the sanoid/syncoid CPU budget (modules/nixos/storage/sanoid.nix)
+        # and yield to interactive work.
+        Slice = "zfs-backup.slice";
+        Nice = 10;
+        CPUSchedulingPolicy = "batch";
       };
       script = ''
                 set -euo pipefail
