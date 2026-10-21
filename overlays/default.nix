@@ -365,6 +365,16 @@ in
       };
     });
 
+    # WORKAROUND (2026-10-21): glances 4.5.5 (nixos-26.05) RESTful browser tests
+    # race their own uvicorn server and fail with "Connection refused" on the
+    # aarch64 CI runner (and are not cached by Hydra for aarch64-linux).
+    # Affects: nixpi (modules.services.glances)
+    # Check: Drop when the 26.05 glances package is cached / stable on aarch64.
+    # Scoped to aarch64 so x86_64 hosts keep the Hydra-cached build.
+    glances = prev.glances.overridePythonAttrs (old: prev.lib.optionalAttrs final.stdenv.hostPlatform.isAarch64 {
+      disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "tests/test_browser_restful.py" ];
+    });
+
     # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins
     # See pkgs/caddy-custom.nix for plugin configuration and hash updates
     caddy = import ../pkgs/caddy-custom.nix { pkgs = final.unstable; };

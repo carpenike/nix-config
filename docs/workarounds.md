@@ -222,6 +222,17 @@ as everything else in this file.
 | **Upstream** | https://github.com/Colin-b/httpx_auth |
 | **Impact** | Without fix: forge build fails (home-assistant transitive closure cannot be built). |
 
+### glances - RESTful Browser Tests Disabled on aarch64
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-10-21 |
+| **Location** | `overlays/default.nix` (`nixpkgs-overlays.glances`) |
+| **Affects** | nixpi (`modules.services.glances`) on aarch64-linux |
+| **Reason** | nixos-26.05 glances 4.5.5 is not Hydra-cached for aarch64-linux, and `tests/test_browser_restful.py` races its own uvicorn server on the CI arm runner (`Connection refused` on port 61234). |
+| **Workaround** | Add that test file to `disabledTestPaths` on aarch64 only; x86_64 keeps the cached upstream build. |
+| **Check** | Remove when the 26.05 package is cached for aarch64-linux or upstream stabilises the test. |
+
 ### thelounge - sqlite3 Native Module Fix
 
 | Field | Value |
