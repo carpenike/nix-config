@@ -15,12 +15,18 @@ logins="${BOT_LOGINS:-bot-executive-assistant bot-social-planner bot-finances bo
 token_name="${TOKEN_NAME:-mcp-$(date +%Y%m%d)}"
 
 umask 077
-: >"$out"
+if [[ -L "$out" || ( -e "$out" && ! -f "$out" ) ]]; then
+  echo "refusing token output path: $out (must be a regular file, not a symlink)" >&2
+  exit 1
+fi
+
+pending="$(mktemp "$(dirname -- "$out")/.openproject-bot-tokens.XXXXXXXXXX")"
+trap 'rm -f -- "$pending"' EXIT
 
 podman exec -i \
   -e BOT_LOGINS="$logins" \
   -e TOKEN_NAME="$token_name" \
-  openproject-web bundle exec rails runner - >>"$out" <<'RUBY'
+  openproject-web bundle exec rails runner - >"$pending" <<'RUBY'
 ENV.fetch("BOT_LOGINS").split.each do |login|
   user = User.find_by!(login: login)
   token = Token::API.create!(user: user, token_name: ENV.fetch("TOKEN_NAME"))
@@ -28,4 +34,5 @@ ENV.fetch("BOT_LOGINS").split.each do |login|
 end
 RUBY
 
+mv -fT -- "$pending" "$out"
 echo "wrote $(wc -l <"$out") token(s) to $out (0600). Put them in sops, then: shred -u $out" >&2

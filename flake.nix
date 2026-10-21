@@ -515,6 +515,29 @@
                 python3 ${./tests/renovate/test_extraction.py}
                 touch "$out"
               '';
+            openproject-runtime =
+              let
+                containers = inputs.self.nixosConfigurations.forge.config.virtualisation.oci-containers.containers;
+                containerConfig = pkgs.writeText "openproject-containers.json" (builtins.toJSON
+                  (builtins.mapAttrs
+                    (_: container: { inherit (container) user environment extraOptions; })
+                    (builtins.intersectAttrs
+                      {
+                        openproject-seeder = null;
+                        openproject-web = null;
+                        openproject-worker = null;
+                      }
+                      containers)));
+              in
+              pkgs.runCommand "openproject-runtime-tests"
+                { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.python3 ]; }
+                ''
+                  export PYTHONDONTWRITEBYTECODE=1
+                  export OPENPROJECT_TOKEN_SCRIPT=${./hosts/forge/services/openproject/mint-api-tokens.sh}
+                  export OPENPROJECT_CONTAINERS=${containerConfig}
+                  python3 ${./tests/openproject/test_runtime.py}
+                  touch "$out"
+                '';
             finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
               (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
             finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {

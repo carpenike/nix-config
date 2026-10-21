@@ -746,7 +746,7 @@ in
           # Initial password for the seeded `admin` account (first seed only;
           # OpenProject forces a change at first login). Must meet the default
           # password rules (>=10 chars, lower+upper+digit+special), e.g.
-          # printf '%s!' "$(openssl rand -base64 24)"
+          # printf 'Aa1!%s\n' "$(openssl rand -hex 24)"
           "openproject/admin_password" = {
             mode = "0400";
             owner = "root";

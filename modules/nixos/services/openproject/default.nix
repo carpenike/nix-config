@@ -73,6 +73,8 @@ let
     # The image's `app` user has a fixed home; we run as the registry UID, so
     # point HOME at the writable tmpfs instead.
     HOME = "/app/tmp";
+    # The image's /tmp/op_uploaded_files belongs to UID 1000.
+    TMPDIR = "/app/tmp";
 
     # Public URL handling behind Caddy (TLS terminated at Caddy / Cloudflare).
     OPENPROJECT_HOST__NAME = cfg.hostName;
@@ -113,7 +115,7 @@ let
 
   # The image is built for its own `app` user (uid 1000, which is `ryan` on
   # forge). Running as the registry UID keeps the dataset owned by a dedicated
-  # account; /app/tmp is the only path under /app the processes write to.
+  # account; HOME and upload staging both use this writable tmpfs.
   commonOptions = [ "--tmpfs=/app/tmp:rw,size=512m,mode=1777" ];
 
   resourceOptions = res: lib.optionals (res != null) ([

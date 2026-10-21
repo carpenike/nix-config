@@ -53,9 +53,10 @@ Notes:
   co-editing of documents is off.
 - **Runs as UID 1069.** The image's `app` user is UID 1000, which is `ryan`
   on forge. The containers run as `openproject` (1069, from
-  `lib/service-uids.nix`) with a tmpfs on `/app/tmp`. This has not been
-  tested on forge yet. If something under `/app` turns out to need writes,
-  the symptom is a permission error in `journalctl -u podman-openproject-seeder`.
+  `lib/service-uids.nix`) with a tmpfs on `/app/tmp`. Both `HOME` and
+  `TMPDIR` point there, so uploads stage under `/app/tmp/op_uploaded_files`
+  rather than the image's UID-1000-owned `/tmp/op_uploaded_files`.
+  This still needs a live upload/download smoke test on forge.
 - **Memory.** Upstream's minimum is 4 cores, 4 GB RAM and 20 GB disk. The
   caps are web 2.5 GiB (1 GiB reserved), worker 1.5 GiB (512 MiB reserved)
   and seeder 1.5 GiB (oneshot). Steady state is about 1.5–2.5 GiB, with a
@@ -70,16 +71,69 @@ Notes:
 
 ## Secrets to add before deploy
 
-Add these with `sops hosts/forge/secrets.sops.yaml`. They are declared in
-`hosts/forge/secrets.nix` and rendered into
-`sops.templates."openproject-env"`:
+Work on `services/openproject` and add the values to the existing
+`hosts/forge/secrets.sops.yaml` using SOPS. The declarations already exist in
+`hosts/forge/secrets.nix`; no Nix changes or new encryption recipients are
+needed.
 
-```yaml
-openproject:
-  secret_key_base: <openssl rand -hex 64>
-  database_password: <openssl rand -hex 32>     # hex only: embedded verbatim in DATABASE_URL
-  admin_password: <printf '%s!' "$(openssl rand -base64 24)">  # seeded `admin` login, change at first login
-```
+1. Generate three independent values locally (do not paste them into chat
+   or a plaintext repository file):
+
+   ```bash
+   # secret_key_base: 128 hex characters
+   openssl rand -hex 64
+   # database_password: 64 hex characters; must stay URL-safe
+   openssl rand -hex 32
+   # admin_password: guarantees lower/upper/digit/special characters
+   printf 'Aa1!%s\n' "$(openssl rand -hex 24)"
+   ```
+
+   Keep the initial admin password in your password manager. The database
+   password is embedded verbatim in `DATABASE_URL`, so use the hex output
+   unchanged. Treat `secret_key_base` as persistent application key material;
+   do not regenerate it for routine rebuilds.
+
+2. From the repository root, open the encrypted file with your existing
+   SOPS identity:
+
+   ```bash
+   sops hosts/forge/secrets.sops.yaml
+   ```
+
+   If `sops` is not on your PATH, use
+   `nix develop --command sops hosts/forge/secrets.sops.yaml`. If decryption
+   fails, restore access to the existing age/SSH key before proceeding;
+   do not replace the encryption metadata.
+
+3. Add this top-level mapping in the decrypted editor, replacing every
+   placeholder with its generated value. Quote all three strings, save,
+   and close the editor so SOPS re-encrypts the file:
+
+   ```yaml
+   openproject:
+     secret_key_base: "<paste the 128-character hex value>"
+     database_password: "<paste the 64-character hex value>"
+     admin_password: "<paste the generated admin password>"
+   ```
+
+4. Review `git diff -- hosts/forge/secrets.sops.yaml`. Every new value must
+   be `ENC[AES256_GCM,...]`, not plaintext.
+
+5. Validate and build without activating:
+
+   ```bash
+   nix flake check --no-build
+   task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
+   ```
+
+   The build task uses forge as the Linux builder; it does not activate the
+   result. After a successful build, commit and push the encrypted file on
+   the PR branch, then merge.
+
+The three values render into `sops.templates."openproject-env"`. The admin
+password is used only for the first database seed; changing this secret
+later does not reset an existing account's password. Set a new password
+in OpenProject after the initial login.
 
 > **Forge auto-upgrades nightly at 04:00 from `main`.** If this merges before
 > the three keys exist, sops-nix cannot render the secrets. `validateSopsFiles`
@@ -102,7 +156,9 @@ openproject:
 5. Administration → Authentication → OAuth applications: **enable the
    built-in OAuth applications** (needed by the mobile app).
 6. Create Ryan's own (non-admin, or admin) user if `admin` should stay break-glass only.
-7. After the first nightly backups exist, set
+7. Attach a small file to a work package, then download it and verify its
+   contents. A passing liveness check alone does not exercise upload staging.
+8. After the first nightly backups exist, set
    `protection.allowEmptyBootstrap = false` in `openproject.nix`. Then move
    `openproject` into `standardServicePaths` and `failClosedUnits`
    (`podman-openproject-seeder`) in `flake.nix`.
@@ -192,6 +248,13 @@ memberships. Bot e-mail addresses use a placeholder domain
 minted tokens in sops for the MCP server (for example
 `openproject-mcp/token_<bot>`), then `shred -u` the file.
 
+The token script mints into a private 0600 temporary file, then atomically
+replaces the output file only after success. Existing permissions are not
+inherited; symlinks and non-regular output paths are rejected. Use a private
+output directory such as `/root`. A failed mint preserves the previous file,
+but may already have created some tokens in OpenProject; revoke those
+partially issued tokens by name before retrying.
+
 OAuth alternative for bots: an OAuth application with a *Client Credentials
 User* lets a confidential client act as one bot without a long-lived personal
 token. That is one application per bot. API tokens are simpler for a
@@ -276,3 +339,17 @@ Design notes for the server:
 - Gatus: `http://127.0.0.1:8072/health_checks/default` (app) and
   `https://tasks.holthome.net/health_checks/default` (through Caddy and the tunnel).
 - The homepage tile is in the Productivity group.
+
+## Offline regression checks
+
+```bash
+system="$(nix eval --raw --impure --expr builtins.currentSystem)"
+nix build --no-link ".#checks.${system}.openproject-runtime"
+```
+
+This checks the evaluated UID and temporary-directory settings for all three
+containers, plus token output permissions, link handling, failure cleanup,
+and preservation of previous output using a fake Podman executable. It
+does not require credentials or a container engine and does not replace
+the first-deploy upload/download test. CI runs this check as well, including
+when only the token script or its regression tests change.
