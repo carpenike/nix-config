@@ -359,7 +359,7 @@ in
     # Affects: home-manager (depends on inetutils for hostname)
     # Upstream: https://github.com/NixOS/nixpkgs/issues/ (gnulib compat)
     # Check: When inetutils > 2.7 or nixpkgs patches gnulib
-    inetutils = prev.inetutils.overrideAttrs (old: prev.lib.optionalAttrs final.stdenv.isDarwin {
+    inetutils = prev.inetutils.overrideAttrs (old: prev.lib.optionalAttrs final.stdenv.hostPlatform.isDarwin {
       env = (old.env or { }) // {
         NIX_CFLAGS_COMPILE = toString ((old.env.NIX_CFLAGS_COMPILE or "") + " -Wno-error=format-security");
       };

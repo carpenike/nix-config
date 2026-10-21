@@ -62,7 +62,6 @@ let
       "prometheus"
       "prometheus-node-exporter"
       "prometheus-postgres-exporter"
-      "promtail"
       "resilio"
       "tautulli"
       "zigbee2mqtt"

@@ -16,7 +16,7 @@
   inputs = {
     #################### Official NixOS and HM Package Sources ####################
 
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
     # Actual Budget 26.7 compatibility pin. Keep independent from the moving
@@ -52,7 +52,7 @@
     # home-manager - home user+dotfile manager
     # https://github.com/nix-community/home-manager
     home-manager = {
-      url = "github:nix-community/home-manager/release-25.11";
+      url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -109,7 +109,7 @@
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
     nix-darwin = {
-      url = "github:LnL7/nix-darwin/nix-darwin-25.11";
+      url = "github:LnL7/nix-darwin/nix-darwin-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -413,10 +413,10 @@
               python312Packages.mkdocs-material-extensions
               python312Packages.pymdown-extensions
               python312Packages.mkdocs-minify-plugin
-            ] ++ lib.optionals pkgs.stdenv.isDarwin [
+            ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
               # Required for some tools on Darwin
               libiconv
-            ] ++ lib.optionals pkgs.stdenv.isLinux [
+            ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
               # NixOS rebuild (for remote deployments from Linux)
               nixos-rebuild
             ];

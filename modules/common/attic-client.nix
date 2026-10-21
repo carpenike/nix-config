@@ -30,7 +30,7 @@
         '';
       }
       # mode is only supported on NixOS, not nix-darwin
-      (lib.mkIf pkgs.stdenv.isLinux {
+      (lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
         mode = "0644";
       })
     ]);

@@ -1,6 +1,6 @@
-{ lib, python311Packages }:
+{ lib, python3Packages }:
 
-python311Packages.buildPythonApplication rec {
+python3Packages.buildPythonApplication rec {
   pname = "backup-list";
   version = "0.1.0";
 
@@ -11,7 +11,7 @@ python311Packages.buildPythonApplication rec {
   # we need to handle installation manually
   format = "other";
 
-  propagatedBuildInputs = with python311Packages; [
+  propagatedBuildInputs = with python3Packages; [
     rich
     requests
   ];
