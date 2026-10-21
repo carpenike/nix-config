@@ -33,12 +33,12 @@
         "type": "textbox",
         "name": "exclude_ips",
         "label": "Exclude IPs (regex)",
-        "query": "^(10\\.|192\\.168\\.|127\\.|::1$)",
+        "query": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$",
         "current": {
-          "text": "^(10\\.|192\\.168\\.|127\\.|::1$)",
-          "value": "^(10\\.|192\\.168\\.|127\\.|::1$)"
+          "text": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$",
+          "value": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$"
         },
-        "description": "Client IPs to drop, e.g. the household LAN while testing."
+        "description": "Client IPs to drop (full-match regex). On Forge this default is rewritten at runtime by whiskey-traffic-exclusions to also cover the home public IPv4 address and IPv6 /64; the committed default is LAN/loopback only."
       },
       {
         "type": "custom",

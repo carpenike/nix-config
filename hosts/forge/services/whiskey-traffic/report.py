@@ -13,12 +13,14 @@ and stores the RSVP snapshot so the next run can show a week-over-week diff.
 
 Outputs (the only writes):
   * <state-dir>/funnel-<date>.md and .json, plus latest.md / latest.json
+    (0644 in a 0755 dir, so any local user can read them without sudo)
   * <state-dir>/rsvp-snapshot.json   (previous run's RSVP counts)
   * a node_exporter textfile metric (atomic tmp + rename)
 
 Two page-view sources are reported side by side:
   * ``server`` -- regex over today's "incoming request" lines. All requests,
-    bots included; Cloudflare-range clients excluded. Works now.
+    bots included; Cloudflare-range, LAN and household (--exclude-regex-file)
+    clients excluded. Works now.
   * ``human``  -- the structured ``msg:"public page view"`` line added by
     whiskey-whiskey-whiskey (ua_class="human", cloudflare_ip="false"). Zero
     until that change is deployed.
@@ -44,6 +46,7 @@ UNIT_SELECTOR = '{unit="whiskey-whiskey-whiskey.service"}'
 # Cloudflare edge prefixes seen as client IPs (Workers, probes, scanners).
 CF_PREFIX = r'"remoteAddress":"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):'
 STAGES = ("event", "competition", "register", "register_submit")
+DEFAULT_EXCLUDE = r"^(10\..*|192\.168\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|127\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$"
 QUERY_ERRORS = (urllib.error.URLError, OSError, RuntimeError, ValueError, KeyError)
 
 
@@ -54,7 +57,7 @@ def loki_query(base: str, query: str, at: dt.datetime, timeout: int) -> list[dic
     ) as resp:
         body = json.load(resp)
     if body.get("status") != "success":
-        raise RuntimeError(f"loki query failed: {body}")
+        raise RuntimeError(f"loki query failed: status={body.get('status')}")
     return body["data"]["result"]
 
 
@@ -80,7 +83,8 @@ def server_counts(args, end: dt.datetime) -> tuple[dict, dict]:
         f'|~ `"method":"(GET|POST)","url":"/(events/[a-z0-9-]+(/competition(/register)?)?)?/?(\\?[^"]*)?"` '
         f"!~ `{CF_PREFIX}` "
         f'| regexp `"method":"(?P<method>[A-Z]+)","url":"(?P<path>[^"?]*)` '
-        f'| regexp `"remoteAddress":"(?P<ip>[^"]+)"`'
+        f'| regexp `"remoteAddress":"(?P<ip>[^"]+)"` '
+        f"| ip !~ `{args.exclude_regex}`"
     )
     rng = f"[{args.days}d]"
     reqs = loki_query(
@@ -108,7 +112,8 @@ def human_counts(args, end: dt.datetime) -> tuple[dict, dict]:
     """(page views, unique IPs) keyed by path from the structured page-view line."""
     sel = (
         f'{UNIT_SELECTOR} |= "public page view" | json '
-        f'| ua_class="human" | cloudflare_ip="false"'
+        f'| ua_class="human" | cloudflare_ip="false" '
+        f"| remoteAddress !~ `{args.exclude_regex}`"
     )
     rng = f"[{args.days}d]"
     views = loki_query(
@@ -208,7 +213,16 @@ def main() -> int:
     p.add_argument("--host", default="warwed.com")
     p.add_argument("--days", type=int, default=7)
     p.add_argument("--timeout", type=int, default=300)
+    p.add_argument(
+        "--exclude-regex-file",
+        help="file holding a full-match regex of client IPs to drop (household); LAN-only default if missing",
+    )
     args = p.parse_args()
+    args.exclude_regex = DEFAULT_EXCLUDE
+    if args.exclude_regex_file and Path(args.exclude_regex_file).exists():
+        candidate = Path(args.exclude_regex_file).read_text().strip()
+        if candidate and "`" not in candidate:
+            args.exclude_regex = candidate
 
     end = dt.datetime.now(dt.timezone.utc)
     start = end - dt.timedelta(days=args.days)
@@ -271,7 +285,7 @@ def main() -> int:
         f"Window: {local(start)} → {local(end)} ({args.days} days)",
         "",
         (
-            "`server` = GET/POST request lines (bots included, Cloudflare-range IPs excluded); "
+            "`server` = GET/POST request lines (bots included; Cloudflare-range, LAN and household IPs excluded); "
             "`human` = structured `public page view` lines with ua_class=human (0 until the Whiskey change ships). "
             "Format: requests / unique IPs."
         ),
