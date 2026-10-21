@@ -197,6 +197,10 @@ let
     };
   };
 
+  # Root/default receiver. Also used by the explicit catch-all route at the end
+  # of the route list (see the comment there for why it is needed).
+  defaultReceiver = if cfg.receivers.oncall.enable then "grafana-oncall" else "pushover-medium";
+
   # Per-unit alerts that fan out during a single host-level incident: one cause
   # (e.g. the 2026-10-20 DNS blip on forge) fails N syncoid/systemd units at
   # once. The root route groups by (alertname, name), which turns that into N
@@ -709,7 +713,7 @@ in
         configuration = {
           route = {
             # Default receiver: OnCall if enabled, otherwise Pushover medium
-            receiver = if cfg.receivers.oncall.enable then "grafana-oncall" else "pushover-medium";
+            receiver = defaultReceiver;
             # When OnCall is enabled: group by alertname + name to preserve per-instance annotations
             # The 'name' label is used by systemd alerts (unit name), container alerts, etc.
             # This ensures commonAnnotations.summary is preserved for each distinct alert instance
@@ -805,7 +809,14 @@ in
               # - Meta-alerts bypass OnCall and go directly to Pushover (configured above)
               # When OnCall is disabled OR for non-critical alerts when OnCall is enabled:
               # Route to appropriate Pushover receiver based on severity
-              ++ (lib.optionals (!cfg.receivers.oncall.enable) pushoverSeverityRoutes);
+              ++ (lib.optionals (!cfg.receivers.oncall.enable) pushoverSeverityRoutes)
+              # Explicit catch-all to the default receiver. Alertmanager only falls
+              # back to the root receiver when NO child route matched -- a matching
+              # `continue = true` route (grokbot) counts as a match. Without this,
+              # every medium+ alert that no later route claimed was delivered to
+              # Grok Bot only, never to OnCall (true since the grokbot route was
+              # added in #1305; verified with `amtool config routes test`).
+              ++ [{ receiver = defaultReceiver; }];
           };
 
           # Inhibition rules to prevent redundant alerts
