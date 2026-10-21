@@ -58,16 +58,23 @@ let
     "*.partial"
     "~$*"
   ];
-  # Runs before the consumer's startup scan. A PDF that has not changed for
-  # 30 minutes and still has no %%EOF trailer (or is empty) is an aborted
-  # upload: Paperless would fail it again on every restart, so park it.
+  # A PDF that has not changed for 30 minutes and still has no %%EOF trailer
+  # (or is empty) is an aborted upload: Paperless would fail it again on every
+  # restart, so park it. Runs before the consumer's startup scan and every
+  # 15 minutes from a timer. With a metrics file argument it also publishes a
+  # node_exporter textfile metric with the quarantine backlog.
+  quarantineMetricsDir = "/var/lib/node_exporter/textfile_collector";
   quarantineIncompleteScans = pkgs.writeShellApplication {
     name = "paperless-quarantine-incomplete-scans";
     runtimeInputs = [ pkgs.coreutils pkgs.findutils pkgs.gnugrep ];
     text = ''
       consume=${lib.escapeShellArg consumptionDir}
       quarantine="$consume/${quarantineDirName}"
-      [ -d "$consume" ] || exit 0
+      metrics_file="''${1:-}"
+      if [ ! -d "$consume" ]; then
+        echo "<3>Consumption directory $consume is unavailable; skipping quarantine check"
+        exit 1
+      fi
 
       find "$consume" -path "$quarantine" -prune -o \
         -type f -iname '*.pdf' -mmin +30 -print0 |
@@ -84,6 +91,23 @@ let
             echo "<3>Failed to quarantine incomplete scan: $file"
           fi
         done
+
+      [ -n "$metrics_file" ] || exit 0
+
+      quarantined=0
+      if [ -d "$quarantine" ]; then
+        quarantined="$(find "$quarantine" -type f | wc -l)"
+      fi
+      tmp_file="$(dirname "$metrics_file")/.$(basename "$metrics_file").tmp"
+      cat > "$tmp_file" <<EOF
+      # HELP paperless_consume_quarantined_files Truncated scans parked in the consume quarantine directory
+      # TYPE paperless_consume_quarantined_files gauge
+      paperless_consume_quarantined_files $quarantined
+      # HELP paperless_consume_quarantine_last_run_timestamp_seconds Unix timestamp of the last completed quarantine check
+      # TYPE paperless_consume_quarantine_last_run_timestamp_seconds gauge
+      paperless_consume_quarantine_last_run_timestamp_seconds $(date +%s)
+      EOF
+      mv "$tmp_file" "$metrics_file"
     '';
   };
   serviceEnabled = config.modules.services.paperless.enable or false;
@@ -255,6 +279,39 @@ in
       systemd.services.paperless-consumer.serviceConfig.ExecStartPre = [
         "-${lib.getExe quarantineIncompleteScans}"
       ];
+
+      # Catch aborted uploads between consumer restarts and publish the
+      # quarantine backlog for PaperlessScanQuarantined.
+      systemd.services.paperless-consume-quarantine = {
+        description = "Quarantine truncated Paperless scans and publish metrics";
+        requires = [ "mnt-data.mount" ];
+        after = [ "mnt-data.mount" ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = config.modules.services.paperless.user;
+          Group = config.modules.services.paperless.group;
+          SupplementaryGroups = [ "node-exporter" ];
+          ExecStart = "${lib.getExe quarantineIncompleteScans} ${quarantineMetricsDir}/paperless_consume_quarantine.prom";
+          NoNewPrivileges = true;
+          PrivateDevices = true;
+          PrivateTmp = true;
+          ProtectHome = true;
+          ProtectSystem = "strict";
+          ReadWritePaths = [ consumptionDir quarantineMetricsDir ];
+          TimeoutStartSec = "5m";
+        };
+      };
+
+      systemd.timers.paperless-consume-quarantine = {
+        description = "Periodically quarantine truncated Paperless scans";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnActiveSec = "2m";
+          OnUnitActiveSec = "15m";
+          RandomizedDelaySec = "1m";
+          Persistent = true;
+        };
+      };
     }
 
     (lib.mkIf serviceEnabled {
@@ -369,6 +426,32 @@ in
           annotations = {
             summary = "Paperless has unacknowledged failed tasks";
             description = "Review failed document-processing tasks in the Paperless administration UI.";
+          };
+        };
+
+        "paperless-scan-quarantined" = {
+          type = "promql";
+          alertname = "PaperlessScanQuarantined";
+          expr = "paperless_consume_quarantined_files > 0";
+          for = "5m";
+          severity = "medium";
+          labels = { service = "paperless"; category = "processing"; };
+          annotations = {
+            summary = "Paperless quarantined {{ $value }} truncated scan(s)";
+            description = "Incomplete scanner uploads were moved to ${consumptionDir}/${quarantineDirName} on forge (nas-0: /mnt/tank/share/paperless/consume/${quarantineDirName}). Rescan each document, then delete the quarantined file.";
+          };
+        };
+
+        "paperless-scan-quarantine-stale" = {
+          type = "promql";
+          alertname = "PaperlessScanQuarantineStale";
+          expr = "absent(paperless_consume_quarantine_last_run_timestamp_seconds) or (time() - paperless_consume_quarantine_last_run_timestamp_seconds > 3600)";
+          for = "15m";
+          severity = "medium";
+          labels = { service = "paperless"; category = "monitoring"; };
+          annotations = {
+            summary = "Paperless scan quarantine check is stale";
+            description = "paperless-consume-quarantine.service has not completed in over an hour; truncated scans may go unnoticed.";
           };
         };
 
