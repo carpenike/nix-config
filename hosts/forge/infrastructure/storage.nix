@@ -613,7 +613,10 @@ in
           > 0
         )
       '';
-      for = "10m";
+      # Matches the generic SystemdUnitFailed (for = "5m") so the inhibit rule in
+      # modules/nixos/alerting (SyncoidUnitFailed suppresses SystemdUnitFailed for
+      # the same syncoid unit) is in effect before either alert is notified.
+      for = "5m";
       severity = "high";
       labels = { service = "syncoid"; category = "replication"; };
       annotations = {
