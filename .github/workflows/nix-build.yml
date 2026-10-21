@@ -262,6 +262,8 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+            extra-substituters = https://nix-community.cachix.org https://carpenike.cachix.org
+            extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= carpenike.cachix.org-1:96Z6GrfQJkkTr1f6g9z1JCGGG54CjqIRvnrupPlzEPQ=
       - name: Validate isolated foundation and source-only model preparation
         run: |
           nix build --no-link --builders '' \
@@ -270,6 +272,9 @@ jobs:
             .#checks.x86_64-linux.atrium-n03-model-preparation \
             .#checks.x86_64-linux.atrium-n03-model-caddy-preview
 
+      # Give each closure family a bounded cold-build budget, independently of
+      # the VM execution timeouts below. One aggregate preparation can exhaust
+      # its budget before any of the actual tests starts.
       - name: Prepare private credential validation dependencies
         timeout-minutes: 30
         run: |
@@ -284,15 +289,34 @@ jobs:
             .#checks.x86_64-linux.atrium-forge-cloud-schema \
             .#checks.x86_64-linux.atrium-forge-native-policy-compatibility \
             .#checks.x86_64-linux.atrium-native-cutover-wiring \
-            .#checks.x86_64-linux.atrium-whiskey-cutover-wiring \
+            .#checks.x86_64-linux.atrium-whiskey-cutover-wiring
+
+      - name: Prepare private credential VM dependencies
+        timeout-minutes: 30
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
+            --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-forge-native-credential-systemd.driver \
-            .#checks.x86_64-linux.atrium-native-cutover.driver \
+            .#checks.x86_64-linux.atrium-forge-controller-publication.driver
+
+      - name: Prepare native cutover VM dependencies
+        timeout-minutes: 30
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-native-cutover.entries.retention.driver \
+            .#checks.x86_64-linux.atrium-native-cutover.entries.money-upgrade.driver
+
+      - name: Prepare remaining foundation VM dependencies
+        timeout-minutes: 30
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
+            --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-native-firewall.driver \
             .#checks.x86_64-linux.atrium-money-reporting.driver \
             .#checks.x86_64-linux.atrium-activation-switch.driver \
-            .#checks.x86_64-linux.atrium-whiskey-cutover.driver \
-            .#checks.x86_64-linux.atrium-forge-controller-publication.driver
+            .#checks.x86_64-linux.atrium-whiskey-cutover.driver
 
       - name: Validate private credential projection through actual systemd
         timeout-minutes: 10
