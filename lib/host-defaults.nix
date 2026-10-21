@@ -17,6 +17,7 @@
 #         zfsPool = "tank";
 #         replication = {
 #           targetHost = "nas-1.holthome.net";
+#           targetAddress = "10.20.0.11"; # optional: pins targetHost in /etc/hosts
 #           targetDataset = "backup/forge/zfs-recv";
 #           hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3...";
 #         };
@@ -92,6 +93,9 @@ in
       hostKey = replication.hostKey;
       targetName = replication.targetName or "NFS";
       targetLocation = replication.targetLocation or replication.targetHost;
+      # Optional static IP for targetHost. When set, hosts pin the target in
+      # networking.hosts so replication/NFS don't depend on DNS being up.
+      targetAddress = replication.targetAddress or null;
     } else null;
 
   # =============================================================================

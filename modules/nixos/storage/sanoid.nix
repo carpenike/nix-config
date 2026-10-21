@@ -655,14 +655,16 @@ in
                   # Ensure metrics directory exists
                   mkdir -p "$(dirname "${metricFile}")"
                   last_success="$(${pkgs.gnugrep}/bin/grep '^syncoid_replication_last_success_timestamp{' "${metricFile}" 2>/dev/null || true)"
-                  # Write 'in-progress' metric
+                  # Write 'in-progress' metric.
+                  # NOTE: syncoid_replication_info is deliberately NOT written here
+                  # (or in the post hook). It is emitted exactly once per job by
+                  # syncoid-replication-info.service; writing it from both places
+                  # produced two series per dataset with different label sets and
+                  # HELP text, which node_exporter rejected on every scrape.
                   cat > "${metricFile}.tmp" <<EOF
                   # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
                   # TYPE syncoid_replication_status gauge
                   syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 2
-                  # HELP syncoid_replication_info Static information about replication configuration
-                  # TYPE syncoid_replication_info gauge
-                  syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 1
                   EOF
                   if [ -n "$last_success" ]; then
                     cat >> "${metricFile}.tmp" <<EOF
@@ -685,9 +687,6 @@ in
                 # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
                 # TYPE syncoid_replication_status gauge
                 syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} $STATUS
-                # HELP syncoid_replication_info Static information about replication configuration
-                # TYPE syncoid_replication_info gauge
-                syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 1
                 EOF
 
                 # Only add timestamp metric on success
@@ -999,21 +998,32 @@ in
           };
         };
       }
-      # Static replication info metric (inventory of configured jobs)
+      # Static replication info metric (inventory of configured jobs).
+      # This is the ONLY writer of syncoid_replication_info: exactly one series
+      # per (dataset, target_host), written atomically (tmp + mv). Alert joins
+      # such as `* on(dataset, target_host) group_left(unit) syncoid_replication_info`
+      # require that uniqueness.
       {
         services.syncoid-replication-info = lib.mkIf (datasetsWithReplication != { }) {
           description = "Emit static info metric for all configured Syncoid replication jobs";
           serviceConfig = {
             Type = "oneshot";
+            # Stay "active" so nixos-rebuild switch re-runs it whenever the job
+            # inventory (and therefore this script) changes.
+            RemainAfterExit = true;
             ExecStart =
               let
                 infoScript = pkgs.writeShellScript "syncoid-replication-info" ''
                   set -eu
                   METRICS=/var/lib/node_exporter/textfile_collector/syncoid-replication-info.prom
                   ${pkgs.coreutils}/bin/rm -f "$METRICS.tmp"
+                  {
+                    ${pkgs.coreutils}/bin/printf '%s\n' '# HELP syncoid_replication_info Static information about replication configuration'
+                    ${pkgs.coreutils}/bin/printf '%s\n' '# TYPE syncoid_replication_info gauge'
+                  } > "$METRICS.tmp"
                   ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
                     UNIT="syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.service"
-                    ${pkgs.coreutils}/bin/printf '%s\n' "syncoid_replication_info{dataset=\"${dataset}\",target_host=\"${conf.replication.targetHost}\",unit=\"$UNIT\"} 1" >> "$METRICS.tmp"
+                    ${pkgs.coreutils}/bin/printf '%s\n' "syncoid_replication_info{dataset=\"${dataset}\",target_host=\"${conf.replication.targetHost}\",target_name=\"${conf.replication.targetName}\",target_location=\"${conf.replication.targetLocation}\",unit=\"$UNIT\"} 1" >> "$METRICS.tmp"
                   '' ) datasetsWithReplication)}
                   ${pkgs.coreutils}/bin/mv "$METRICS.tmp" "$METRICS"
                 '';

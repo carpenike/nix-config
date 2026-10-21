@@ -43,18 +43,21 @@
       # - userprop: Allow receiving ZFS user properties (e.g. holthome:preseed_complete,
       #   com.sun:auto-snapshot) carried by syncoid's `-p` send option. Without this,
       #   syncoid logs "cannot receive ... property ... permission denied" on every run.
+      # - atime: forge's service datasets set atime locally (e.g. tank/services/plex),
+      #   and `-p` sends it. Without this every successful run logs
+      #   "cannot receive atime property on backup/forge/zfs-recv/plex: permission denied".
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/zfs-recv || true
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/services || true
 
       # Grant receive permissions for nas-0 backups
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/nas-0/zfs-recv || true
 
       echo "ZFS receive permissions applied for zfs-replication user"
