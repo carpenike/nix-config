@@ -6,6 +6,7 @@ let
   personal = acl [ ] [ "atrium-personal-ryan" ];
   family = acl [ ] [ "atrium-family" ];
   automation = acl [ "ryan" ] [ ];
+  personalDataReadScopes = [ "atrium-personal-read" "atrium-personal-school" "atrium-personal-recipes" ];
   configuredModel = name:
     let matches = builtins.filter (model: model.name == name) cloudInventory; in
     assert lib.assertMsg (builtins.length matches == 1)
@@ -96,10 +97,13 @@ lib.recursiveUpdate base {
     # Personal read view, never an implicit admin/Family entitlement.
     # Its native datasets are the configured household stores authorized for
     # Ryan, not per-human data partitions inferred from the scope's name.
+    # The "Home Services" connector. School (every school_* reader, SELECT-only
+    # against a `readonly`-member role) and Cooklang reads ride this view; the
+    # Family automation School view and all unattended profiles are unchanged.
     personal-data-read = instance "personal:ryan" "home-mcp" "/mcp"
       "Personal wing data"
       personal // {
-      scopes = [ "atrium-personal-read" ];
+      scopes = personalDataReadScopes;
     };
     family-home-read = instance "family:holt" "home-mcp" "/cc/views/family-read"
       "Family wing household information"
@@ -152,7 +156,8 @@ lib.recursiveUpdate base {
   };
   routeTemplates = {
     "cc.personal.ryan.data-read" = routeTemplate "personal:ryan" "personal-data-read"
-      personal [ "atrium-personal-read" ] [ ];
+      personal
+      personalDataReadScopes [ ];
     "cc.family.holt.home-read" = routeTemplate "family:holt" "family-home-read"
       family [ "atrium-family-read" ] [ ];
     "cc.personal.ryan.finance" = routeTemplate "personal:ryan" "personal-finance"

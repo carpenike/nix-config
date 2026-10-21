@@ -74,7 +74,10 @@ protected-file contract. Runtime services cannot rewrite either ceiling.
 * Group-only ACLs require fresh, verified Pocket ID evidence at authorization.
   Bootstrap creates **no group observations**, token claims or native grants.
   Missing group evidence denies access; there is no principal-ACL shortcut.
-* Personal data uses source scope `atrium-personal-read`; Family household
+* Personal data uses source scope `atrium-personal-read`, plus
+  `atrium-personal-school` (every read-only `school_*` tool) and
+  `atrium-personal-recipes` (Cooklang reads only) on the same `/mcp`
+  "Home Services" view; Family household
   information uses `atrium-family-read`. Both must be source-classified
   read-only exports. Existing writable `admin`, `advisor` and `hermes` maps
   retain their original definitions and are not assigned to Family.
