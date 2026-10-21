@@ -91,3 +91,17 @@ package update: retain prepared runtime artifacts and use `naf`; do not repeat
 preparation or clear native history. The
 [CA recovery receipt](evidence/atrium-native-ca-comments.json) records the exact
 trust-set, auxiliary-purpose and service-owned loading checks.
+
+## Isolated CI coverage
+
+On x86-64 Linux, run the retained cutover checks with:
+
+```sh
+nix build --no-link .#checks.x86_64-linux.atrium-native-cutover
+```
+
+The check serializes the retention/refusal and money-grant-upgrade suites in
+separate fresh guests. Each keeps the 540-second command limit, 600-second guest
+limit, and existing resource limits; the original assertions remain covered.
+Metadata-only stage timings and delayed stack traces go to the VM serial log,
+not the result JSON. These fixtures do not prepare or activate production state.

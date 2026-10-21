@@ -20,7 +20,7 @@ passes27 groups on app driver `11b7008` and this deployment's runtime source
 
 ## Forge package installation
 
-[`hosts/forge/services/atrium.nix`](../../hosts/forge/services/atrium.nix)
+[`hosts/forge/services/atrium.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/atrium.nix)
 imports the selected app's NixOS module and installs its actual
 `atrium-resolver` and `atrium-litellm-controller` commands into Forge's system
 generation. It selects the same packages for the optional runtime units.
@@ -106,7 +106,7 @@ and its historical source guards are not changed by advancing host package pins.
 
 ## Repository boundary
 
-The retained [`tests/atrium_n03`](../../tests/atrium_n03) Nix files own host
+The retained [`tests/atrium_n03`](https://github.com/carpenike/nix-config/tree/main/tests/atrium_n03) Nix files own host
 values, package/version selection, Caddy, units, users/groups, secret-path
 references, publication directories, namespaces and deployment assertions.
 `application.nix` checks selected package/module availability; it does not

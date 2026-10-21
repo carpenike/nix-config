@@ -17,5 +17,6 @@ nix_version = "2.4"
 # Directories to ignore
 ignore = [
   ".direnv",
+  ".claude",
   "tmp"
 ]

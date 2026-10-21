@@ -165,12 +165,19 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status"}
     owner_instances = automation_instances | {"personal-money"}
     owner_templates = automation_templates | {"cc.personal.ryan.money"}
+    owner_family_instances = {"family-school"}
+    owner_family_templates = {"cc.family.holt.school"}
     assert automation_instances <= data["instance_acls"].keys()
+    assert owner_family_instances <= data["instance_acls"].keys()
     assert automation_templates <= data["human_template_acls"].keys()
+    assert owner_family_templates <= data["human_template_acls"].keys()
     explicit_automation_acl = {"principals": ["ryan"], "groups": []}
     for name, instance in data["instance_acls"].items():
         if name in owner_instances:
             assert instance["domain"] == "personal:ryan"
+            assert instance["acl"] == explicit_automation_acl
+        elif name in owner_family_instances:
+            assert instance["domain"] == "family:holt"
             assert instance["acl"] == explicit_automation_acl
         else:
             assert not human_ids.intersection(instance["acl"]["principals"]), "human principal ACL bypass"
@@ -179,9 +186,18 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         if name in owner_templates:
             assert template["domain"] == "personal:ryan"
             assert template["acl"] == explicit_automation_acl
+        elif name in owner_family_templates:
+            assert template["domain"] == "family:holt"
+            assert template["acl"] == explicit_automation_acl
         else:
             assert template["acl"]["principals"] == [], "human template bypasses group evidence"
             assert template["acl"]["groups"] == required_groups[template["domain"]]
+    school = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["schoolClients"]))
+    assert len(school.grants) == 1
+    assert school.grants[0].request.domain == "family:holt"
+    assert school.grants[0].request.instance == "family-school"
+    assert school.grants[0].request.scopes == ("atrium-family-school",)
+    assert school.grants[0].principal == "ryan" and not school.grants[0].can_delegate
     assert set(data["authority_token_types"].values()) == {"access_token"}
     assert settings.group_authority == "pocketid"
     assert data["group_evidence"]["status"] == "accepted-unconfigured"

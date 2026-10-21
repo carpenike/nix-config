@@ -115,7 +115,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/koush/scrypted:latest@sha256:f23251dad07cf02b4b6b2e364e7948ab9fb77656e31f226186c2ba5304ebd2cd";
+      default = "ghcr.io/koush/scrypted:latest@sha256:e78b4fcecdd6c61acaaf22b50ccef303c738da58cc0be57afdb116521df52296";
       description = "Container image reference for Scrypted (pin to a digest in production).";
     };
 

@@ -127,10 +127,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
-    # Host service activation is configured separately.
+    # ATR-N05/R06 admission, the Family School today client, and the C11 Outings overview.
+    # Host service activation and the Family view grants are configured separately.
     atrium = {
-      url = "github:carpenike/atrium/eb6842c22c218e26aeb5efac8753339374d97721";
+      url = "github:carpenike/atrium/2d9ae714ef9ed58f981c1483c3587409d1b6ae50";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -192,9 +192,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Gated deterministic Signal preparation, delivery, and acknowledged capture.
+      # Signal preparation pin plus school_parent_today.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/70f96a35d05f9bfa9e422e3a5d17903953345222";
+      url = "github:carpenike/mcp/f4a575d7f583c7c8eb6ad47defe83b611f0af7b9";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -348,12 +348,7 @@
 
                 # ===== Security =====
                 # Detect secrets before they're committed
-                gitleaks = {
-                  enable = true;
-                  name = "gitleaks";
-                  entry = "${pkgs.gitleaks}/bin/gitleaks protect --staged --redact --verbose";
-                  pass_filenames = false;
-                };
+                gitleaks.enable = true;
               };
 
               # Global exclude patterns
@@ -507,6 +502,19 @@
 
           # Checks for CI
           checks = {
+            renovate-extraction = pkgs.runCommand "renovate-extraction-tests"
+              {
+                nativeBuildInputs = [
+                  (pkgs.python3.withPackages (python: [ python.json5 python.google-re2 ]))
+                ];
+              }
+              ''
+                export PYTHONDONTWRITEBYTECODE=1
+                export RENOVATE_CONFIG=${./.github/renovate.json5}
+                export PLEX_MODULE=${./modules/nixos/services/plex/default.nix}
+                python3 ${./tests/renovate/test_extraction.py}
+                touch "$out"
+              '';
             finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
               (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
             finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {

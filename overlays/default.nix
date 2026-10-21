@@ -314,17 +314,6 @@ in
                 doInstallCheck = false;
               });
 
-              # WORKAROUND (2026-10-15): PyJWT 2.14 rejects a padded test JWT.
-              # Affects: yalexs 9.2.13 tests; runtime code and the suite stay unchanged.
-              # Upstream: https://github.com/Yale-Libs/yalexs/issues/455
-              # Check: Remove when the upstream refresh-token fixture is unpadded.
-              yalexs = pyPrev.yalexs.overridePythonAttrs (old: {
-                postPatch = (old.postPatch or "") + ''
-                  substituteInPlace tests/test_authenticator_async.py \
-                    --replace-fail 'e30=' 'e30'
-                '';
-              });
-
               # WORKAROUND (2026-03-02): ics 0.7.2 test_gehol hits RecursionError
               # tests/test.py::TestFunctional::test_gehol exceeds max recursion depth
               # Affects: home-assistant (depends on ics for calendar integrations)

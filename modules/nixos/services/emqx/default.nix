@@ -168,7 +168,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "emqx/emqx:5.8.3@sha256:2bb94239a3812cd3443695d29d196cff510660b3fbf1bc56bbd8747fa94c4bd8";
+      default = "emqx/emqx:5.10.5@sha256:9f6d5d45591f2b9fe892833e87c8a589a23ac2518cd1e9b22fee5023e0560bad";
       description = "Container image (tag or digest) used for EMQX.";
     };
 

@@ -33,6 +33,14 @@
       webhookUrlSecret = "grafana-oncall/alertmanager-webhook-url";
     };
 
+    # Grok Bot assistant webhook: receives a copy of medium+ alerts
+    # (continue = true, so OnCall/Pushover routing is unchanged)
+    receivers.grokbot = {
+      enable = true;
+      urlSecret = "alerting/grokbot-webhook-url";
+      authSecret = "alerting/grokbot-webhook-auth";
+    };
+
     # Alert rules are defined co-located with services via modules.alerting.rules
     # This keeps them modular and DRY
     # Example: modules.alerting.rules."sonarr-failure" = { type = "event"; ... };

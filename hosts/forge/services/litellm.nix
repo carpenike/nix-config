@@ -78,7 +78,8 @@ in
         # agents. Memory is capped at 2G below.
         enable = true;
 
-        # Pin container image (Renovate will update)
+        # Source-qualified Forge pin; Renovate updates the reusable module fallback.
+        # Promote only with coordinated Atrium/native qualification (#1267).
         image = "ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf";
 
         port = listenPort;

@@ -110,6 +110,13 @@ let
     qualified-gateway-image = c.modules.services.litellm.image
       == builtins.replaceStrings [ "@" ] [ ":${gateway.native_version}@" ] gateway.image
       && runtime.adoption.models.image == c.modules.services.litellm.image;
+    qualified-image-overrides-fallback-in-all-runtime-variants = lib.all
+      (configuration:
+        configuration.modules.services.litellm.image
+        == builtins.replaceStrings [ "@" ] [ ":${gateway.native_version}@" ] gateway.image
+        && configuration.virtualisation.oci-containers.containers.litellm.image
+        == configuration.modules.services.litellm.image)
+      [ c disabled modelAdopted nonForgeModel nativeAdopted inputs.self.nixosConfigurations.forge.config ];
     adopted-model-authority-resolves-locally =
       let controller = builtins.fromJSON modelAdopted.environment.etc."atrium/runtime/model-controller.json".text;
       in

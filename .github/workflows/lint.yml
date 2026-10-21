@@ -11,6 +11,7 @@
 # Covers:
 #   - nix fmt --check        (formatting, via the flake's wrapped formatter)
 #   - statix / deadnix       (flake checks; BLOCKING - the tree is clean)
+#   - Renovate extraction   (JSON5 configuration and RE2 matching regressions)
 #   - pre-commit hooks       (shellcheck, yamllint, ruff, check-json,
 #                             check-toml, gitleaks, whitespace/EOF fixers -
 #                             mirrors the local hooks for when they're skipped)
@@ -48,11 +49,12 @@ jobs:
       - name: Check formatting
         run: nix fmt -- --check .
 
-      - name: Statix and deadnix
+      - name: Nix lint and dependency extraction
         run: |
           nix build --no-link \
             .#checks.x86_64-linux.statix \
-            .#checks.x86_64-linux.deadnix
+            .#checks.x86_64-linux.deadnix \
+            .#checks.x86_64-linux.renovate-extraction
 
       - name: Run pre-commit hooks via Nix devshell
         run: |

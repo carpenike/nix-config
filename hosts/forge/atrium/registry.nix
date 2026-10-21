@@ -128,6 +128,11 @@ lib.recursiveUpdate base {
       automation // {
       scopes = [ "atrium-personal-money" ];
     };
+    family-school = instance "family:holt" "home-mcp" "/cc/views/family-school"
+      "Family School today"
+      automation // {
+      scopes = [ "atrium-family-school" ];
+    };
     personal-whiskey = instance "personal:ryan" "whiskey" "/cc/mcp"
       "Personal wing Whiskey"
       personal // {
@@ -158,6 +163,8 @@ lib.recursiveUpdate base {
       automation [ "atrium-personal-status" ] [ ];
     "cc.personal.ryan.money" = routeTemplate "personal:ryan" "personal-money"
       automation [ "atrium-personal-money" ] [ ];
+    "cc.family.holt.school" = routeTemplate "family:holt" "family-school"
+      automation [ "atrium-family-school" ] [ ];
     "cc.personal.ryan.whiskey" = routeTemplate "personal:ryan" "personal-whiskey"
       personal [ ] [ "read" "write" ];
   };

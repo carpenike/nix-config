@@ -76,13 +76,13 @@ in
     container = {
       image = lib.mkOption {
         type = lib.types.str;
-        default = "ghcr.io/home-operations/plex:1.42.2.10156@sha256:9ad8a3506e1d8ebda873a668603c1a2c10e6887969564561be669efd65ae8871";
+        default = "ghcr.io/home-operations/plex:1.43.5.11029@sha256:37643ee5df78fb100503c9107b017cd14bfdb03f401664eb7cca22fff5ba6bf5";
         description = ''
           Container image for Plex (home-operations).
           Pin to specific version with digest for immutability.
           Use Renovate bot to automate version updates.
         '';
-        example = "ghcr.io/home-operations/plex:1.42.2.10156-f737b826c@sha256:...";
+        example = "ghcr.io/home-operations/plex:1.43.4.10903-e5521bd8c@sha256:...";
       };
 
       claimToken = lib.mkOption {

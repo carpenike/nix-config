@@ -233,39 +233,50 @@ let
     foreign_identity = lib.getAttrs [ "uid" "gid" ] ids.atrium-client-fixture;
   };
   fixtureProgram = ./native-cutover-fixture.py;
-in
-hostPkgs.testers.runNixOSTest {
-  name = "atrium-owner-native-cutover";
-  globalTimeout = 600;
-  node.pkgs = lib.mkForce pkgs;
-  nodes.machine = {
-    virtualisation = { memorySize = 1536; cores = 2; vlans = [ ]; };
-    networking = {
-      hostName = "atrium-native-cutover-fixture";
-      useDHCP = false;
-      hosts."127.0.0.1" = [ "native.atrium.invalid" "resolver.atrium.invalid" ];
+  # Repeated real CLI startups must not share one runner-speed-sensitive budget.
+  test = suite: hostPkgs.testers.runNixOSTest {
+    name = "atrium-owner-native-cutover-${suite}";
+    globalTimeout = 600;
+    node.pkgs = lib.mkForce pkgs;
+    nodes.machine = {
+      virtualisation = { memorySize = 1536; cores = 2; vlans = [ ]; };
+      networking = {
+        hostName = "atrium-native-cutover-fixture";
+        useDHCP = false;
+        hosts."127.0.0.1" = [ "native.atrium.invalid" "resolver.atrium.invalid" ];
+      };
+      users.groups = lib.genAttrs
+        [ "atrium-mcp-fixture" "atrium-resolver-fixture" "atrium-identity-fixture" "atrium-client-fixture" ]
+        (name: { inherit (ids.${name}) gid; });
+      users.users = lib.genAttrs
+        [ "atrium-mcp-fixture" "atrium-resolver-fixture" "atrium-identity-fixture" "atrium-client-fixture" ]
+        (name: { isSystemUser = true; inherit (ids.${name}) uid; group = name; });
+      system.stateVersion = "25.11";
     };
-    users.groups = lib.genAttrs
-      [ "atrium-mcp-fixture" "atrium-resolver-fixture" "atrium-identity-fixture" "atrium-client-fixture" ]
-      (name: { inherit (ids.${name}) gid; });
-    users.users = lib.genAttrs
-      [ "atrium-mcp-fixture" "atrium-resolver-fixture" "atrium-identity-fixture" "atrium-client-fixture" ]
-      (name: { isSystemUser = true; inherit (ids.${name}) uid; group = name; });
-    system.stateVersion = "25.11";
-  };
-  testScript = ''
-    import json
+    testScript = ''
+      import json
 
-    machine.start()
-    machine.wait_for_unit("multi-user.target")
-    result = json.loads(machine.succeed(
-        "${python}/bin/python -I -B ${fixtureProgram} --fixture ${fixture}",
-        timeout=540,
-    ))
-    assert result["kind"] == "atrium.native-cutover-fixture"
-    assert result["native_oauth_history_preserved"]
-    assert result["real_policy_and_deny_implementations"]
-    assert not result["signers_rotated"] and not result["production_operations"]
-    print(json.dumps(result, sort_keys=True))
-  '';
-}
+      machine.start()
+      machine.wait_for_unit("multi-user.target")
+      result = json.loads(machine.succeed(
+          "${python}/bin/python -I -B ${fixtureProgram} --fixture ${fixture} --suite ${suite} 2>/dev/ttyS0",
+          timeout=540,
+      ))
+      assert result["kind"] == "atrium.native-cutover-fixture"
+      assert result["suite"] == "${suite}"
+      assert result["native_oauth_history_preserved"]
+      assert result["real_policy_and_deny_implementations"]
+      assert not result["signers_rotated"] and not result["production_operations"]
+      print(json.dumps(result, sort_keys=True))
+    '';
+  };
+  retentionTest = test "retention";
+  # Serialize guests even when the caller allows parallel derivation builds.
+  moneyUpgradeTest = (test "money-upgrade").overrideTestDerivation (old: {
+    nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ retentionTest ];
+  });
+in
+hostPkgs.linkFarm "atrium-owner-native-cutover" [
+  { name = "retention"; path = retentionTest; }
+  { name = "money-upgrade"; path = moneyUpgradeTest; }
+]

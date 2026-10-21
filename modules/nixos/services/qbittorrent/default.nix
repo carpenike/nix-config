@@ -17,7 +17,7 @@
 let
   # VueTorrent package (pinned for reproducibility)
   vuetorrentPackage = pkgs.fetchzip {
-    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.35.0/vuetorrent.zip";
+    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.36.1/vuetorrent.zip";
     # Unpacked v2.35.0 release hash; update together with the release URL.
     hash = "sha256-sPEyumlEGdlx59SeJ0n2XM0dG60bY+LamrumTGW9Nfg=";
     stripRoot = false;
@@ -33,7 +33,7 @@ mylib.mkContainerService {
     port = 8080;
     # Default to home-operations image per ADR-005
     # Host can override with pinned digest
-    image = "ghcr.io/home-operations/qbittorrent:5.2.4";
+    image = "ghcr.io/home-operations/qbittorrent:5.3.0";
     operationalProfile = "downloads";
     displayName = "qBittorrent";
     function = "torrent";

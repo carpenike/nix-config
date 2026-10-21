@@ -32,6 +32,10 @@ import ../../../lib/host-defaults.nix {
     # Replication to NAS
     replication = {
       targetHost = "nas-1.holthome.net";
+      # Static IP of nas-1 (must match hosts/nas-1/core/networking.nix).
+      # Used to pin targetHost in /etc/hosts (see infrastructure/storage.nix)
+      # so syncoid and the NFS backup mounts survive a local DNS outage.
+      targetAddress = "10.20.0.11";
       targetDataset = "backup/forge/zfs-recv";
       sendOptions = "wp"; # Raw encrypted send with property preservation
       recvOptions = "u"; # Don't mount on receive
