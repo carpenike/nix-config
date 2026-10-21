@@ -2,7 +2,7 @@
   "schema_version": 1,
   "atrium": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
   "atrium_native_vendor_source": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
-  "native": "64493c6c5f6cb666f291b8287efdd7014b8de818",
+  "native": "c76ae82829958ca432d497fb68283c639aa13b2d",
   "consumer": "e44d6f77c58ad250208c4c44de9214c4e9941640",
   "native_runtime_extra": {
     "python": "3.13",

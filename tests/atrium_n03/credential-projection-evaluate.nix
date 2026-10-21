@@ -42,6 +42,10 @@ let
       user = "homelab-mcp";
       credentials = runtime.nativeCredentials;
       rendererDirectories = [ ];
+      # Not an Atrium credential: the key that seals the stored Pocket ID
+      # refresh token (hosts/forge/services/homelab-mcp.nix). It is read by
+      # the app from $CREDENTIALS_DIRECTORY and is never projected.
+      extraSources = [ "pocketid_token_key:/run/secrets/homelab-mcp/pocketid_token_key" ];
     };
   };
   deviceNames = builtins.attrNames runtime.deviceCredentials;
@@ -104,7 +108,7 @@ let
       expected = nativeUnits.${unit};
       names = builtins.attrNames expected.credentials;
     in
-    service.LoadCredential == lib.mapAttrsToList
+    service.LoadCredential == (expected.extraSources or [ ]) ++ lib.mapAttrsToList
       (name: path: "${name}:${path}")
       expected.credentials
     && sorted (lib.toList service.RuntimeDirectory)
