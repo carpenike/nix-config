@@ -25,7 +25,11 @@ from atrium_profiles import ProfileError, PublicKeys
 from atrium_profiles.models import ResourceURI, StrictModel
 from atrium_resolver.config import Settings
 from atrium_resolver.policy import PolicyDenied, PolicyEngine, PolicySeed
-from atrium_resolver.policy_schema import PolicyConfigurationError, strict_json
+from atrium_resolver.policy_schema import (
+    ActiveInstance,
+    PolicyConfigurationError,
+    strict_json,
+)
 from homelab_mcp.deny_config import NativeDenySettings
 from homelab_mcp.deny_store import _Owner
 from homelab_mcp.native_profile import NativeProfileSettings
@@ -97,6 +101,9 @@ class Configuration(StrictModel):
     # Absent unless the Family School view is active. It is not part of the
     # finance seed: those grants must match the Personal profile domain.
     school_grants: Path | None = None
+    # Absent unless the Family Outings view is active. It is not a Home MCP
+    # view and it is not part of the finance or school seeds.
+    outings_grants: Path | None = None
     native_issuer: ResourceURI = "https://mcp.holthome.net"
     native_jwks_url: ResourceURI = "https://mcp.holthome.net/oauth/jwks.json"
     resolver_jwks_url: ResourceURI = "https://atrium.holthome.net/.well-known/jwks.json"
@@ -534,6 +541,7 @@ def preflight(configuration):
             "finance_plan_binding_conflict",
         )
     school_seed = school_plan(c, template, profile, views)
+    outings_seed = outings_plan(c, template, profile, views)
     run(
         [
             c.resolver_command,
@@ -606,6 +614,7 @@ def preflight(configuration):
         )
     grants = finance_state(c, settings, seed, views)
     school = school_state(c, settings, school_seed, views)
+    outings = outings_state(c, settings, outings_seed, views)
     documents = {
         "native-profile.json": profile.model_dump(mode="json"),
         "native-jwks.json": public_keys(c.native_jwks_url, c.ca_bundle),
@@ -672,6 +681,8 @@ def preflight(configuration):
         previous_approval,
         school_seed,
         school,
+        outings_seed,
+        outings,
     )
 
 
@@ -843,6 +854,129 @@ def school_state(configuration, settings, seed, views):
     return "reuse"
 
 
+def outings_plan(configuration, template, profile, views):
+    """Require one owner-only Family Outings grant, separate from finance and school."""
+    document, _revision = views.snapshot()
+    instance = document.instances.get("family-outings")
+    active = isinstance(instance, ActiveInstance) and instance.adapter == "ambit"
+    if not active:
+        require(configuration.outings_grants is None, "unexpected_outings_grant_plan")
+        return None
+    require(configuration.outings_grants is not None, "outings_grant_plan_required")
+    deployment = document.deployments[instance.deployment]
+    seed = PolicySeed.model_validate_json(
+        json.dumps(read_json(configuration.outings_grants, public=True))
+    )
+    require(
+        len(seed.grants) == 1 and seed.grants[0].request.instance == "family-outings",
+        "exact_outings_plan_required",
+    )
+    grant = seed.grants[0]
+    declared = document.route_templates[grant.request.template_id]
+    require(
+        grant.principal == instance.owner_principal == seed.administrator == "ryan"
+        and grant.authority == template["policy"]["authority"]
+        and not grant.can_delegate
+        and grant.expires_at is None
+        and grant.id == grant.request.template_id + ".baseline"
+        and grant.request.domain == instance.domain == "family:holt"
+        and instance.domain != profile.resource.domain
+        and instance.route == "/cc/views/family-outings"
+        and instance.target.endswith("/cc/views/family-outings")
+        and deployment.status == "active"
+        and deployment.endpoint == "https://ambit.holthome.net"
+        and instance.audience == "ambit"
+        and instance.access == "read-only"
+        and instance.permissions == ("read",)
+        and not instance.scopes
+        and declared.status == "active"
+        and declared.instance == instance.id
+        and grant.request.lifetime_seconds == declared.max_lifetime_seconds == 900
+        and not grant.request.scopes
+        and grant.request.permissions == declared.permissions == ("read",)
+        and not grant.request.models
+        and not grant.request.routes
+        and grant.request.budget is None,
+        "outings_plan_binding_conflict",
+    )
+    return seed
+
+
+def outings_state(configuration, settings, seed, views):
+    if seed is None:
+        return "absent"
+    grant = seed.grants[0]
+    document, _revision = views.snapshot()
+    instance = document.instances["family-outings"]
+    with readonly_database(
+        settings.state_directory / "resolver.sqlite3",
+        configuration.resolver_identity.uid,
+    ) as connection:
+        row = connection.execute(
+            "SELECT * FROM grants WHERE id=?", (grant.id,)
+        ).fetchone()
+        if row is None:
+            return "append-outings"
+        record = PolicyEngine._grant(row, int(time.time()))
+        require(
+            PolicyEngine._grant_request(record) == grant.request
+            and (record.principal, record.authority, record.subject)
+            == (grant.principal, grant.authority, grant.subject)
+            and record.expires_at == grant.expires_at
+            and record.can_delegate == grant.can_delegate
+            and record.grantor_id == seed.administrator
+            and record.source == "local-bootstrap"
+            and record.parent_grant_id is None
+            and (record.target, record.audience, record.adapter)
+            == (instance.target, "ambit", "ambit"),
+            "outings_grant_conflict",
+        )
+    return "reuse"
+
+
+def append_outings(configuration, seed):
+    selected = seed.model_copy(
+        update={
+            "grants": tuple(
+                grant
+                for grant in seed.grants
+                if grant.request.instance == "family-outings"
+            )
+        }
+    )
+    require(len(selected.grants) == 1, "exact_outings_append_required")
+    with tempfile.TemporaryDirectory(
+        prefix="atrium-native-grants-", dir="/run"
+    ) as temporary:
+        directory = Path(temporary)
+        identity = configuration.resolver_identity
+        os.chown(directory, 0, identity.gid)
+        directory.chmod(0o750)
+        path = directory / "outings.json"
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o440
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchown(stream.fileno(), 0, identity.gid)
+            os.fchmod(stream.fileno(), 0o440)
+            stream.write(encoded(selected.model_dump(mode="json")))
+            stream.flush()
+            os.fsync(stream.fileno())
+        run(
+            [
+                configuration.resolver_command,
+                "--config",
+                configuration.resolver_config,
+                "seed-policy",
+                "--append",
+                "--grants",
+                path,
+            ],
+            identity,
+            "outings_append_failed",
+        )
+
+
 def append_school(configuration, seed):
     selected = seed.model_copy(
         update={
@@ -930,6 +1064,8 @@ def main():
                 previous_approval,
                 school_seed,
                 school,
+                outings_seed,
+                outings,
             ) = preflight(c)
             result = {
                 "mode": "apply" if args.apply else "plan",
@@ -938,6 +1074,7 @@ def main():
                 "deny_history": "initialize" if owner is None else "reuse",
                 "finance_grants": grants,
                 "school_grants": school,
+                "outings_grants": outings,
                 "approved": False,
                 "deny_validation": "on-apply",
             }
@@ -995,6 +1132,8 @@ def main():
                     append_money(c, seed)
                 if school == "append-school":
                     append_school(c, school_seed)
+                if outings == "append-outings":
+                    append_outings(c, outings_seed)
                 require(
                     finance_state(c, settings, seed, views) == "reuse",
                     "finance_append_unverified",
@@ -1003,6 +1142,11 @@ def main():
                     school_state(c, settings, school_seed, views)
                     == ("reuse" if school_seed is not None else "absent"),
                     "school_append_unverified",
+                )
+                require(
+                    outings_state(c, settings, outings_seed, views)
+                    == ("reuse" if outings_seed is not None else "absent"),
+                    "outings_append_unverified",
                 )
                 publish(
                     c.policy_directory,

@@ -207,6 +207,7 @@ in
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
         "atrium/bootstrap/finance-clients.json".text = json bootstrap.financeClients;
         "atrium/bootstrap/school-clients.json".text = json bootstrap.schoolClients;
+        "atrium/bootstrap/outings-clients.json".text = json bootstrap.outingsClients;
         "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;

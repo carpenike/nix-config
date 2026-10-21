@@ -62,6 +62,11 @@ in
   schoolClients = seed [
     "cc.family.holt.school"
   ];
+  # Kept out of the finance and school seeds. The overview is an ambit read,
+  # not a Home MCP scope, and it stays owner-only.
+  outingsClients = seed [
+    "cc.family.holt.outings"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;

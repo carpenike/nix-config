@@ -165,8 +165,8 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status"}
     owner_instances = automation_instances | {"personal-money"}
     owner_templates = automation_templates | {"cc.personal.ryan.money"}
-    owner_family_instances = {"family-school"}
-    owner_family_templates = {"cc.family.holt.school"}
+    owner_family_instances = {"family-school", "family-outings"}
+    owner_family_templates = {"cc.family.holt.school", "cc.family.holt.outings"}
     assert automation_instances <= data["instance_acls"].keys()
     assert owner_family_instances <= data["instance_acls"].keys()
     assert automation_templates <= data["human_template_acls"].keys()
@@ -198,6 +198,13 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert school.grants[0].request.instance == "family-school"
     assert school.grants[0].request.scopes == ("atrium-family-school",)
     assert school.grants[0].principal == "ryan" and not school.grants[0].can_delegate
+    outings = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["outingsClients"]))
+    assert len(outings.grants) == 1
+    assert outings.grants[0].request.domain == "family:holt"
+    assert outings.grants[0].request.instance == "family-outings"
+    assert outings.grants[0].request.permissions == ("read",)
+    assert outings.grants[0].request.scopes == ()
+    assert outings.grants[0].principal == "ryan" and not outings.grants[0].can_delegate
     assert set(data["authority_token_types"].values()) == {"access_token"}
     assert settings.group_authority == "pocketid"
     assert data["group_evidence"]["status"] == "accepted-unconfigured"

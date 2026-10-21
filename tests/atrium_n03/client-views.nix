@@ -107,6 +107,32 @@ let
       && (builtins.head bootstrap.schoolClients.grants).request.scopes == [ "atrium-family-school" ]
       && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
       && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.ordinary.grants);
+    outings-is-owner-family = registry.instances.family-outings.domain == "family:holt"
+      && registry.instances.family-outings.deployment == "ambit"
+      && registry.instances.family-outings.route == "/cc/views/family-outings"
+      && registry.instances.family-outings.scopes == [ ]
+      && registry.instances.family-outings.permissions == [ "read" ]
+      && registry.instances.family-outings.access == "read-only"
+      && registry.instances.family-outings.audience == "ambit"
+      && registry.instances.family-outings.ownerPrincipal == "ryan"
+      && registry.instances.family-outings.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.deployments.ambit.adapter == "ambit"
+      && registry.deployments.ambit.endpoint == "https://ambit.holthome.net"
+      && registry.routeTemplates."cc.family.holt.outings".instance == "family-outings"
+      && registry.routeTemplates."cc.family.holt.outings".scopes == [ ]
+      && registry.routeTemplates."cc.family.holt.outings".permissions == [ "read" ]
+      && registry.routeTemplates."cc.family.holt.outings".acl == registry.instances.family-outings.acl
+      && map (grant: grant.request.template_id) bootstrap.outingsClients.grants == [ "cc.family.holt.outings" ]
+      && (builtins.head bootstrap.outingsClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.outingsClients.grants).can_delegate
+      && (builtins.head bootstrap.outingsClients.grants).request.domain == "family:holt"
+      && (builtins.head bootstrap.outingsClients.grants).request.permissions == [ "read" ]
+      && (builtins.head bootstrap.outingsClients.grants).request.scopes == [ ]
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.schoolClients.grants)
+      && !lib.elem "cc.family.holt.outings" (map (grant: grant.request.template_id) bootstrap.ordinary.grants)
+      && !lib.elem "family-outings"
+      (builtins.head runtime.nativePolicyTemplate.native_policy.adapters).views;
     ordinary-groups-still-required = lib.all
       (name: registry.instances.${name}.acl.principals == [ ])
       [ "personal-data-read" "family-home-read" ]
