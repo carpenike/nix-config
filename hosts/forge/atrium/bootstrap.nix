@@ -57,6 +57,11 @@ in
     "cc.personal.ryan.status"
     "cc.personal.ryan.money"
   ];
+  # Kept out of the finance seed: that plan requires every grant domain to
+  # match the Personal /mcp profile. This view is Family wing and owner-only.
+  schoolClients = seed [
+    "cc.family.holt.school"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;

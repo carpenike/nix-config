@@ -94,6 +94,9 @@ class Configuration(StrictModel):
     native_bootstrap: Path
     native_bootstrap_config: Path
     finance_grants: Path
+    # Absent unless the Family School view is active. It is not part of the
+    # finance seed: those grants must match the Personal profile domain.
+    school_grants: Path | None = None
     native_issuer: ResourceURI = "https://mcp.holthome.net"
     native_jwks_url: ResourceURI = "https://mcp.holthome.net/oauth/jwks.json"
     resolver_jwks_url: ResourceURI = "https://atrium.holthome.net/.well-known/jwks.json"
@@ -530,6 +533,7 @@ def preflight(configuration):
             and grant.request.budget is None,
             "finance_plan_binding_conflict",
         )
+    school_seed = school_plan(c, template, profile, views)
     run(
         [
             c.resolver_command,
@@ -601,6 +605,7 @@ def preflight(configuration):
             "retained_deny_history_missing",
         )
     grants = finance_state(c, settings, seed, views)
+    school = school_state(c, settings, school_seed, views)
     documents = {
         "native-profile.json": profile.model_dump(mode="json"),
         "native-jwks.json": public_keys(c.native_jwks_url, c.ca_bundle),
@@ -656,7 +661,18 @@ def preflight(configuration):
             previous_approval = receipt
     else:
         require(grants != "append-money", "partial_finance_grants")
-    return settings, deny, views, seed, owner, documents, grants, previous_approval
+    return (
+        settings,
+        deny,
+        views,
+        seed,
+        owner,
+        documents,
+        grants,
+        previous_approval,
+        school_seed,
+        school,
+    )
 
 
 def approval(configuration, documents, seed, owner):
@@ -752,6 +768,124 @@ def append_money(configuration, seed):
         )
 
 
+def school_plan(configuration, template, profile, views):
+    """Require one owner-only Family School grant, separate from finance."""
+    selected = [
+        view for view in views.active_views() if view.resource.id == "family-school"
+    ]
+    require(len(selected) <= 1, "school_view_conflict")
+    if not selected:
+        require(configuration.school_grants is None, "unexpected_school_grant_plan")
+        return None
+    require(configuration.school_grants is not None, "school_grant_plan_required")
+    view = selected[0]
+    seed = PolicySeed.model_validate_json(
+        json.dumps(read_json(configuration.school_grants, public=True))
+    )
+    require(
+        len(seed.grants) == 1 and seed.grants[0].request.instance == "family-school",
+        "exact_school_plan_required",
+    )
+    grant = seed.grants[0]
+    declared = view.policy.route_templates[grant.request.template_id]
+    require(
+        grant.principal == view.instance.owner_principal == seed.administrator
+        and grant.authority == template["policy"]["authority"]
+        and not grant.can_delegate
+        and grant.expires_at is None
+        and grant.id == grant.request.template_id + ".baseline"
+        and grant.request.domain == view.resource.domain == "family:holt"
+        and view.resource.domain != profile.resource.domain
+        and view.instance.route == "/cc/views/family-school"
+        and view.resource.target.endswith("/cc/views/family-school")
+        and view.instance.access == "read-only"
+        and declared.status == "active"
+        and declared.instance == view.resource.id
+        and grant.request.lifetime_seconds == declared.max_lifetime_seconds == 900
+        and grant.request.scopes == declared.scopes == ("atrium-family-school",)
+        and not grant.request.permissions
+        and not grant.request.models
+        and not grant.request.routes
+        and grant.request.budget is None,
+        "school_plan_binding_conflict",
+    )
+    return seed
+
+
+def school_state(configuration, settings, seed, views):
+    if seed is None:
+        return "absent"
+    grant = seed.grants[0]
+    with readonly_database(
+        settings.state_directory / "resolver.sqlite3",
+        configuration.resolver_identity.uid,
+    ) as connection:
+        row = connection.execute(
+            "SELECT * FROM grants WHERE id=?", (grant.id,)
+        ).fetchone()
+        if row is None:
+            return "append-school"
+        record = PolicyEngine._grant(row, int(time.time()))
+        resource = views.view(grant.request.instance).resource
+        require(
+            PolicyEngine._grant_request(record) == grant.request
+            and (record.principal, record.authority, record.subject)
+            == (grant.principal, grant.authority, grant.subject)
+            and record.expires_at == grant.expires_at
+            and record.can_delegate == grant.can_delegate
+            and record.grantor_id == seed.administrator
+            and record.source == "local-bootstrap"
+            and record.parent_grant_id is None
+            and (record.target, record.audience, record.adapter)
+            == (resource.target, resource.audience, "home-mcp"),
+            "school_grant_conflict",
+        )
+    return "reuse"
+
+
+def append_school(configuration, seed):
+    selected = seed.model_copy(
+        update={
+            "grants": tuple(
+                grant
+                for grant in seed.grants
+                if grant.request.instance == "family-school"
+            )
+        }
+    )
+    require(len(selected.grants) == 1, "exact_school_append_required")
+    with tempfile.TemporaryDirectory(
+        prefix="atrium-native-grants-", dir="/run"
+    ) as temporary:
+        directory = Path(temporary)
+        identity = configuration.resolver_identity
+        os.chown(directory, 0, identity.gid)
+        directory.chmod(0o750)
+        path = directory / "school.json"
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o440
+        )
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchown(stream.fileno(), 0, identity.gid)
+            os.fchmod(stream.fileno(), 0o440)
+            stream.write(encoded(selected.model_dump(mode="json")))
+            stream.flush()
+            os.fsync(stream.fileno())
+        run(
+            [
+                configuration.resolver_command,
+                "--config",
+                configuration.resolver_config,
+                "seed-policy",
+                "--append",
+                "--grants",
+                path,
+            ],
+            identity,
+            "school_append_failed",
+        )
+
+
 DENY_CHECK = """
 import sys
 from homelab_mcp.deny_config import NativeDenySettings
@@ -785,15 +919,25 @@ def main():
         )
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            settings, deny, views, seed, owner, documents, grants, previous_approval = (
-                preflight(c)
-            )
+            (
+                settings,
+                deny,
+                views,
+                seed,
+                owner,
+                documents,
+                grants,
+                previous_approval,
+                school_seed,
+                school,
+            ) = preflight(c)
             result = {
                 "mode": "apply" if args.apply else "plan",
                 "fresh_sign_in": previous_approval is None,
                 "cutover_at": documents["native-profile.json"]["cutover_at"],
                 "deny_history": "initialize" if owner is None else "reuse",
                 "finance_grants": grants,
+                "school_grants": school,
                 "approved": False,
                 "deny_validation": "on-apply",
             }
@@ -849,9 +993,16 @@ def main():
                     )
                 elif grants == "append-money":
                     append_money(c, seed)
+                if school == "append-school":
+                    append_school(c, school_seed)
                 require(
                     finance_state(c, settings, seed, views) == "reuse",
                     "finance_append_unverified",
+                )
+                require(
+                    school_state(c, settings, school_seed, views)
+                    == ("reuse" if school_seed is not None else "absent"),
+                    "school_append_unverified",
                 )
                 publish(
                     c.policy_directory,

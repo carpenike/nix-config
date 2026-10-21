@@ -15,7 +15,7 @@ let
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   catalog = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"));
-  scopes = [ "atrium-personal-read" "atrium-family-read" ]
+  scopes = [ "atrium-personal-read" "atrium-family-read" "atrium-family-school" ]
     ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" ];
   tools = config: builtins.fromJSON
     config.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
@@ -44,7 +44,13 @@ let
       && catalog.scopes.atrium-personal-status.resources == [ ]
       && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" "finances_cashflow" "finances_balance_history" ]
       && catalog.scopes.atrium-personal-money.resources == [ ]
-      && catalog.scopes.atrium-personal-money.permissions == [ "read" ];
+      && catalog.scopes.atrium-personal-money.permissions == [ "read" ]
+      && catalog.scopes.atrium-family-school.tools == [ "school_parent_today" ]
+      && catalog.scopes.atrium-family-school.resources == [ ]
+      && catalog.scopes.atrium-family-school.permissions == [ "read" ]
+      && !lib.elem "school_parent_today" catalog.scopes.hermes.tools
+      && !lib.elem "school_parent_today" catalog.scopes.atrium-family-read.tools
+      && !lib.elem "school_parent_today" catalog.scopes.advisor.tools;
     honest-write-permissions = lib.all
       (scope: catalog.scopes.${scope}.permissions == [ "read" "write" ])
       [ "atrium-personal-finance" "atrium-personal-scribe" ]
@@ -83,6 +89,24 @@ let
       [ "personal-scribe" "personal-status" ];
     money-is-owner-only = registry.instances.personal-money.acl
       == { principals = [ "ryan" ]; groups = [ ]; };
+    school-is-owner-family = registry.instances.family-school.domain == "family:holt"
+      && registry.instances.family-school.route == "/cc/views/family-school"
+      && registry.instances.family-school.scopes == [ "atrium-family-school" ]
+      && registry.instances.family-school.access == "read-only"
+      && registry.instances.family-school.ownerPrincipal == "ryan"
+      && registry.instances.family-school.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.routeTemplates."cc.family.holt.school".domain == "family:holt"
+      && registry.routeTemplates."cc.family.holt.school".instance == "family-school"
+      && registry.routeTemplates."cc.family.holt.school".scopes == [ "atrium-family-school" ]
+      && registry.routeTemplates."cc.family.holt.school".permissions == [ ]
+      && registry.routeTemplates."cc.family.holt.school".acl == registry.instances.family-school.acl
+      && map (grant: grant.request.template_id) bootstrap.schoolClients.grants == [ "cc.family.holt.school" ]
+      && (builtins.head bootstrap.schoolClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.schoolClients.grants).can_delegate
+      && (builtins.head bootstrap.schoolClients.grants).request.domain == "family:holt"
+      && (builtins.head bootstrap.schoolClients.grants).request.scopes == [ "atrium-family-school" ]
+      && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
+      && !lib.elem "cc.family.holt.school" (map (grant: grant.request.template_id) bootstrap.ordinary.grants);
     ordinary-groups-still-required = lib.all
       (name: registry.instances.${name}.acl.principals == [ ])
       [ "personal-data-read" "family-home-read" ]
@@ -95,6 +119,7 @@ let
         "personal-scribe"
         "personal-status"
         "personal-money"
+        "family-school"
       ];
     default-public-resource-unchanged = runtime.native.resource == {
       id = "personal-data-read";

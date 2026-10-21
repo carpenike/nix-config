@@ -143,6 +143,7 @@ in
           "personal-scribe"
           "personal-status"
           "personal-money"
+          "family-school"
         ];
         # Replaced by the actual nominated public leaf's fingerprint at runtime.
         certificates = [ ];
@@ -300,6 +301,7 @@ in
         "Pinned source-defined atrium-personal-read and atrium-family-read catalogs; writable legacy scopes are not wing views."
         "Owner-selected current grants; no email matching or automatic group grants."
         "Separate manual finance-client grants; ordinary read-only grants are not widened."
+        "Separate manual Family School grant for the owner only; the ordinary Family read is not widened."
         "Exact-resource OAuth for finance/scribe/status; fresh client sign-in without deleting old token caches or refresh history."
         "Scribe/status use explicit Ryan principal grants; group removal alone does not revoke those automation grants."
         "Explicit admitted public OAuth clients for accepted C10; no service-client or resource-audience inference."
