@@ -46,18 +46,26 @@
       # - atime: forge's service datasets set atime locally (e.g. tank/services/plex),
       #   and `-p` sends it. Without this every successful run logs
       #   "cannot receive atime property on backup/forge/zfs-recv/plex: permission denied".
+      # - logbias, primarycache: forge's Loki dataset (tank/services/loki) sets
+      #   logbias=throughput and primarycache=metadata locally, and `-p` sends them.
+      # - quota: forge's tank/services/vscode-agent-host sets quota=20G locally.
+      #   Without these, syncoid logs "cannot receive <prop> property ... permission denied".
+      #   Other locally-set props on replicated forge datasets (recordsize, compression,
+      #   atime, mountpoint, canmount, user props) are already covered above.
+      #   NOTE: if tank/services/postgresql is ever replicated, it would also need
+      #   xattr, dnodesize, redundant_metadata and sync.
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,logbias,mount,mountpoint,primarycache,quota,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/zfs-recv || true
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,logbias,mount,mountpoint,primarycache,quota,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/services || true
 
       # Grant receive permissions for nas-0 backups
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        atime,bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
+        atime,bookmark,canmount,compression,create,destroy,hold,logbias,mount,mountpoint,primarycache,quota,receive,recordsize,rollback,send,snapdir,userprop \
         backup/nas-0/zfs-recv || true
 
       echo "ZFS receive permissions applied for zfs-replication user"
