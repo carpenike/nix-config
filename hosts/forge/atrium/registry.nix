@@ -86,6 +86,11 @@ lib.recursiveUpdate base {
       endpoint = "https://whiskeywhiskeywhiskey.org";
       viewEnforcement = "server-dispatch";
     };
+    ambit = {
+      adapter = "ambit";
+      endpoint = "https://ambit.holthome.net";
+      viewEnforcement = "server-dispatch";
+    };
     litellm = {
       adapter = "litellm";
       endpoint = "https://llm.holthome.net";
@@ -137,6 +142,11 @@ lib.recursiveUpdate base {
       automation // {
       scopes = [ "atrium-family-school" ];
     };
+    family-outings = instance "family:holt" "ambit" "/cc/views/family-outings"
+      "Family Outings"
+      automation // {
+      permissions = [ "read" ];
+    };
     personal-whiskey = instance "personal:ryan" "whiskey" "/cc/mcp"
       "Personal wing Whiskey"
       personal // {
@@ -170,6 +180,8 @@ lib.recursiveUpdate base {
       automation [ "atrium-personal-money" ] [ ];
     "cc.family.holt.school" = routeTemplate "family:holt" "family-school"
       automation [ "atrium-family-school" ] [ ];
+    "cc.family.holt.outings" = routeTemplate "family:holt" "family-outings"
+      automation [ ] [ "read" ];
     "cc.personal.ryan.whiskey" = routeTemplate "personal:ryan" "personal-whiskey"
       personal [ ] [ "read" "write" ];
   };

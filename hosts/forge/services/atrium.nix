@@ -208,6 +208,7 @@ in
         "atrium/bootstrap/finance-clients.json".text = json bootstrap.financeClients;
         "atrium/bootstrap/school-clients.json".text = json bootstrap.schoolClients;
         "atrium/bootstrap/home-services-grant.json".text = json bootstrap.homeServicesClients;
+        "atrium/bootstrap/outings-clients.json".text = json bootstrap.outingsClients;
         "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;

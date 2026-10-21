@@ -130,7 +130,7 @@
     # ATR-N05/R06 admission, the Family School today client, and the C11 Outings overview.
     # Host service activation and the Family view grants are configured separately.
     atrium = {
-      url = "github:carpenike/atrium/2d9ae714ef9ed58f981c1483c3587409d1b6ae50";
+      url = "github:carpenike/atrium/0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
