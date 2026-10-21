@@ -192,8 +192,9 @@ not historical runtime receipts.
 
 Home MCP now vendors Atrium `0da7baa`, the same revision selected for the
 application. Its policy parser accepts the read-only ambit adapter, so the
-shared resolver document can include the Family Outings deployment. Ambit
-remains outside the Home MCP view list. `native-vendor-compatibility.json`
+shared resolver document can include the Family Outings deployment. The
+selected native revision also answers the Atrium origin preflight for the
+Family School view. Ambit remains outside the Home MCP view list. `native-vendor-compatibility.json`
 has no reviewed overlay because the vendored `nix`, `profiles`, and `resolver`
 trees match that revision. Negative controls still reject changed credential
 contracts, unreviewed additions, and a different vendor revision.
