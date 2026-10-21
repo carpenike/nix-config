@@ -192,11 +192,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Signal preparation pin plus school_parent_today, plus the
-      # atrium-personal-school / atrium-personal-recipes read scopes for the
-      # Home Services (/mcp) view (carpenike/mcp#94 merge commit on main).
+      # Signal preparation pin, school_parent_today, and the ambit policy schema.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/bcb6a2b83d6f73a5ce9e0b6cdf041b7fc2089dac";
+      url = "github:carpenike/mcp/5b723f117a88f41bedc0b2e6d286c56f7965b0ac";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
