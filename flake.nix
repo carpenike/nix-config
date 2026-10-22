@@ -519,6 +519,10 @@
             openproject-runtime =
               let
                 containers = inputs.self.nixosConfigurations.forge.config.virtualisation.oci-containers.containers;
+                database = inputs.self.nixosConfigurations.forge.config.modules.services.postgresql.databases.openproject;
+                databaseConfig = pkgs.writeText "openproject-database.json" (builtins.toJSON {
+                  inherit (database) owner extensions;
+                });
                 containerConfig = pkgs.writeText "openproject-containers.json" (builtins.toJSON
                   (builtins.mapAttrs
                     (_: container: { inherit (container) user environment extraOptions; })
@@ -536,6 +540,7 @@
                   export PYTHONDONTWRITEBYTECODE=1
                   export OPENPROJECT_TOKEN_SCRIPT=${./hosts/forge/services/openproject/mint-api-tokens.sh}
                   export OPENPROJECT_CONTAINERS=${containerConfig}
+                  export OPENPROJECT_DATABASE=${databaseConfig}
                   python3 ${./tests/openproject/test_runtime.py}
                   touch "$out"
                 '';

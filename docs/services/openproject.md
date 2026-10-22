@@ -12,7 +12,7 @@ Grok Bot) and for Ryan. A custom MCP server around API v3 is planned on top of i
 | URL | `https://tasks.holthome.net` (Cloudflare tunnel `forge` → Caddy) |
 | Loopback | `http://127.0.0.1:8072` (web container port 8080) |
 | Reserved | `tasks-mcp.holthome.net`, `127.0.0.1:8073` (MCP), `10.88.0.1:8074` (webhook receiver). These are disabled stubs. |
-| Image | `openproject/openproject:17.9.2-slim@sha256:7b50be7f…` (pinned by digest, Renovate-tracked) |
+| Image | Official `-slim` image, digest-pinned in the host config (Renovate-tracked) |
 
 ## Layout and sizing
 
@@ -68,6 +68,11 @@ Notes:
 - **DB connections.** `DATABASE_URL` uses `pool=10`. The worst case is about
   16 connections (2 web workers × 5, plus 5 worker threads, plus the
   seeder), out of PostgreSQL's 100.
+- **Extension schemas.** Provision `btree_gist`, `pg_trgm`, and `unaccent` in
+  `pg_catalog`, not `public`. The image's SQL structure dump clears
+  `search_path` and references operator classes such as `gin_trgm_ops`
+  without a schema qualifier. Pre-creating the extensions in `public`
+  makes the initial SQL load fail even though the extensions exist.
 
 ## Secrets to add before deploy
 
@@ -162,6 +167,38 @@ in OpenProject after the initial login.
    `protection.allowEmptyBootstrap = false` in `openproject.nix`. Then move
    `openproject` into `standardServicePaths` and `failClosedUnits`
    (`podman-openproject-seeder`) in `flake.nix`.
+
+## Bootstrap failure: `gin_trgm_ops` or duplicate tables
+
+If the first seed reports `operator class "gin_trgm_ops" does not exist`,
+check the extension namespaces, not just whether `pg_trgm` is installed.
+All three extensions above must be in `pg_catalog`. Changing the Nix
+declaration does not relocate an existing extension:
+`CREATE EXTENSION IF NOT EXISTS` leaves its current schema unchanged.
+
+A failed SQL load can leave tables and an empty `schema_migrations`.
+The upstream startup script treats that table's presence as an initialized
+database; another start then tries migrations against the partial schema
+and can fail with `relation "projects" already exists`.
+
+Do not repeatedly restart the seeder or reset the shared PostgreSQL
+cluster. A confirmed unseeded first deployment can be recovered after an
+operator-approved backup: move the extensions to `pg_catalog`, archive the
+failed `public` schema, recreate `public` with its original permissions,
+and retry the OpenProject units. Keep the archived schema and backup
+until the application has been verified. A populated database needs a
+reviewed in-place recovery instead, not a bootstrap reset.
+
+If the operator explicitly confirms that the database is disposable, a
+backed-up recreation of only `openproject` is another option. Reuse its
+generated database-creation and per-database configuration SQL so extension
+ownership and permissions remain correct. Do not run a cluster-wide reset
+or discard other databases.
+
+Start the seeder with ordinary `systemctl start`, not `start --wait`:
+it intentionally remains `active (exited)` after success so web and worker
+can depend on it. `--wait` waits for it to become inactive again and can
+therefore block indefinitely despite successful seeding.
 
 ## Access model
 
@@ -340,6 +377,18 @@ Design notes for the server:
   `https://tasks.holthome.net/health_checks/default` (through Caddy and the tunnel).
 - The homepage tile is in the Productivity group.
 
+After a failed deployment, confirm that the running Caddy configuration
+actually contains `tasks.holthome.net`. AuthCrunch can reject a hot reload
+because the existing runtime owns its local identity file; a separately
+approved Caddy restart may be required. Never delete the authentication
+database to bypass that guard.
+
+An HTTP 403 with `cf-mitigated: challenge` is a Cloudflare edge challenge,
+not an OpenProject health response. Verify loopback and the origin HTTPS
+route separately. Automated public probes and API clients may need an
+operator-approved, scoped Cloudflare exception; do not weaken the
+OpenProject/PocketID authentication gates to work around it.
+
 ## Offline regression checks
 
 ```bash
@@ -348,8 +397,9 @@ nix build --no-link ".#checks.${system}.openproject-runtime"
 ```
 
 This checks the evaluated UID and temporary-directory settings for all three
-containers, plus token output permissions, link handling, failure cleanup,
-and preservation of previous output using a fake Podman executable. It
+containers, PostgreSQL extension placement and non-destructive provisioning,
+plus token output permissions, link handling, failure cleanup, and
+preservation of previous output using a fake Podman executable. It
 does not require credentials or a container engine and does not replace
 the first-deploy upload/download test. CI runs this check as well, including
 when only the token script or its regression tests change.
