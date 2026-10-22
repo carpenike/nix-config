@@ -65,7 +65,7 @@ in
       modules.services.openproject = {
         enable = true;
         # Official image, slim variant (no bundled Postgres/memcached/Apache).
-        image = "openproject/openproject:17.9.2-slim@sha256:7b50be7ff67dd0c7e264b09e15591d5f192bbd5802c0233469ab77eaeabf03ba";
+        image = "openproject/openproject:17.9.3-slim@sha256:72ff4c11bacff9113a5400c8f99a9e3a32ef1d1014e289f7bc95a1df4dcd4e89";
         inherit dataDir listenPort;
         datasetPath = dataset;
         hostName = serviceDomain;
