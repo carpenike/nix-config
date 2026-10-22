@@ -47,6 +47,13 @@
 { ... }:
 
 {
+  openproject = {
+    uid = 1069;
+    gid = 1069;
+    description = "OpenProject Community Edition (bot task queue); container processes run as this UID";
+    extraGroups = [ ];
+  };
+
   vscode-agent-host = {
     uid = 1068;
     gid = 1068;

@@ -13,6 +13,7 @@
     ../mealie # Recipe manager
     ../miniflux # RSS reader
     ../n8n # Workflow automation
+    ../openproject # Project management / bot task queue
     ../paperless # Document management
     ../paperless-ai # Document tagging AI
     ../searxng # Meta search engine
