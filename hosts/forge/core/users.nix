@@ -32,6 +32,31 @@ in
     gid = 1000;
   };
 
+  # Dedicated, unprivileged SSH user for Ryan's cloud assistant box.
+  # It connects only over the WireGuard tunnel (peer 10.8.0.4, see the
+  # network-config repo), so the key is pinned to that source address with
+  # `from=`. Agent/X11/port forwarding are disabled so the session cannot be
+  # used to pivot into the rest of the network.
+  #
+  # Intentionally NOT in wheel (no doas/sudo) or any service/admin group, and
+  # given its own primary group rather than `users`. No password is set
+  # (mutableUsers = false + locked password), so key auth is the only way in.
+  # Access is limited to what an ordinary user can read on Forge. If journal
+  # access is ever wanted, add "systemd-journal" to extraGroups.
+  users.users.grokbot = {
+    isNormalUser = true;
+    description = "Cloud assistant box (SSH via WireGuard 10.8.0.4)";
+    group = "grokbot";
+    extraGroups = [ ];
+    shell = pkgs.bash;
+    hashedPassword = "!"; # locked: no password login
+    openssh.authorizedKeys.keys = [
+      ''from="10.8.0.4",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC+/aS6swwQyZhz6lpazJj2BFhequRtAyJIHvjTvJN/w grokbot-box''
+    ];
+  };
+
+  users.groups.grokbot = { };
+
   # Enable shared service groups (media, etc.) from centralized module
   # This replaces the inline users.groups.media definition
   modules.users.sharedGroups.enable = true;
