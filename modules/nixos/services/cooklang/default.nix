@@ -154,6 +154,31 @@ in
       description = "Address to bind the web server to (use 127.0.0.1 for localhost only)";
     };
 
+    corsOrigins = mkOption {
+      type = types.listOf types.str;
+      default = lib.optional (cfg.reverseProxy != null && cfg.reverseProxy.enable)
+        "https://${cfg.reverseProxy.hostName}";
+      defaultText = lib.literalExpression ''
+        lib.optional (cfg.reverseProxy != null && cfg.reverseProxy.enable)
+          "https://''${cfg.reverseProxy.hostName}"
+      '';
+      example = [ "https://cook.example.com" ];
+      description = ''
+        Origins passed to `cook server` as `--cors-origin` (one flag each).
+
+        Since cookcli 0.38.0 the server refuses every request (403) whose
+        `Host` is a host name other than `localhost` or an IP address, unless
+        that host belongs to a `--cors-origin` (DNS-rebinding protection).
+        Caddy passes `Host` through unchanged, so the public reverse-proxy
+        origin must be listed here or all proxied traffic (web UI and API
+        clients such as homelab-mcp) is rejected. Named origins may also make
+        browser writes (shopping list, editor). The scheme is not compared
+        against `Host`; it must match the browser's `Origin` for writes, so
+        use the scheme the proxy serves (https). Keep the CSRF/Host check on:
+        do not use `--no-csrf-check`.
+      '';
+    };
+
     openBrowser = mkOption {
       type = types.bool;
       default = false;
@@ -541,8 +566,9 @@ in
               ++ [
                 "--port"
                 (toString cfg.port)
-                (toString cfg.recipeDir)
               ]
+              ++ lib.concatMap (origin: [ "--cors-origin" origin ]) cfg.corsOrigins
+              ++ [ (toString cfg.recipeDir) ]
               ++ lib.optional cfg.openBrowser "--open"
             );
             Restart = "on-failure";
