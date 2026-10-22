@@ -175,6 +175,11 @@ let
     sed -i -e "s/'\!\([a-z_]\+\) \(.*\)'/\!\1 \2/g" $out
   '';
 
+  # Optional settings.yml (resource providers, git settings, etc.). Only written
+  # when cfg.settings is non-empty so hosts without overrides keep whatever
+  # settings.yml already exists in the data directory.
+  settingsFile = yamlFormat.generate "recyclarr-settings.yml" cfg.settings;
+
   # Instance submodule definition (shared between sonarr and radarr)
   #
   # This module provides type-safe configuration for Recyclarr instances with three levels of control:
@@ -512,6 +517,33 @@ in
       example = "*-*-* 03:00:00";
     };
 
+    settings = lib.mkOption {
+      type = yamlFormat.type;
+      default = { };
+      description = ''
+        Contents of Recyclarr's settings.yml, rendered to ''${dataDir}/settings.yml
+        on every run of recyclarr-config-generator. When empty (the default) the
+        module leaves any existing settings.yml untouched.
+
+        Typical use is pinning `resource_providers`, e.g. to keep a v7 image on a
+        config-templates revision that still ships the official include templates.
+        See https://recyclarr.dev/wiki/yaml/settings-reference/
+      '';
+      example = lib.literalExpression ''
+        {
+          resource_providers = [
+            {
+              name = "config-templates-v7";
+              type = "config-templates";
+              clone_url = "https://github.com/recyclarr/config-templates.git";
+              reference = "4ae377bb704fc7fd69a544ad04e91357e0b09f62";
+              replace_default = true;
+            }
+          ];
+        }
+      '';
+    };
+
     dryRun = lib.mkEnableOption "preview mode (--preview)";
 
     logLevel = lib.mkOption {
@@ -689,6 +721,12 @@ in
             cp ${configFile} "$CONFIG_FILE"
             chmod 640 "$CONFIG_FILE"
             echo "Configuration generated at $CONFIG_FILE"
+            ${lib.optionalString (cfg.settings != { }) ''
+              # Copy generated settings file (resource providers etc.)
+              cp ${settingsFile} "${cfg.dataDir}/settings.yml"
+              chmod 640 "${cfg.dataDir}/settings.yml"
+              echo "Settings generated at ${cfg.dataDir}/settings.yml"
+            ''}
           '';
         };
       };
