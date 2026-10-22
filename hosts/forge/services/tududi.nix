@@ -17,7 +17,7 @@ in
         enable = true;
 
         # Pin container image with digest for immutability
-        image = "chrisvel/tududi:latest@sha256:8a882e1cee1086e7edbb46fe6c8fb3fa6aa9d86e71444c90041bba4b84e77ca4";
+        image = "chrisvel/tududi:latest@sha256:6814f4f77a5a45d77fe9c0bad89daaae33759f6fa288e466bc5c084ed5bdfad4";
 
         # Admin credentials
         adminEmail = "ryan@ryanholt.net";
