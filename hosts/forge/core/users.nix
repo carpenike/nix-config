@@ -47,7 +47,7 @@ in
     isNormalUser = true;
     description = "Cloud assistant box (SSH via WireGuard 10.8.0.4)";
     group = "grokbot";
-    extraGroups = [ ];
+    extraGroups = [ "systemd-journal" ]; # read-only journal access for troubleshooting
     shell = pkgs.bash;
     hashedPassword = "!"; # locked: no password login
     openssh.authorizedKeys.keys = [
