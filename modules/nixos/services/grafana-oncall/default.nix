@@ -266,7 +266,7 @@ in
 
       image = mkOption {
         type = types.str;
-        default = "docker.io/library/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499";
+        default = "docker.io/library/redis:7.4-alpine@sha256:892022f9f18c26c92c30e15194d132f90044af87b94a491a75429bbc3982eab1";
         description = "Redis container image";
       };
     };
