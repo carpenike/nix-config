@@ -21,6 +21,24 @@ in
         # Attach to media services network for DNS resolution to Sonarr and Radarr
         podmanNetwork = forgeDefaults.podmanNetwork;
 
+        # recyclarr v8 note
+        # -----------------
+        # v8 removed every official `include: - template:` (the config-templates
+        # repo moved to v8 on 2026-08-07, which broke the v7 nightly sync). The
+        # old includes map 1:1 onto guide-backed quality profiles (`trash_id`),
+        # which pull qualities, score set, custom formats and scores straight
+        # from TRaSH Guides, plus `qualityDefinition` for file sizes.
+        #
+        # Profile adoption: each profile keeps `name` set to the profile's
+        # *current* name in Sonarr/Radarr. With a matching name, recyclarr
+        # (>= 8.4) adopts the existing profile on the first sync instead of
+        # creating a duplicate, and keeps that name afterwards (dropping `name`
+        # would rename it to the guide name, e.g. "[SQP] SQP-1 (2160p)").
+        # https://recyclarr.dev/guide/upgrade-guide/v8.0/#adopting-guide-backed-quality-profiles
+        #
+        # trash_ids come from TRaSH-Guides docs/json/{sonarr,radarr}/quality-profiles/*.json
+        # (also referenced by recyclarr/config-templates v8 templates).
+
         # Sonarr configuration - WEB-1080p and WEB-2160p quality profiles
         # Mirrors the Radarr dual-resolution setup:
         # - WEB-1080p: Standard HD content
@@ -43,16 +61,31 @@ in
           # - Season Folder: Season {season:00}
           # - Episode Format: {Series TitleYear} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
 
-          templates = [
-            "sonarr-quality-definition-series"
+          # was: sonarr-quality-definition-series
+          qualityDefinition = "series";
 
-            # WEB-1080p profile - standard HD content
-            "sonarr-v4-quality-profile-web-1080p"
-            "sonarr-v4-custom-formats-web-1080p"
+          qualityProfiles = [
+            # was: sonarr-v4-quality-profile-web-1080p + sonarr-v4-custom-formats-web-1080p
+            {
+              trash_id = "72dae194fc92bf828f32cde7744e51a1"; # WEB-1080p
+              name = "WEB-1080p";
+            }
+            # was: sonarr-v4-quality-profile-web-2160p + sonarr-v4-custom-formats-web-2160p
+            {
+              trash_id = "d1498e7d189fbe6c7110ceaabb7473e6"; # WEB-2160p
+              name = "WEB-2160p";
+            }
+          ];
 
-            # WEB-2160p profile - 4K content
-            "sonarr-v4-quality-profile-web-2160p"
-            "sonarr-v4-custom-formats-web-2160p"
+          customFormatGroups.add = [
+            # Keep DSCP, which the v7 WEB-1080p/2160p includes scored but the
+            # guide now ships only as an optional streaming service.
+            {
+              trash_id = "7832db22b71ab669458c17a2850d6913"; # [Streaming Services] Miscellaneous
+              select = [
+                "dc5f2bb0e0262155b5fedd0f6c5d2b55" # DSCP
+              ];
+            }
           ];
         };
 
@@ -78,26 +111,42 @@ in
           # - Folder Names: {Movie CleanTitle} ({Release Year}) {tmdb-{TmdbId}}
           # - File Names: {Movie CleanTitle} {(Release Year)} {tmdb-{TmdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
 
-          templates = [
-            # Streaming-optimized quality definitions (file sizes)
-            "radarr-quality-definition-sqp-streaming"
+          # Streaming-optimized quality definitions (file sizes)
+          # was: radarr-quality-definition-sqp-streaming
+          qualityDefinition = "sqp-streaming";
 
+          qualityProfiles = [
             # SQP-1 2160p (4K) profile - most stringent, top-tier groups
-            # Using -default variant (standard DV/HDR support, no IMAX-E prioritization)
-            "radarr-quality-profile-sqp-1-2160p-default"
-            "radarr-custom-formats-sqp-1-2160p"
-
+            # (standard DV/HDR support, no IMAX-E prioritization)
+            # was: radarr-quality-profile-sqp-1-2160p-default + radarr-custom-formats-sqp-1-2160p
+            {
+              trash_id = "5128baeb2b081b72126bc8482b2a86a0"; # [SQP] SQP-1 (2160p)
+              name = "SQP-1 (2160p)";
+            }
             # SQP-1 1080p profile - most stringent HD, Bluray + WEB sources
-            "radarr-quality-profile-sqp-1-1080p"
-            "radarr-custom-formats-sqp-1-1080p"
+            # was: radarr-quality-profile-sqp-1-1080p + radarr-custom-formats-sqp-1-1080p
+            {
+              trash_id = "0896c29d74de619df168d23b98104b22"; # [SQP] SQP-1 (1080p)
+              name = "SQP-1 (1080p)";
+            }
           ];
 
-          # Optional: Prefer special movie versions (Remaster, Criterion, IMAX)
+          customFormatGroups.add = [
+            # Keep 10bit blocked (-10000 in the SQP-1 score sets), as the v7 SQP-1
+            # includes did. The guide now lists it as optional in this group.
+            {
+              trash_id = "15b1cf0b6f1a1493856a4355907affee"; # [Unwanted] Unwanted Formats SQP
+              select = [
+                "a5d148168c4506b55cf53984107c396e" # 10bit
+              ];
+            }
+          ];
+
+          # Prefer special movie versions (Remaster, Criterion, IMAX)
           # These custom formats add positive scores to preferred release versions
           customFormats = [
             {
               trash_ids = [
-                # Movie Versions - uncomment to prefer these releases
                 "570bc9ebecd92723d2d21500f4be314c" # Remaster
                 "eca37840c13c6ef2dd0262b141a5482f" # 4K Remaster
                 "e0c07d59beb37348e975a930d5e50319" # Criterion Collection
@@ -113,19 +162,8 @@ in
             }
           ];
 
-          # Quality profile settings - uncomment min_format_score if you have limited indexers
-          # qualityProfiles = [
-          #   {
-          #     name = "SQP-1 (1080p)";
-          #     min_format_score = 10;  # Accept releases scoring ≥10
-          #     reset_unmatched_scores = true;
-          #   }
-          #   {
-          #     name = "SQP-1 (2160p)";
-          #     min_format_score = 10;
-          #     reset_unmatched_scores = true;
-          #   }
-          # ];
+          # To override guide values (e.g. with limited indexers), add attributes
+          # to the qualityProfiles entries above, e.g. `min_format_score = 10;`.
         };
 
         # Enable backups
