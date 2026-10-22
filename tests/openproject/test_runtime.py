@@ -30,6 +30,27 @@ class ContainerTests(unittest.TestCase):
                 )
 
 
+class DatabaseTests(unittest.TestCase):
+    def test_extensions_match_the_image_sql_dump(self):
+        database = json.loads(Path(os.environ["OPENPROJECT_DATABASE"]).read_text())
+        self.assertEqual(database["owner"], "openproject")
+        self.assertEqual(len(database["extensions"]), 3)
+        self.assertEqual(
+            {
+                extension["name"]: extension["schema"]
+                for extension in database["extensions"]
+            },
+            {
+                "btree_gist": "pg_catalog",
+                "pg_trgm": "pg_catalog",
+                "unaccent": "pg_catalog",
+            },
+        )
+        for extension in database["extensions"]:
+            with self.subTest(extension=extension["name"]):
+                self.assertFalse(extension["dropBeforeCreate"])
+
+
 class TokenMintingTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory(prefix="openproject-tokens-")

@@ -135,13 +135,14 @@ in
         notifications.enable = true;
       };
 
-      # Shared PostgreSQL. OpenProject's migrations also issue
-      # CREATE EXTENSION IF NOT EXISTS for these; pre-creating them as
-      # superuser keeps that a no-op for the non-superuser owner role.
+      # The image's SQL dump clears search_path and expects these in pg_catalog.
+      # Pre-create them there for the non-superuser application role.
       modules.services.postgresql.databases.${serviceName} = {
         owner = serviceName;
         ownerPasswordFile = config.sops.secrets."openproject/database_password".path;
-        extensions = [ "btree_gist" "pg_trgm" "unaccent" ];
+        extensions = map
+          (name: { inherit name; schema = "pg_catalog"; })
+          [ "btree_gist" "pg_trgm" "unaccent" ];
       };
     }
 
