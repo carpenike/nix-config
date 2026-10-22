@@ -759,6 +759,9 @@ in
           config.modules.backup.sanoid.datasets
       );
       datasetsArray = lib.concatMapStrings (ds: ''"${ds}" '') allDatasets;
+      zfs = lib.getExe config.boot.zfs.package;
+      awk = lib.getExe' pkgs.gawk "awk";
+      grep = lib.getExe' pkgs.gnugrep "grep";
     in
     {
       description = "Export ZFS snapshot metrics for all backup datasets";
@@ -767,59 +770,77 @@ in
         User = "root";
       };
       script = ''
-                set -euo pipefail
+        set -euo pipefail
 
-                METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
-                METRICS_TEMP="$METRICS_FILE.tmp"
+        METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
+        # Build the new file next to the real one (same filesystem, so the final
+        # mv is an atomic rename) and only publish it once it validates. On any
+        # failure the previous good file stays in place and the trap cleans up;
+        # ZFSSnapshotExporterStale then fires on the file's age instead of
+        # node_exporter dropping every metric on a parse error.
+        # node_exporter only reads *.prom, so the temp file is never scraped.
+        METRICS_TEMP=$(mktemp "$METRICS_FILE.tmp.XXXXXX")
+        trap 'rm -f "$METRICS_TEMP"' EXIT
 
-                # Start metrics file
-                cat > "$METRICS_TEMP" <<'HEADER'
-              # HELP zfs_snapshot_dataset_info Whether a dataset is configured for Sanoid snapshots
-              # TYPE zfs_snapshot_dataset_info gauge
-        # HELP zfs_snapshot_count Number of snapshots per dataset
-        # TYPE zfs_snapshot_count gauge
-        HEADER
+        # Datasets to monitor (dynamically generated from backup.nix)
+        DATASETS=(${datasetsArray})
 
-                # Datasets to monitor (dynamically generated from backup.nix)
-                DATASETS=(${datasetsArray})
+        # Snapshot ZFS state once instead of listing every snapshot per dataset.
+        # A failing zfs command aborts the run (set -e) rather than emitting
+        # placeholder values.
+        EXISTING=$(${zfs} list -H -o name -t filesystem,volume)
+        SNAPSHOTS=$(${zfs} list -H -p -t snapshot -o name,creation,used)
 
-                # Count snapshots per dataset
-                for dataset in "''${DATASETS[@]}"; do
-                  echo "zfs_snapshot_dataset_info{dataset=\"$dataset\"} 1" >> "$METRICS_TEMP"
-                  SNAPSHOT_COUNT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name | ${lib.getExe' pkgs.gnugrep "grep"} -c "^$dataset@" || echo 0)
-                  echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
-                done
+        # All values are computed numerically in awk, so a dataset with zero
+        # snapshots (or one that does not exist yet) yields 0 / no sample rather
+        # than an empty value or a duplicated "0" line (the old
+        # `grep -c ... || echo 0` and `awk ... || echo 0` patterns).
+        ${awk} -F '\t' '
+          ARGIND == 1 { if ($1 != "") ds[++n] = $1; next }
+          ARGIND == 2 { if ($1 != "") exists[$1] = 1; next }
+          ARGIND == 3 {
+            if (NF < 3) next
+            at = index($1, "@")
+            if (at == 0) next
+            d = substr($1, 1, at - 1)
+            count[d]++
+            if (!(d in latest) || $2 + 0 > latest[d]) latest[d] = $2 + 0
+            # Snapshot space counts towards the dataset and every ancestor
+            # (same semantics as `zfs list -t snapshot -o used -r <dataset>`).
+            p = d
+            while (p != "") {
+              used[p] += $3
+              if (!sub(/\/[^\/]*$/, "", p)) break
+            }
+            next
+          }
+          END {
+            print "# HELP zfs_snapshot_dataset_info Whether a dataset is configured for Sanoid snapshots"
+            print "# TYPE zfs_snapshot_dataset_info gauge"
+            for (i = 1; i <= n; i++) printf "zfs_snapshot_dataset_info{dataset=\"%s\"} 1\n", ds[i]
+            print "# HELP zfs_snapshot_dataset_exists Whether a configured snapshot dataset exists in ZFS"
+            print "# TYPE zfs_snapshot_dataset_exists gauge"
+            for (i = 1; i <= n; i++) printf "zfs_snapshot_dataset_exists{dataset=\"%s\"} %d\n", ds[i], (ds[i] in exists) ? 1 : 0
+            print "# HELP zfs_snapshot_count Number of snapshots per dataset"
+            print "# TYPE zfs_snapshot_count gauge"
+            for (i = 1; i <= n; i++) printf "zfs_snapshot_count{dataset=\"%s\"} %d\n", ds[i], count[ds[i]] + 0
+            print "# HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)"
+            print "# TYPE zfs_snapshot_latest_timestamp gauge"
+            for (i = 1; i <= n; i++) if (ds[i] in latest) printf "zfs_snapshot_latest_timestamp{dataset=\"%s\"} %.0f\n", ds[i], latest[ds[i]]
+            print "# HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset"
+            print "# TYPE zfs_snapshot_total_used_bytes gauge"
+            for (i = 1; i <= n; i++) printf "zfs_snapshot_total_used_bytes{dataset=\"%s\"} %.0f\n", ds[i], used[ds[i]] + 0
+          }
+        ' <(printf '%s\n' "''${DATASETS[@]}") <(printf '%s\n' "$EXISTING") <(printf '%s\n' "$SNAPSHOTS") > "$METRICS_TEMP"
 
-                # Add latest snapshot age metrics (using locale-safe Unix timestamps)
-                cat >> "$METRICS_TEMP" <<'HEADER2'
+        # Refuse to publish anything node_exporter would reject.
+        if ${grep} -nvE '^(#.*|[a-zA-Z_:][a-zA-Z0-9_:]*(\{[^}]*\})? -?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?)$' "$METRICS_TEMP" >&2; then
+          echo "zfs-snapshot-metrics: generated metrics contain malformed lines (above); keeping previous $METRICS_FILE" >&2
+          exit 1
+        fi
 
-        # HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)
-        # TYPE zfs_snapshot_latest_timestamp gauge
-        HEADER2
-
-                for dataset in "''${DATASETS[@]}"; do
-                  # Get most recent snapshot name
-                  LATEST_SNAPSHOT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || echo "")
-                  if [ -n "$LATEST_SNAPSHOT" ]; then
-                    # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
-                    LATEST_TIMESTAMP=$(${lib.getExe config.boot.zfs.package} get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
-                    echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
-                  fi
-                done
-
-                # Add total space used by all snapshots per dataset
-                cat >> "$METRICS_TEMP" <<'HEADER3'
-
-        # HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
-        # TYPE zfs_snapshot_total_used_bytes gauge
-        HEADER3
-
-                for dataset in "''${DATASETS[@]}"; do
-                  TOTAL_USED=$(${lib.getExe config.boot.zfs.package} list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${lib.getExe' pkgs.gawk "awk"} '{sum+=$1} END {print sum}' || echo 0)
-                  echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
-                done
-
-                mv "$METRICS_TEMP" "$METRICS_FILE"
+        chmod 0644 "$METRICS_TEMP"
+        mv -f "$METRICS_TEMP" "$METRICS_FILE"
       '';
       after = [ "zfs-mount.service" ];
       wants = [ "zfs-mount.service" ];
