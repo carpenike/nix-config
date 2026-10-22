@@ -98,7 +98,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/unpackerr/unpackerr:0.14.5@sha256:dc72256942ce50d1c8a1aeb5aa85b6ae2680a36eefd2182129d8d210fce78044";
+      default = "ghcr.io/unpackerr/unpackerr:v0.16.1@sha256:406586865431b40b29353d899fb75a788f5384743f7f381444db5fe55d206914";
       description = "Unpackerr container image with SHA256 digest";
     };
 
