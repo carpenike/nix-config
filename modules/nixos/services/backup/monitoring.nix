@@ -288,20 +288,33 @@ in
           };
         };
 
+        # Grace period for new jobs: the `and ... offset 26h` clause only lets
+        # the alert fire once the job's restic_backup_job_info series already
+        # existed 26 hours ago, i.e. once a daily job has had a full day (plus
+        # slack for RandomizedDelaySec / Persistent catch-up) to report its
+        # first success. Jobs that have been declared for longer than that are
+        # evaluated exactly as before; a job whose success metric disappears
+        # later still alerts after the usual 1h. Trade-off: if Prometheus has
+        # no job_info sample at exactly now-26h (Prometheus or node-exporter
+        # outage, TSDB wipe), the alert waits until the series is 26h old again.
         "restic-backup-success-missing" = {
           type = "promql";
           alertname = "ResticBackupSuccessMissing";
           expr = ''
-            restic_backup_job_info
-            unless on(backup_job, hostname)
-            restic_backup_last_success_timestamp
+            (
+              restic_backup_job_info
+              unless on(backup_job, hostname)
+              restic_backup_last_success_timestamp
+            )
+            and on(backup_job, hostname)
+            (restic_backup_job_info offset 26h)
           '';
           for = "1h";
           severity = "high";
           labels = { service = "backup"; category = "restic"; };
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} has no success metric on {{ $labels.hostname }}";
-            description = "The job is declaratively enabled but has not reported a successful backup. Check its timer, service, and metric file.";
+            description = "The job has been declaratively enabled for more than 26 hours but has not reported a successful backup. Check its timer, service, and metric file.";
             command = "systemctl status ${alertUnit}.timer ${alertUnit}.service";
           };
         };

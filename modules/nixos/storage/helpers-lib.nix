@@ -816,4 +816,31 @@
     if nfsMountDependency != null
     then config.modules.storage.nfsMounts.${nfsMountDependency} or null
     else null;
+
+  /*
+    Shell snippet that exits non-zero unless `mountpoint` is currently a mount
+    of ZFS dataset `dataset`.
+
+    Opt-in. Dataset creation stays in zfs-service-datasets-sync; this only
+    refuses to start a service whose data directory is still on the parent
+    filesystem (impermanence roots roll that back). Other modules prepend it
+    to preStart:
+
+      preStart = lib.mkBefore (storageHelpers.assertDatasetMounted {
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+      });
+
+    `findmnt --mountpoint` reports the filesystem mounted exactly at that
+    path. On the hosts here, SOURCE for a ZFS mount is the dataset name
+    (for example tank/services/litellm).
+  */
+  assertDatasetMounted = { dataset, mountpoint }: ''
+    mounted_source=$(${pkgs.util-linux}/bin/findmnt --noheadings --output SOURCE --mountpoint ${lib.escapeShellArg mountpoint} || true)
+    if [ "$mounted_source" != ${lib.escapeShellArg dataset} ]; then
+      echo "${mountpoint} is not backed by ZFS dataset ${dataset} (mounted: ''${mounted_source:-nothing})." >&2
+      echo "Refusing to start: the data directory would land on the parent filesystem." >&2
+      exit 1
+    fi
+  '';
 }

@@ -188,11 +188,11 @@ unit and no listener on 17890. This is build/test evidence only,
    ```
 
    The source must be `tank/services/vscode-agent-host` and the type `zfs`.
-   An active `zfs-service-datasets.service` is not sufficient evidence: the first
-   deployment left the initializer active without creating the new dataset.
-   After verifying the new mountpoint contained no data, the operator ran the
-   declared initializer in a separate bounded oneshot with its exact unit PATH,
-   without restarting its production dependents. Replication then passed.
+   An active `zfs-service-datasets.service` is not sufficient evidence: that
+   unit is only the dependency anchor. Creation runs in
+   `zfs-service-datasets-sync.service`. If the dataset is missing, restart
+   the sync unit (`systemctl restart zfs-service-datasets-sync.service`).
+   Do not restart the anchor; units that `Require` it would restart too.
    If this recurs, reconcile the declaration and verify storage before retrying;
    never mount over existing sessions or bypass the service's mountpoint assertion.
 4. Manually start the declared service, not a second `code agent host`:
