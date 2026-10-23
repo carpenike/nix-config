@@ -933,6 +933,9 @@
                 touch $out
               '';
 
+            github-runners-contract = pkgs.writeText "github-runners-contract.json"
+              (builtins.toJSON (import ./tests/github-runners/evaluate.nix { inherit inputs; }));
+
             service-startup-compatibility = pkgs.writeText "service-startup-compatibility.json"
               (builtins.toJSON (import ./tests/service-startup-compatibility.nix {
                 inherit inputs;
