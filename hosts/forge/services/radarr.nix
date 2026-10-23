@@ -18,6 +18,16 @@ in
         # Pin container image to specific version with digest
         image = "ghcr.io/home-operations/radarr:6.4.4@sha256:1902ad2c08e9bac276ff9a1429af2eaa2f3c635a51f138f1b3eb734995171537";
 
+        # Raised from the module default of 512M. Radarr already runs at that
+        # ceiling (cgroup memory.peak == memory.max, swapping) in normal
+        # operation, and a buffered whole-table migration like Sonarr v5's 225
+        # needs headroom on top. This is a cap, not a reservation.
+        resources = {
+          memory = "1G";
+          memoryReservation = "256M";
+          cpus = "2.0";
+        };
+
         # Use shared NFS mount and attach to media services network
         nfsMountDependency = "media";
         podmanNetwork = forgeDefaults.podmanNetwork;
