@@ -25,6 +25,9 @@ let
   teslamateDashboardsSrc = pkgs.fetchFromGitHub {
     owner = "adriankumpf";
     repo = "teslamate";
+    # Keep the Renovate-managed version referenced. Deadnix rejects the
+    # binding when the archive URL no longer interpolates it.
+    name = "teslamate-dashboards-${teslamateDashboardsVersion}";
     # nix-pin-version: 4.3.0
     rev = "33d200b2fba9d5138803916a788cef5eae31b1aa";
     hash = "sha256-QukXDqTrXVuW0RpI2H24d0mpKjr5eWJgy/P9hjIffb4=";

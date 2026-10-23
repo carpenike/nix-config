@@ -157,17 +157,17 @@ class NixPinVersionTests(unittest.TestCase):
         ]
 
     def test_version_only_bump_leaves_the_marker_behind(self):
-        before = '\n'.join(
+        before = "\n".join(
             [
-                'version = "2.11.2";',
-                "# nix-pin-version: 2.11.2",
+                'version = "2.11.3";',
+                "# nix-pin-version: 2.11.3",
                 'rev = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";',
             ]
         )
-        self.assertIn("2.11.2", declared_versions(before))
-        bumped = before.replace('version = "2.11.2";', 'version = "2.11.3";')
+        self.assertIn("2.11.3", declared_versions(before))
+        bumped = before.replace('version = "2.11.3";', 'version = "2.11.4";')
         pins = PIN_PATTERN.findall(bumped)
-        self.assertEqual(pins, ["2.11.2"])
+        self.assertEqual(pins, ["2.11.3"])
         self.assertNotIn(pins[0], declared_versions(bumped))
 
     def test_markers_match_declared_versions(self):
