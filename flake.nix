@@ -1456,6 +1456,7 @@
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_missing" snapshotMetricsScript;
+              assert pkgs.lib.hasInfix "zfs_snapshot_dataset_exists" snapshotMetricsScript;
               assert !(pkgs.lib.hasInfix "|| echo" snapshotMetricsScript);
               assert pkgs.lib.hasInfix "zfs-snapshot-metrics.sh" forge.systemd.services.zfs-snapshot-metrics.script;
               assert builtins.hasAttr "zfs-snapshot-dataset-missing" forge.modules.alerting.rules;

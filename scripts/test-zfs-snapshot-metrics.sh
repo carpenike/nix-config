@@ -59,6 +59,9 @@ if grep -vE '^[[:space:]]*#' "$script" | grep -nE '\|\| *echo'; then
   fail "script still appends a fallback echo after a pipeline"
 fi
 
+# pre-commit runs shellcheck per file and does not pass -x, so it will not
+# follow this source. The directive still documents the file for a manual -x run.
+# shellcheck disable=SC1091
 # shellcheck source=scripts/zfs-snapshot-metrics.sh
 source "$script"
 
@@ -82,107 +85,47 @@ cat >>"$fake_bin/zfs" <<'FAKE'
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-  echo "fake zfs: expected a subcommand and a dataset" >&2
+  echo "fake zfs: expected a list command" >&2
   exit 2
 fi
 
 cmd=$1
 shift
-target=""
-for arg in "$@"; do
-  target=$arg
-done
-
 joined=""
 printf -v joined ' %s ' "$@"
 
-exists=0
-case "$target" in
-  tank/services/plex | tank/services/empty | tank/services/badtime) exists=1 ;;
-esac
+if [[ "$cmd" != "list" ]]; then
+  echo "fake zfs: unhandled command: $cmd" >&2
+  exit 2
+fi
 
-case "$cmd" in
-  list)
-    if [[ "$joined" == *" snapshot "* ]]; then
-      if [[ "$exists" -ne 1 ]]; then
-        echo "cannot open '$target': dataset does not exist" >&2
-        exit 1
-      fi
-      if [[ "$target" == "tank/services/empty" ]]; then
-        echo "no datasets available" >&2
-        exit 1
-      fi
-      if [[ "$joined" == *" used "* ]]; then
-        case "$target" in
-          tank/services/plex) printf '100\n250\n5\n' ;;
-          tank/services/badtime) printf '10\n' ;;
-          *)
-            echo "fake zfs: no used fixture for $target" >&2
-            exit 2
-            ;;
-        esac
-        exit 0
-      fi
-      if [[ "$joined" == *" creation "* ]]; then
-        case "$target" in
-          tank/services/plex)
-            printf '%s\n' "tank/services/plex@autosnap_old" "tank/services/plex@autosnap_new"
-            ;;
-          tank/services/badtime)
-            printf '%s\n' "tank/services/badtime@autosnap_bad"
-            ;;
-          *)
-            echo "fake zfs: no creation fixture for $target" >&2
-            exit 2
-            ;;
-        esac
-        exit 0
-      fi
-      case "$target" in
-        tank/services/plex)
-          printf '%s\n' \
-            "tank/services/plex@autosnap_old" \
-            "tank/services/plex/child@snap" \
-            "tank/services/plex@autosnap_new"
-          ;;
-        tank/services/badtime)
-          printf '%s\n' "tank/services/badtime@autosnap_bad"
-          ;;
-        *)
-          echo "fake zfs: no name fixture for $target" >&2
-          exit 2
-          ;;
-      esac
-      exit 0
-    fi
-
-    if [[ "$exists" -eq 1 ]]; then
-      printf '%s\n' "$target"
-      exit 0
-    fi
-    if [[ "$target" == "tank/services/unreadable" ]]; then
-      echo "cannot open '$target': permission denied" >&2
-    else
-      echo "cannot open '$target': dataset does not exist" >&2
-    fi
+if [[ "$joined" == *" snapshot "* ]]; then
+  if [[ -n "${ZFS_FAIL_SNAPSHOTS:-}" ]]; then
+    echo "cannot list snapshots" >&2
     exit 1
-    ;;
-  get)
-    case "$target" in
-      tank/services/plex@autosnap_new) printf '1700001000\n' ;;
-      tank/services/plex@autosnap_old) printf '1700000000\n' ;;
-      tank/services/badtime@autosnap_bad) printf 'nope\n' ;;
-      *)
-        echo "cannot open '$target': dataset does not exist" >&2
-        exit 1
-        ;;
-    esac
-    ;;
-  *)
-    echo "fake zfs: unhandled command: $cmd" >&2
-    exit 2
-    ;;
-esac
+  fi
+  if [[ -n "${ZFS_NO_SNAPSHOTS:-}" ]]; then
+    echo "no datasets available" >&2
+    exit 1
+  fi
+  printf '%s\n' \
+    $'tank/services/plex@autosnap_old\t1700000000\t100' \
+    $'tank/services/plex/child@snap\t1700000500\t5' \
+    $'tank/services/plex@autosnap_new\t1700001000\t250' \
+    $'tank/services/badtime@autosnap_bad\tnope\t10'
+  exit 0
+fi
+
+if [[ -n "${ZFS_FAIL_FILESYSTEMS:-}" ]]; then
+  echo "cannot list filesystems" >&2
+  exit 1
+fi
+
+printf '%s\n' \
+  tank/services/plex \
+  tank/services/plex/child \
+  tank/services/empty \
+  tank/services/badtime
 FAKE
 chmod 755 "$fake_bin/zfs"
 
@@ -206,23 +149,33 @@ run_metrics \
   2>"$stderr"
 
 check_metrics "$metrics"
+[[ "$(stat -c %a "$metrics")" == "644" ]] || fail "published metrics file is not mode 644"
 
-assert_line '# HELP zfs_snapshot_dataset_missing 1 when a declared Sanoid dataset is missing or unreadable' "$metrics"
+assert_line '# HELP zfs_snapshot_dataset_missing 1 when a declared Sanoid dataset is missing or its snapshot rows were unreadable' "$metrics"
 assert_line '# TYPE zfs_snapshot_dataset_missing gauge' "$metrics"
+assert_line '# HELP zfs_snapshot_dataset_exists 1 when a configured Sanoid dataset exists in the pool' "$metrics"
+assert_line '# TYPE zfs_snapshot_dataset_exists gauge' "$metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/plex"} 1' "$metrics"
 assert_line 'zfs_snapshot_dataset_info{dataset="tank/services/plex"} 1' "$metrics"
 assert_line 'zfs_snapshot_count{dataset="tank/services/plex"} 2' "$metrics"
 assert_line 'zfs_snapshot_latest_timestamp{dataset="tank/services/plex"} 1700001000' "$metrics"
-# used -r includes the child snapshot (100+250+5). count does not.
+# Child snapshot used bytes roll up to the parent (100+250+5). Count does not.
 assert_line 'zfs_snapshot_total_used_bytes{dataset="tank/services/plex"} 355' "$metrics"
+assert_absent 'zfs_snapshot_dataset_missing{dataset="tank/services/plex"}' "$metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/empty"} 1' "$metrics"
 assert_line 'zfs_snapshot_dataset_info{dataset="tank/services/empty"} 1' "$metrics"
 assert_line 'zfs_snapshot_count{dataset="tank/services/empty"} 0' "$metrics"
 assert_line 'zfs_snapshot_total_used_bytes{dataset="tank/services/empty"} 0' "$metrics"
 assert_absent 'zfs_snapshot_latest_timestamp{dataset="tank/services/empty"}' "$metrics"
+assert_absent 'zfs_snapshot_dataset_missing{dataset="tank/services/empty"}' "$metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/openproject"} 0' "$metrics"
 assert_line 'zfs_snapshot_dataset_missing{dataset="tank/services/openproject"} 1' "$metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/unreadable"} 0' "$metrics"
 assert_line 'zfs_snapshot_dataset_missing{dataset="tank/services/unreadable"} 1' "$metrics"
 assert_absent 'zfs_snapshot_count{dataset="tank/services/openproject"}' "$metrics"
 assert_absent 'zfs_snapshot_dataset_info{dataset="tank/services/openproject"}' "$metrics"
 assert_absent 'zfs_snapshot_total_used_bytes{dataset="tank/services/openproject"}' "$metrics"
+assert_absent 'zfs_snapshot_latest_timestamp{dataset="tank/services/openproject"}' "$metrics"
 assert_absent 'zfs_snapshot_count{dataset="tank/services/unreadable"}' "$metrics"
 assert_absent 'dataset="tank/services/plex/child"' "$metrics"
 
@@ -243,9 +196,11 @@ count_lines=$(grep -c '^zfs_snapshot_count{' "$metrics")
 bad_metrics=$root/bad.prom
 bash "$script" --metrics-file "$bad_metrics" tank/services/badtime 2>"$root/bad.stderr"
 check_metrics "$bad_metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/badtime"} 1' "$bad_metrics"
 assert_line 'zfs_snapshot_dataset_missing{dataset="tank/services/badtime"} 1' "$bad_metrics"
 assert_absent 'zfs_snapshot_count{dataset="tank/services/badtime"}' "$bad_metrics"
 assert_absent 'zfs_snapshot_dataset_info{dataset="tank/services/badtime"}' "$bad_metrics"
+assert_absent 'zfs_snapshot_latest_timestamp{dataset="tank/services/badtime"}' "$bad_metrics"
 grep -F 'omitting dataset with unreadable snapshot metrics: tank/services/badtime' "$root/bad.stderr" >/dev/null \
   || fail "bad timestamp was not logged"
 
@@ -286,7 +241,7 @@ grep -F 'rejected on purpose' "$root/prom.stderr" >/dev/null || fail "promtool s
 isolated=$root/isolated-bin
 mkdir -p "$isolated"
 ln -s "$fake_bin/zfs" "$isolated/zfs"
-for tool in bash cat awk grep mktemp chmod mv mkdir dirname tail rm; do
+for tool in bash cat awk grep mktemp chmod mv mkdir dirname tail rm wc; do
   ln -s "$(command -v "$tool")" "$isolated/$tool"
 done
 noprom=$root/noprom.prom
@@ -317,6 +272,42 @@ if ! PROMTOOL=$real_promtool bash "$script" --metrics-file "$metrics" tank/servi
 fi
 check_metrics "$metrics"
 assert_line 'zfs_snapshot_count{dataset="tank/services/empty"} 0' "$metrics"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/empty"} 1' "$metrics"
 assert_absent 'zfs_snapshot_dataset_missing{dataset="tank/services/empty"}' "$metrics"
+assert_absent 'zfs_snapshot_latest_timestamp{dataset="tank/services/empty"}' "$metrics"
+
+# A pool with no snapshots is an empty table, not a failed zfs list.
+# Every existing dataset is count 0 / used 0 and has no timestamp, so the age
+# alerts cannot treat a fake 0 creation as ancient.
+nosnap=$root/nosnap.prom
+ZFS_NO_SNAPSHOTS=1 bash "$script" --metrics-file "$nosnap" \
+  tank/services/plex tank/services/empty tank/services/openproject \
+  >"$root/nosnap.stdout" 2>"$root/nosnap.stderr"
+check_metrics "$nosnap"
+assert_line 'zfs_snapshot_count{dataset="tank/services/plex"} 0' "$nosnap"
+assert_line 'zfs_snapshot_total_used_bytes{dataset="tank/services/plex"} 0' "$nosnap"
+assert_line 'zfs_snapshot_count{dataset="tank/services/empty"} 0' "$nosnap"
+assert_absent 'zfs_snapshot_latest_timestamp{' "$nosnap"
+assert_line 'zfs_snapshot_dataset_exists{dataset="tank/services/openproject"} 0' "$nosnap"
+assert_line 'zfs_snapshot_dataset_missing{dataset="tank/services/openproject"} 1' "$nosnap"
+if grep -Eq '^[0-9]+$' "$nosnap"; then
+  fail "bare number line when the pool has no snapshots"
+fi
+
+# A failed filesystem or snapshot list must not replace the previous file.
+printf 'zfs_sentinel 1\n' >"$metrics"
+if ZFS_FAIL_FILESYSTEMS=1 bash "$script" --metrics-file "$metrics" tank/services/plex \
+  >"$root/failfs.stdout" 2>"$root/failfs.stderr"; then
+  fail "filesystem list failure was published"
+fi
+assert_line 'zfs_sentinel 1' "$metrics"
+grep -F 'zfs list failed' "$root/failfs.stderr" >/dev/null || fail "filesystem list failure was not logged"
+
+if ZFS_FAIL_SNAPSHOTS=1 bash "$script" --metrics-file "$metrics" tank/services/plex \
+  >"$root/failsn.stdout" 2>"$root/failsn.stderr"; then
+  fail "snapshot list failure was published"
+fi
+assert_line 'zfs_sentinel 1' "$metrics"
+grep -F 'zfs list snapshots failed' "$root/failsn.stderr" >/dev/null || fail "snapshot list failure was not logged"
 
 echo "zfs-snapshot-metrics tests passed"

@@ -802,7 +802,7 @@ in
       };
       script = ''
         set -euo pipefail
-        exec ${lib.getExe pkgs.bash} ${../../scripts/zfs-snapshot-metrics.sh} \
+        exec ${lib.getExe pkgs.bash} ${../../../scripts/zfs-snapshot-metrics.sh} \
           --metrics-file /var/lib/node_exporter/textfile_collector/zfs_snapshots.prom \
           -- ${datasetArgs}
       '';

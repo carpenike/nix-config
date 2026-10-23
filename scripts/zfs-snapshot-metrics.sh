@@ -2,12 +2,19 @@
 # Write node_exporter textfile metrics for Sanoid autosnap datasets.
 #
 # A missing dataset used to be counted with grep -c, which prints 0 and exits
-# 1 when nothing matches. A fallback echo then appended a second 0. The
-# textfile contained a stray line, node_exporter rejected the whole file
-# ("invalid metric name"), and every dataset's snapshot series disappeared.
-# Capture exactly one integer, and publish only after the file parses. A
-# dataset that cannot be listed is a single zfs_snapshot_dataset_missing
-# sample; its count, age, and space series are omitted.
+# 1 when nothing matches. A fallback echo then appended a second 0. The used
+# sum had the same shape: awk prints an empty line when zfs returns no rows,
+# then the fallback echo adds a bare 0. The textfile contained a stray line,
+# node_exporter rejected the whole file ("invalid metric name"), and every
+# dataset's snapshot series disappeared.
+#
+# Filesystems and snapshots are listed once. Count, newest creation, and
+# recursive snapshot usage (child snapshots roll up to ancestors, matching
+# `zfs list -t snapshot -o used -r`) are integers from that table. A dataset
+# with zero snapshots gets count 0, used 0, and no latest-timestamp sample, so
+# the age alerts do not see a fake epoch-0 creation. A dataset that is not in
+# the filesystem list is not given those series. A failing zfs list keeps the
+# previous file.
 
 # shellcheck shell=bash
 
@@ -56,52 +63,137 @@ one_integer() {
   printf '%s' "$value"
 }
 
-# Series for a dataset that zfs list was able to open. Stdout is the samples.
-# A value that is not one integer is a failure so the caller can emit the
-# missing signal instead of a partial or malformed block.
-emit_present() {
-  local dataset=$1
-  local escaped snapshot_names snapshot_count latest_name latest_timestamp total_used
+# List filesystems and snapshots once. A pool with no snapshots exits 1 and
+# prints "no datasets available"; that is an empty table, not a failed read.
+# Any other zfs failure returns 1 so the previous metrics file stays in place.
+read_zfs_lists() {
+  local fs_file=$1
+  local snap_file=$2
+  local err_file=$3
+  local err_text=""
+  local snap_status=0
+
+  if ! zfs list -H -o name -t filesystem,volume >"$fs_file" 2>"$err_file"; then
+    echo "zfs-snapshot-metrics: zfs list failed; keeping previous metrics" >&2
+    cat "$err_file" >&2
+    return 1
+  fi
+
+  zfs list -H -p -t snapshot -o name,creation,used >"$snap_file" 2>"$err_file" || snap_status=$?
+  if [[ "$snap_status" -ne 0 ]]; then
+    err_text=$(cat "$err_file")
+    if [[ ! -s "$snap_file" && "$err_text" == *"no datasets available"* ]]; then
+      : >"$snap_file"
+      return 0
+    fi
+    echo "zfs-snapshot-metrics: zfs list snapshots failed; keeping previous metrics" >&2
+    printf '%s\n' "$err_text" >&2
+    return 1
+  fi
+}
+
+# gawk (the unit's awk). One summary row per requested dataset:
+#   ok|missing|bad, count, latest|- , used, dataset
+summarize_snapshots() {
+  local datasets_file=$1
+  local fs_file=$2
+  local snap_file=$3
+  awk '
+    ARGIND == 1 {
+      if ($0 != "") {
+        n++
+        ds[n] = $0
+        wanted[$0] = 1
+      }
+      next
+    }
+    ARGIND == 2 {
+      if ($0 != "") exists[$0] = 1
+      next
+    }
+    ARGIND == 3 {
+      if ($0 == "") next
+      split($0, f, "\t")
+      if (f[1] == "") next
+      at = index(f[1], "@")
+      if (at == 0) next
+      d = substr(f[1], 1, at - 1)
+      creation = f[2]
+      bytes = f[3]
+      if (creation ~ /^[0-9]+$/) {
+        count[d]++
+        if (!(d in latest) || creation + 0 > latest[d] + 0) latest[d] = creation
+      } else {
+        bad[d] = 1
+      }
+      p = d
+      if (bytes ~ /^[0-9]+$/) {
+        while (p != "") {
+          used[p] += bytes
+          if (!sub(/\/[^\/]*$/, "", p)) break
+        }
+      } else {
+        while (p != "") {
+          bad[p] = 1
+          if (!sub(/\/[^\/]*$/, "", p)) break
+        }
+      }
+      next
+    }
+    END {
+      for (i = 1; i <= n; i++) {
+        name = ds[i]
+        if (!(name in exists)) {
+          printf "missing\t0\t-\t0\t%s\n", name
+        } else if (name in bad) {
+          printf "bad\t0\t-\t0\t%s\n", name
+        } else {
+          if (name in latest) ts = latest[name]
+          else ts = "-"
+          printf "ok\t%d\t%s\t%d\t%s\n", count[name] + 0, ts, used[name] + 0, name
+        }
+      }
+    }
+  ' "$datasets_file" "$fs_file" "$snap_file"
+}
+
+# Stdout is the samples for one summary row.
+emit_summary_line() {
+  local state=$1
+  local count=$2
+  local latest=$3
+  local used=$4
+  local dataset=$5
+  local escaped
   escaped=$(prom_escape "$dataset")
-
-  # No snapshots is a successful empty list (zfs exits 1, "no datasets
-  # available"). Do not append another number on that failure.
-  snapshot_names=$(zfs list -H -t snapshot -o name -r "$dataset" 2>/dev/null || true)
-  snapshot_count=$(
-    printf '%s\n' "$snapshot_names" | SNAPSHOT_DATASET=$dataset awk '
-      BEGIN { n = 0 }
-      index($0, ENVIRON["SNAPSHOT_DATASET"] "@") == 1 { n++ }
-      END { print n + 0 }
-    '
-  )
-  snapshot_count=$(one_integer "$snapshot_count") || return 1
-
-  # -s creation is ascending, so the last line is the newest snapshot of this
-  # dataset. Children are not included (no -r), matching the previous query.
-  latest_name=$(zfs list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || true)
-  latest_timestamp=""
-  if [[ -n "$latest_name" ]]; then
-    latest_timestamp=$(zfs get -H -p -o value creation "$latest_name" 2>/dev/null || true)
-    latest_timestamp=$(one_integer "$latest_timestamp") || return 1
-  fi
-
-  # -r includes child datasets, as the previous used-bytes sum did.
-  # awk prints one integer even when zfs exits 1 with no rows.
-  total_used=$(
-    zfs list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | awk '
-      BEGIN { sum = 0 }
-      { sum += $1 }
-      END { print sum + 0 }
-    ' || true
-  )
-  total_used=$(one_integer "$total_used") || return 1
-
-  printf 'zfs_snapshot_dataset_info{dataset="%s"} 1\n' "$escaped"
-  printf 'zfs_snapshot_count{dataset="%s"} %s\n' "$escaped" "$snapshot_count"
-  if [[ -n "$latest_timestamp" ]]; then
-    printf 'zfs_snapshot_latest_timestamp{dataset="%s"} %s\n' "$escaped" "$latest_timestamp"
-  fi
-  printf 'zfs_snapshot_total_used_bytes{dataset="%s"} %s\n' "$escaped" "$total_used"
+  case "$state" in
+    missing)
+      echo "zfs-snapshot-metrics: dataset missing or unreadable: ${dataset}" >&2
+      printf 'zfs_snapshot_dataset_exists{dataset="%s"} 0\n' "$escaped"
+      printf 'zfs_snapshot_dataset_missing{dataset="%s"} 1\n' "$escaped"
+      ;;
+    bad)
+      echo "zfs-snapshot-metrics: omitting dataset with unreadable snapshot metrics: ${dataset}" >&2
+      printf 'zfs_snapshot_dataset_exists{dataset="%s"} 1\n' "$escaped"
+      printf 'zfs_snapshot_dataset_missing{dataset="%s"} 1\n' "$escaped"
+      ;;
+    ok)
+      count=$(one_integer "$count") || return 1
+      used=$(one_integer "$used") || return 1
+      printf 'zfs_snapshot_dataset_exists{dataset="%s"} 1\n' "$escaped"
+      printf 'zfs_snapshot_dataset_info{dataset="%s"} 1\n' "$escaped"
+      printf 'zfs_snapshot_count{dataset="%s"} %s\n' "$escaped" "$count"
+      if [[ "$latest" != "-" ]]; then
+        latest=$(one_integer "$latest") || return 1
+        printf 'zfs_snapshot_latest_timestamp{dataset="%s"} %s\n' "$escaped" "$latest"
+      fi
+      printf 'zfs_snapshot_total_used_bytes{dataset="%s"} %s\n' "$escaped" "$used"
+      ;;
+    *)
+      echo "zfs-snapshot-metrics: bad summary state for ${dataset}: ${state}" >&2
+      return 1
+      ;;
+  esac
 }
 
 # Every non-comment line must be one sample. This is the backstop when
@@ -150,20 +242,38 @@ main() {
     exit 1
   fi
 
-  local metrics_dir tmp lint
+  local metrics_dir tmp lint datasets_file fs_file snap_file summary_file list_err
+  local summary_rows state count latest used dataset
   metrics_dir=$(dirname -- "$metrics_file")
   mkdir -p -- "$metrics_dir"
   tmp=$(mktemp "${metrics_file}.XXXXXX")
   lint=$(mktemp "${metrics_file}.lint.XXXXXX")
+  datasets_file=$(mktemp "${metrics_file}.datasets.XXXXXX")
+  fs_file=$(mktemp "${metrics_file}.fs.XXXXXX")
+  snap_file=$(mktemp "${metrics_file}.snaps.XXXXXX")
+  summary_file=$(mktemp "${metrics_file}.summary.XXXXXX")
+  list_err=$(mktemp "${metrics_file}.zerr.XXXXXX")
   cleanup() {
-    rm -f -- "$tmp" "$lint"
+    rm -f -- "$tmp" "$lint" "$datasets_file" "$fs_file" "$snap_file" "$summary_file" "$list_err"
   }
   trap cleanup EXIT
+
+  printf '%s\n' "${datasets[@]}" >"$datasets_file"
+  read_zfs_lists "$fs_file" "$snap_file" "$list_err"
+  summarize_snapshots "$datasets_file" "$fs_file" "$snap_file" >"$summary_file"
+  summary_rows=$(wc -l <"$summary_file")
+  summary_rows=$((summary_rows))
+  if [[ "$summary_rows" -ne ${#datasets[@]} ]]; then
+    echo "zfs-snapshot-metrics: expected ${#datasets[@]} summary rows, got ${summary_rows}; keeping ${metrics_file}" >&2
+    exit 1
+  fi
 
   cat >"$tmp" <<'EOF'
 # HELP zfs_snapshot_dataset_info 1 when a Sanoid dataset exists and its snapshot series are reported
 # TYPE zfs_snapshot_dataset_info gauge
-# HELP zfs_snapshot_dataset_missing 1 when a declared Sanoid dataset is missing or unreadable
+# HELP zfs_snapshot_dataset_exists 1 when a configured Sanoid dataset exists in the pool
+# TYPE zfs_snapshot_dataset_exists gauge
+# HELP zfs_snapshot_dataset_missing 1 when a declared Sanoid dataset is missing or its snapshot rows were unreadable
 # TYPE zfs_snapshot_dataset_missing gauge
 # HELP zfs_snapshot_count Number of snapshots per dataset
 # TYPE zfs_snapshot_count gauge
@@ -173,21 +283,10 @@ main() {
 # TYPE zfs_snapshot_total_used_bytes gauge
 EOF
 
-  local dataset series escaped
-  for dataset in "${datasets[@]}"; do
-    escaped=$(prom_escape "$dataset")
-    if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-      echo "zfs-snapshot-metrics: dataset missing or unreadable: ${dataset}" >&2
-      printf 'zfs_snapshot_dataset_missing{dataset="%s"} 1\n' "$escaped" >>"$tmp"
-      continue
-    fi
-    if ! series=$(emit_present "$dataset"); then
-      echo "zfs-snapshot-metrics: omitting dataset with unreadable snapshot metrics: ${dataset}" >&2
-      printf 'zfs_snapshot_dataset_missing{dataset="%s"} 1\n' "$escaped" >>"$tmp"
-      continue
-    fi
-    printf '%s\n' "$series" >>"$tmp"
-  done
+  while IFS=$'\t' read -r state count latest used dataset; do
+    [[ -n "$state" ]] || continue
+    emit_summary_line "$state" "$count" "$latest" "$used" "$dataset"
+  done <"$summary_file" >>"$tmp"
 
   # Test seam: append a raw line so the pre-publish check can be forced to fail.
   if [[ -n "${ZFS_SNAPSHOT_METRICS_INJECT:-}" ]]; then
@@ -219,9 +318,13 @@ EOF
     esac
   fi
 
+  # mktemp is mode 0600. Make the file readable before the rename so the
+  # published inode is 0644 with no window where node_exporter cannot read it.
+  chmod 644 -- "$tmp"
   mv -f -- "$tmp" "$metrics_file"
-  chmod 644 -- "$metrics_file"
-  rm -f -- "$lint"
+  # The published file used to be $tmp. Remove the list temps explicitly so a
+  # cleared EXIT trap cannot leave them beside the textfile collector.
+  cleanup
   trap - EXIT
 }
 
