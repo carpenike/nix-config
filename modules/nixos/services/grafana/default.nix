@@ -28,6 +28,18 @@ let
 
   # Construct the dataset path for grafana
   datasetPath = "${storageCfg.datasets.parentDataset}/grafana";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = cfg.zfs.dataset != null && (storageCfg.datasets.enable or false);
+    dataset = datasetPath;
+    mountpoint = cfg.dataDir;
+    preseedUnit = if cfg.preseed.enable then "preseed-grafana.service" else null;
+    inherit allowEmptyBootstrap;
+    afterZfsMount = true;
+  };
 
   # Shared dashboard provider type so downstream contributions stay consistent
   dashboardProviderType = types.submodule {
@@ -583,11 +595,10 @@ in
             ReadWritePaths = [ cfg.dataDir ];
           };
 
-          # Service dependencies for ZFS dataset mounting and preseed
-          after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-            ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
-          wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-            ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
+          requires = datasetDeps.requires;
+          wants = datasetDeps.wants;
+          after = datasetDeps.after;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
         };
 
         systemd.services.grafana.serviceConfig.LoadCredential = mkIf (integrationLoadCredentials != [ ]) (

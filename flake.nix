@@ -516,6 +516,71 @@
                 python3 ${./tests/renovate/test_extraction.py}
                 touch "$out"
               '';
+            dataset-unit-deps =
+              let
+                lib = pkgs.lib;
+                helpers = import ./modules/nixos/storage/helpers-lib.nix { inherit pkgs lib; };
+                anchor = helpers.datasetAnchorUnit;
+                sync = helpers.datasetSyncUnit;
+                blocked = helpers.datasetUnitDeps {
+                  dataset = "tank/services/example";
+                  mountpoint = "/var/lib/example";
+                  preseedUnit = "preseed-example.service";
+                  allowEmptyBootstrap = false;
+                  afterZfsMount = true;
+                };
+                emptyBootstrap = helpers.datasetUnitDeps {
+                  dataset = "tank/services/example";
+                  preseedUnit = "preseed-example.service";
+                  allowEmptyBootstrap = true;
+                };
+                unmanaged = helpers.datasetUnitDeps {
+                  managed = false;
+                  dataset = "tank/services/example";
+                  mountpoint = "/var/lib/example";
+                  preseedUnit = "preseed-example.service";
+                  allowEmptyBootstrap = true;
+                };
+                preseed = helpers.mkPreseedService {
+                  serviceName = "example";
+                  dataset = "tank/services/example";
+                  mountpoint = "/var/lib/example";
+                  mainServiceUnit = "example.service";
+                  resticRepoUrl = "rest:http://backup.example";
+                  resticPasswordFile = "/run/secrets/restic";
+                  resticPaths = [ "/var/lib/example" ];
+                  replicationCfg = {
+                    targetHost = "backup.example";
+                    targetDataset = "backup/example";
+                    sshUser = "root";
+                    sshKeyPath = "/var/lib/zfs-replication/.ssh/id_ed25519";
+                    sendOptions = "w";
+                    recvOptions = "u";
+                  };
+                };
+                preseedUnit = preseed.systemd.services.preseed-example;
+                createCount = lib.length (lib.splitString ''"$ZFS" create'' preseedUnit.script) - 1;
+                contract =
+                  blocked.requires == [ anchor "preseed-example.service" ]
+                    && blocked.wants == [ sync "zfs-mount.service" ]
+                    && blocked.after == [ anchor sync "zfs-mount.service" "preseed-example.service" ]
+                    && !(lib.elem sync blocked.requires)
+                    && lib.hasInfix "findmnt" blocked.preStart
+                    && emptyBootstrap.requires == [ anchor ]
+                    && lib.elem "preseed-example.service" emptyBootstrap.wants
+                    && emptyBootstrap.preStart == ""
+                    && unmanaged.requires == [ ]
+                    && unmanaged.wants == [ "preseed-example.service" ]
+                    && unmanaged.after == [ "preseed-example.service" ]
+                    && unmanaged.preStart == ""
+                    && lib.elem sync (preseedUnit.wants or [ ])
+                    && lib.elem sync preseedUnit.after
+                    && !(lib.elem sync (preseedUnit.requires or [ ]))
+                    && lib.hasInfix "recreate_destroyed_dataset()" preseedUnit.script
+                    && createCount == 1;
+              in
+              assert lib.assertMsg contract "datasetUnitDeps / preseed recreate contract changed";
+              pkgs.runCommand "dataset-unit-deps" { } "touch $out";
             openproject-runtime =
               let
                 lib = pkgs.lib;

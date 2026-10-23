@@ -102,6 +102,17 @@ let
   tokenFileOn = cfg: "${appDirOn cfg}/github_token";
   configFileOn = cfg: "${appDirOn cfg}/config.json";
   generatedKeyFile = cfg: "${cfg.dataDir}/api-key";
+  storageHelpers = mylib.storageHelpers pkgs;
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = config.modules.storage.datasets.enable or false;
+    dataset = "${config.modules.storage.datasets.parentDataset}/${serviceName}";
+    mountpoint = cfgRef.dataDir;
+    preseedUnit = if (cfgRef.preseed.enable or false) then "preseed-${serviceName}.service" else null;
+    allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+      inherit config;
+      datasetName = serviceName;
+    };
+  };
 
   # One-shot device-code login. Bypasses the image entrypoint (which only
   # knows `--auth` → bare `auth`, a parent command that prints usage) and
@@ -279,12 +290,14 @@ mylib.mkContainerService {
         before = [ mainServiceUnit ];
         requiredBy = [ mainServiceUnit ];
         partOf = [ mainServiceUnit ];
-        # Must not run before the dataset is mounted (and, on a rebuild,
-        # restored): on 2026-09-04 this unit fired at multi-user.target ahead
-        # of zfs-service-datasets, created <dataDir>/data on the root
-        # filesystem, and the dataset was never created underneath it.
-        after = [ "zfs-service-datasets.service" "preseed-${serviceName}.service" ];
-        requires = [ "zfs-service-datasets.service" ];
+        # Writes <dataDir>/api-key and <dataDir>/data. datasetUnitDeps waits
+        # for creation and refuses to start unless dataDir is that dataset.
+        # (2026-09-04: this unit created <dataDir>/data on the root filesystem
+        # before the dataset existed, and the mount never happened.)
+        requires = datasetDeps.requires;
+        wants = datasetDeps.wants;
+        after = datasetDeps.after;
+        preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
 
         serviceConfig = {
           Type = "oneshot";

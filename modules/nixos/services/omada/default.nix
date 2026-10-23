@@ -24,6 +24,15 @@ let
     inherit config;
     datasetName = "omada";
   };
+  # dataDir is /var/lib/omada/data. The dataset mounts at stateDir, so the
+  # guard checks that path. findmnt on the subdirectory would fail open.
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = storageCfg.datasets.enable or false;
+    dataset = datasetPath;
+    mountpoint = stateDir;
+    preseedUnit = if cfg.preseed.enable then "preseed-omada.service" else null;
+    inherit allowEmptyBootstrap;
+  };
 in
 {
   options.modules.services.omada = {
@@ -335,17 +344,13 @@ in
         (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           unitConfig.OnFailure = [ "notify@omada-failure:%n.service" ];
         })
-        (lib.mkIf cfg.preseed.enable {
-          requires = lib.optional (!allowEmptyBootstrap) "preseed-omada.service";
-          wants = [ "zfs-service-datasets.service" ]
-            ++ lib.optional allowEmptyBootstrap "preseed-omada.service";
-          after = [ "zfs-service-datasets.service" "preseed-omada.service" ];
-        })
+        {
+          requires = datasetDeps.requires;
+          wants = datasetDeps.wants;
+          after = datasetDeps.after;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
+        }
       ];
-
-      systemd.services."preseed-omada" = lib.mkIf cfg.preseed.enable {
-        wants = [ "zfs-service-datasets.service" ];
-      };
 
       modules.notifications.templates.omada-failure = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         enable = lib.mkDefault true;

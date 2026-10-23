@@ -30,7 +30,7 @@
 #     };
 #   };
 
-{ lib, mylib, config, ... }:
+{ lib, mylib, config, pkgs, ... }:
 
 let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
@@ -153,6 +153,14 @@ let
   # Service name and data directory
   serviceName = "homepage";
   dataDir = "/var/lib/homepage-dashboard";
+  storageHelpers = mylib.storageHelpers pkgs;
+  storageCfg = config.modules.storage;
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = cfg.zfs.dataset != null && (storageCfg.datasets.enable or false);
+    dataset = "${storageCfg.datasets.parentDataset}/homepage";
+    mountpoint = dataDir;
+    afterZfsMount = true;
+  };
 in
 {
   options.modules.services.homepage = {
@@ -422,9 +430,10 @@ in
           OnFailure = [ "notify@homepage-failure:%n.service" ];
         };
 
-      # Service dependencies for ZFS dataset mounting
-      after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
-      wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
+      requires = datasetDeps.requires;
+      wants = datasetDeps.wants;
+      after = datasetDeps.after;
+      preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
 
       serviceConfig = {
         # Disable DynamicUser to use our static user with proper ZFS ownership

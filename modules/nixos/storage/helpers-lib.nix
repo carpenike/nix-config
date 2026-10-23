@@ -3,7 +3,92 @@
 # Import with: storageHelpers = import ./helpers-lib.nix { inherit pkgs lib; };
 
 { pkgs, lib }:
+
+let
+  datasetAnchorUnit = "zfs-service-datasets.service";
+  datasetSyncUnit = "zfs-service-datasets-sync.service";
+
+  /*
+    Shell snippet that exits non-zero unless `mountpoint` is currently a mount
+    of ZFS dataset `dataset`.
+
+    Opt-in. Dataset creation stays in zfs-service-datasets-sync; this only
+    refuses to start a service whose data directory is still on the parent
+    filesystem (impermanence roots roll that back). `findmnt --mountpoint`
+    reports the filesystem mounted exactly at that path, so pass the dataset
+    mountpoint, not a subdirectory of it. On these hosts SOURCE for a ZFS
+    mount is the dataset name (for example tank/services/litellm).
+  */
+  assertDatasetMounted = { dataset, mountpoint }: ''
+    mounted_source=$(${pkgs.util-linux}/bin/findmnt --noheadings --output SOURCE --mountpoint ${lib.escapeShellArg mountpoint} || true)
+    if [ "$mounted_source" != ${lib.escapeShellArg dataset} ]; then
+      echo "${mountpoint} is not backed by ZFS dataset ${dataset} (mounted: ''${mounted_source:-nothing})." >&2
+      echo "Refusing to start: the data directory would land on the parent filesystem." >&2
+      exit 1
+    fi
+  '';
+
+  /*
+    One dependency set for a unit whose data lives on a storage-module dataset.
+
+    Requires the anchor. It stays active only after the sync unit has created
+    and mounted every declared dataset, so the service does not start when
+    setup never succeeded. Requires also means a manual restart of the anchor
+    stops this unit (systemd propagates stop along Requires). nixos-rebuild
+    does not restart the anchor (restartIfChanged is false), so a later
+    dataset edit does not bounce consumers.
+
+    Wants the sync unit and orders After it. The first activation waits for
+    dataset creation. Wants does not propagate a later sync restart, so
+    editing another dataset does not restart this service. Do not Requires
+    the sync unit.
+
+    Preseed is Required when allowEmptyBootstrap is false and Wanted
+    otherwise, and ordered After either way. Preseed edges are emitted even
+    when the dataset is not managed here, so a restore-only host keeps them.
+
+    zfs-mount.service is Wanted and ordered After only when afterZfsMount is
+    set, preserving boot edges that already existed. It is not Required: a
+    host without that unit must not fail the service. The sync unit already
+    mounts declared service datasets.
+
+    preStart is the findmnt guard when mountpoint is set and the dataset is
+    managed. Leave mountpoint null when the service path is a subdirectory
+    of the dataset (PostgreSQL's versioned data directory).
+  */
+  datasetUnitDeps =
+    { managed ? true
+    , dataset ? null
+    , mountpoint ? null
+    , preseedUnit ? null
+    , allowEmptyBootstrap ? true
+    , afterZfsMount ? false
+    }:
+    let
+      datasetActive = managed && dataset != null;
+      preseedActive = preseedUnit != null;
+    in
+    {
+      requires =
+        lib.optional datasetActive datasetAnchorUnit
+        ++ lib.optional (preseedActive && !allowEmptyBootstrap) preseedUnit;
+      wants =
+        lib.optional datasetActive datasetSyncUnit
+        ++ lib.optional (datasetActive && afterZfsMount) "zfs-mount.service"
+        ++ lib.optional (preseedActive && allowEmptyBootstrap) preseedUnit;
+      after =
+        lib.optionals datasetActive [ datasetAnchorUnit datasetSyncUnit ]
+        ++ lib.optional (datasetActive && afterZfsMount) "zfs-mount.service"
+        ++ lib.optional preseedActive preseedUnit;
+      preStart =
+        if datasetActive && mountpoint != null
+        then assertDatasetMounted { inherit dataset mountpoint; }
+        else "";
+    };
+in
 {
+  inherit assertDatasetMounted datasetUnitDeps datasetAnchorUnit datasetSyncUnit;
+
   allowEmptyBootstrapFor = { config, datasetName }:
     let
       policy = lib.attrByPath
@@ -115,8 +200,11 @@
         description = "Pre-seed data for ${serviceName} service";
         # Aggregate under storage-preseed target for clearer boot phase orchestration
         wantedBy = [ "storage-preseed.target" ];
-        wants = [ "network-online.target" ]; # Declare dependency to avoid warning
-        after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" "zfs-service-datasets.service" ];
+        # Wants the sync unit, not Requires. A later sync restart must not
+        # restart preseed: that would re-enter restore on a populated dataset.
+        # After the anchor is enough for boot ordering; do not Requires it.
+        wants = [ "network-online.target" datasetSyncUnit ];
+        after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" datasetAnchorUnit datasetSyncUnit ];
         before = [ mainServiceUnit ];
 
         path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd openssh sanoid ];
@@ -139,7 +227,10 @@
                   ZFS="${pkgs.zfs}/bin/zfs"
                   SYNCOID="${pkgs.sanoid}/bin/syncoid"
                   NUMFMT="${pkgs.coreutils}/bin/numfmt"
-                  ${lib.optionalString hasReplication ''DATASET_DESTROYED=false''}
+                  # Set even when this service has no replication source. The
+                  # recreate helper refuses to create a dataset this run did not
+                  # destroy, and `set -u` must not trip on the unset variable.
+                  DATASET_DESTROYED=false
 
                   # Service name for error messages and metrics
                   SERVICE_NAME="${serviceName}"
@@ -195,6 +286,29 @@
                       "$ZFS" set mountpoint="${mountpoint}" "${dataset}" 2>/dev/null || true
                       "$ZFS" mount "${dataset}" 2>/dev/null || true
                     fi
+                  }
+
+                  # Recreate a dataset only after THIS run destroyed it (syncoid
+                  # renames an empty target aside and the rename-back failed).
+                  # Normal creation belongs to zfs-service-datasets-sync.service.
+                  recreate_destroyed_dataset() {
+                    if [ "''${DATASET_DESTROYED:-false}" != "true" ]; then
+                      echo "Dataset ${dataset} is missing, and this preseed run did not destroy it."
+                      echo "Refusing to create it. zfs-service-datasets-sync.service owns dataset creation."
+                      return 1
+                    fi
+                    if "$ZFS" list "${dataset}" &>/dev/null; then
+                      return 0
+                    fi
+                    echo "Recreating ${dataset} destroyed by this preseed run..."
+                    mkdir -p "${mountpoint}"
+                    if ! "$ZFS" create -o mountpoint="${mountpoint}" ${lib.concatStringsSep " " (lib.mapAttrsToList (prop: value: "-o ${prop}=${lib.escapeShellArg value}") datasetProperties)} "${dataset}"; then
+                      echo "Failed to recreate ${dataset}."
+                      return 1
+                    fi
+                    "$ZFS" mount "${dataset}" || echo "Dataset already mounted"
+                    ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
+                    return 0
                   }
 
                   # Helper function to clean up old protective snapshots (keep last 2)
@@ -462,12 +576,15 @@
                     fi
                     echo "Restic pre-flight check successful."
 
-                    # Ensure dataset exists and is mounted before Restic restore
-                    # If syncoid destroyed the dataset, we need to recreate it
+                    # The dataset has to exist before Restic can write into it.
+                    # Recreate only when this run destroyed it. A dataset that
+                    # was never created is the sync unit's job; failing here
+                    # leaves that gap visible instead of papering over it.
                     if ! "$ZFS" list "${dataset}" &>/dev/null; then
-                      echo "Dataset ${dataset} does not exist. Creating for Restic restore..."
-                      mkdir -p "${mountpoint}"
-                      "$ZFS" create -o mountpoint="${mountpoint}" ${lib.concatStringsSep " " (lib.mapAttrsToList (prop: value: "-o ${prop}=${lib.escapeShellArg value}") datasetProperties)} "${dataset}"
+                      if ! recreate_destroyed_dataset; then
+                        echo "Cannot Restic-restore ${serviceName} without dataset ${dataset}."
+                        return 1
+                      fi
                     fi
                     ensure_mounted
 
@@ -648,17 +765,8 @@
                   # we need to recreate it so the service has a filesystem to write to.
                   ${lib.optionalString hasReplication ''
                     if [ "$DATASET_DESTROYED" = "true" ] && ! "$ZFS" list "${dataset}" &>/dev/null; then
-                      echo "Dataset was destroyed but restores failed. Recreating empty dataset with proper properties..."
-                      mkdir -p "${mountpoint}"
-                      "$ZFS" create \
-                        -o mountpoint="${mountpoint}" \
-                        ${lib.concatStringsSep " \\\n              " (lib.mapAttrsToList (prop: value:
-                          "-o ${prop}=${lib.escapeShellArg value}"
-                        ) datasetProperties)} \
-                        "${dataset}"
-                      "$ZFS" mount "${dataset}" || echo "Dataset already mounted"
-                      ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
-                      echo "Empty dataset created. Service can now start fresh."
+                      echo "Dataset was destroyed but restores failed. Recreating the empty dataset..."
+                      recreate_destroyed_dataset || echo "Failed to recreate ${dataset} after restore failure."
                     fi
                   ''}
 
@@ -817,30 +925,4 @@
     then config.modules.storage.nfsMounts.${nfsMountDependency} or null
     else null;
 
-  /*
-    Shell snippet that exits non-zero unless `mountpoint` is currently a mount
-    of ZFS dataset `dataset`.
-
-    Opt-in. Dataset creation stays in zfs-service-datasets-sync; this only
-    refuses to start a service whose data directory is still on the parent
-    filesystem (impermanence roots roll that back). Other modules prepend it
-    to preStart:
-
-      preStart = lib.mkBefore (storageHelpers.assertDatasetMounted {
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-      });
-
-    `findmnt --mountpoint` reports the filesystem mounted exactly at that
-    path. On the hosts here, SOURCE for a ZFS mount is the dataset name
-    (for example tank/services/litellm).
-  */
-  assertDatasetMounted = { dataset, mountpoint }: ''
-    mounted_source=$(${pkgs.util-linux}/bin/findmnt --noheadings --output SOURCE --mountpoint ${lib.escapeShellArg mountpoint} || true)
-    if [ "$mounted_source" != ${lib.escapeShellArg dataset} ]; then
-      echo "${mountpoint} is not backed by ZFS dataset ${dataset} (mounted: ''${mounted_source:-nothing})." >&2
-      echo "Refusing to start: the data directory would land on the parent filesystem." >&2
-      exit 1
-    fi
-  '';
 }
