@@ -9,6 +9,7 @@
 # Build produces:
 #   $out/share/worldmonitor/dist/     — static frontend
 #   $out/share/worldmonitor/api/      — compiled API handlers
+#   $out/share/worldmonitor/shared/   — shared modules the sidecar imports
 #   $out/share/worldmonitor/src-tauri/sidecar/ — local API server
 #   $out/bin/worldmonitor-api          — wrapper script
 
@@ -143,6 +144,14 @@ buildNpmPackage rec {
     mkdir -p $out/share/worldmonitor/src-tauri/sidecar
     cp src-tauri/sidecar/local-api-server.mjs \
        $out/share/worldmonitor/src-tauri/sidecar/
+
+    # Shared runtime modules. Since v2.11.x the sidecar top-level-imports
+    # shared/llm-health-providers.js from its resource root (../.. from the
+    # sidecar), and upstream's Tauri bundle and Dockerfile ship it. Without it
+    # the sidecar exits with ERR_MODULE_NOT_FOUND before listening. Copy the
+    # whole directory so other relative ../shared imports also resolve.
+    # Upstream: https://github.com/koala73/worldmonitor/blob/30aa0940eb6f26056400f14dd01245b2f4ea8005/src-tauri/tauri.conf.json
+    cp -r shared $out/share/worldmonitor/shared
 
     # Data files referenced by API handlers at runtime
     cp -r data $out/share/worldmonitor/data
