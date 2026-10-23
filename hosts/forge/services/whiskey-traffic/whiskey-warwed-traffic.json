@@ -1,0 +1,1402 @@
+{
+  "uid": "www-warwed-traffic",
+  "title": "W.W.W. — warwed.com traffic",
+  "description": "Public-site (warwed.com) traffic from the app's own logs in Loki (30-day retention). Top row works on today's request lines; bottom row uses the structured public page view line once whiskey-whiskey-whiskey ships it. Cloudflare's Free plan has no referrer/query data, so this is the only source for UTM and referrer breakdowns.",
+  "tags": [
+    "whiskey-whiskey-whiskey",
+    "warwed",
+    "traffic"
+  ],
+  "timezone": "America/New_York",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": true,
+  "refresh": "",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "host",
+        "label": "Host",
+        "query": "warwed\\.com",
+        "current": {
+          "text": "warwed\\.com",
+          "value": "warwed\\.com"
+        },
+        "description": "Regex for req.host on request lines (escaped)."
+      },
+      {
+        "type": "textbox",
+        "name": "exclude_ips",
+        "label": "Exclude IPs (regex)",
+        "query": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$",
+        "current": {
+          "text": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$",
+          "value": "^(10\\..*|192\\.168\\..*|172\\.(1[6-9]|2[0-9]|3[01])\\..*|127\\..*|::1|f[cd][0-9a-f]{2}:.*|fe80:.*)$"
+        },
+        "description": "Client IPs to drop (full-match regex). On Forge this default is rewritten at runtime by whiskey-traffic-exclusions to also cover the home public IPv4 address and IPv6 /64; the committed default is LAN/loopback only."
+      },
+      {
+        "type": "custom",
+        "name": "ua_class",
+        "label": "UA class",
+        "query": "human,human|unknown,human|unknown|bot|unfurl",
+        "current": {
+          "text": "human",
+          "value": "human"
+        },
+        "options": [
+          {
+            "text": "human",
+            "value": "human",
+            "selected": true
+          },
+          {
+            "text": "human|unknown",
+            "value": "human|unknown",
+            "selected": false
+          },
+          {
+            "text": "human|unknown|bot|unfurl",
+            "value": "human|unknown|bot|unfurl",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Server request lines — works on today's logs",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [],
+      "description": "Regex over the app's \"incoming request\" lines: GET of public pages on $host. Excludes Cloudflare-range client IPs, the exclude_ips regex, and obvious bot user agents (no-op until the request log carries userAgent). Counts requests, not people; unique IPs are a rough visitor proxy."
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "GET /, /events, /events/<slug>[/competition[/register]], /doctrine in the selected range.",
+      "id": 2,
+      "type": "stat",
+      "title": "Public page requests",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 3,
+      "type": "stat",
+      "title": "Unique client IPs",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(sum by (ip) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__range])))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Newsletter (Mailchimp) links land on http://warwed.com/. The http→https hop is answered upstream (Caddy/Cloudflare) and is never logged by the app; the https request that follows is counted here.",
+      "id": 4,
+      "type": "stat",
+      "title": "Homepage arrivals (GET /)",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` | path=\"/\" [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Requests for /chili, /next, /), and legacy event addresses that redirect to the cook-off page.",
+      "id": 5,
+      "type": "stat",
+      "title": "Known redirect hits",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(chili|next|\\)|events/world-war-wednesdays-greyhound-chili-coo|events/greyhound-chili-cookoff)/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Daily buckets (America/New_York via the dashboard time zone).",
+      "id": 6,
+      "type": "timeseries",
+      "title": "Daily public page requests and unique IPs",
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__interval]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "requests"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(sum by (ip) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__interval])))",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "unique IPs"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 7,
+      "type": "timeseries",
+      "title": "Daily requests by page",
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (path) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__interval]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{path}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 8,
+      "type": "table",
+      "title": "Per-page breakdown",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (path) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Query strings are already logged on request lines. Mailchimp click tracking usually sends no referer, so UTM tags are the reliable source signal.",
+      "id": 9,
+      "type": "table",
+      "title": "UTM source breakdown (untagged row = no utm_*)",
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 8,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (utm_source, utm_medium, utm_campaign) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(events(/[a-z0-9-]+(/competition(/register)?)?)?|doctrine)?/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` | regexp `[?&]utm_source=(?P<utm_source>[^&\"#]+)` | regexp `[?&]utm_medium=(?P<utm_medium>[^&\"#]+)` | regexp `[?&]utm_campaign=(?P<utm_campaign>[^&\"#]+)` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 10,
+      "type": "table",
+      "title": "Redirect paths",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (path) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"incoming request\" |~ `\"host\":\"$host\"` |~ `\"method\":\"GET\",\"url\":\"/(chili|next|\\)|events/world-war-wednesdays-greyhound-chili-coo|events/greyhound-chili-cookoff)/?(\\?[^\"]*)?\"` !~ `\"remoteAddress\":\"(2a06:98c0|2400:cb00|2606:4700|2803:f800|2405:b500|2405:8100|2c0f:f248):` !~ `\"userAgent\":\"[^\"]*(?i:bot|crawl|spider|slurp|scan|curl|wget|python|go-http|okhttp|java/|headless|preview|facebookexternalhit|whatsapp)` | regexp `\"url\":\"(?P<path>[^\"?]*)` | regexp `\"remoteAddress\":\"(?P<ip>[^\"]+)\"` | ip !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Human page views — msg:\"public page view\" (needs whiskey-whiskey-whiskey PR #104 deployed)",
+      "id": 11,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "panels": [],
+      "description": "One structured line per successful public page response. ua_class is human/bot/unfurl/unknown; cloudflare_ip excludes Cloudflare-range clients. Empty until the Whiskey change is deployed."
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 12,
+      "type": "stat",
+      "title": "Page views",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 13,
+      "type": "stat",
+      "title": "Unique client IPs",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(sum by (remoteAddress) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__range])))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 14,
+      "type": "stat",
+      "title": "Homepage views",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` | path=\"/\" [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "proto as seen by the app via X-Forwarded-Proto. Normally 0: the http→https redirect happens upstream.",
+      "id": 15,
+      "type": "stat",
+      "title": "Arrived over plain http",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` | proto=\"http\" [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 16,
+      "type": "timeseries",
+      "title": "Daily page views and unique IPs",
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__interval]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "page views"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(sum by (remoteAddress) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__interval])))",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "unique IPs"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Empty utm_source = untagged.",
+      "id": 17,
+      "type": "timeseries",
+      "title": "Daily page views by UTM source",
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (utm_source) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__interval]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{utm_source}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 18,
+      "type": "table",
+      "title": "Per-page breakdown",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (path) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 19,
+      "type": "table",
+      "title": "UTM breakdown",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 6,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (utm_source, utm_medium, utm_campaign) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "",
+      "id": 20,
+      "type": "table",
+      "title": "Referrer hosts",
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 14,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (ref_host) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json | ua_class=~\"$ua_class\" | cloudflare_ip=\"false\" | remoteAddress !~ `$exclude_ips` [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "description": "Share of bot/unfurl/unknown vs human page views.",
+      "id": 21,
+      "type": "table",
+      "title": "Traffic class (ignores ua_class filter)",
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 19,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Value"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (ua_class, cloudflare_ip) (count_over_time({unit=\"whiskey-whiskey-whiskey.service\"} |= \"public page view\" | json [$__range]))",
+          "refId": "A",
+          "queryType": "instant",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Weekly funnel report (whiskey-funnel-report, Mon 07:00; Prometheus textfile metrics)",
+      "id": 22,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": [],
+      "description": "Latest weekly run. Full report: /var/lib/whiskey-traffic/funnel-report/latest.md on Forge."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "source=server: request lines (bots included); source=human: public page view lines.",
+      "id": 23,
+      "type": "table",
+      "title": "Funnel stages (last 7 days at run time)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, stage, source) (whiskey_funnel_stage)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 24,
+      "type": "table",
+      "title": "Partiful RSVP snapshot",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, state) (whiskey_funnel_rsvp)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 25,
+      "type": "table",
+      "title": "Competition entries",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max by (slug, scope) (whiskey_funnel_entries)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 26,
+      "type": "stat",
+      "title": "Report age",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 47
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "time() - max(whiskey_funnel_report_last_run_timestamp_seconds)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "auto-prometheus-auto"
+      },
+      "description": "",
+      "id": 27,
+      "type": "stat",
+      "title": "Report errors",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 47
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "auto-prometheus-auto"
+          },
+          "refId": "A",
+          "expr": "max(whiskey_funnel_report_errors)",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    }
+  ]
+}
