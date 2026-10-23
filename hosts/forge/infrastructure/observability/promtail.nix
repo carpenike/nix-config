@@ -5,7 +5,9 @@
     # Promtail log shipping and aggregation agent
     # Configured directly on the individual module (not through observability meta-module)
     modules.services.promtail = {
-      enable = true;
+      # NOTE(nixos-26.05): kept for the Alloy migration; disabled via
+      # modules.services.observability.promtail.enable in ./default.nix.
+      enable = false;
 
       # ZFS configuration
       zfs = {

@@ -403,7 +403,9 @@ in
 
       # Restart policy
       serviceConfig = {
-        Restart = "always";
+        # mkForce: NixOS 26.05 oci-containers now sets Restart = "on-failure"
+        # (was "always" in 25.11); keep the previous behaviour for this unit.
+        Restart = lib.mkForce "always";
         RestartSec = "30s";
       };
     };

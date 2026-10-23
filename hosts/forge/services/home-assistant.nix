@@ -137,7 +137,9 @@ in
           frontend = { };
           conversation = { };
           lovelace = {
-            mode = "storage";
+            # NixOS 26.05 / HA 2026.8: top-level `lovelace.mode` is deprecated.
+            # "storage" was already the default for the main dashboard, so it
+            # is simply dropped (per the 26.05 release notes).
             resources = [ ];
             dashboards = {
               lovelace-home = {

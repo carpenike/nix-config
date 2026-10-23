@@ -359,10 +359,20 @@ in
     # Affects: home-manager (depends on inetutils for hostname)
     # Upstream: https://github.com/NixOS/nixpkgs/issues/ (gnulib compat)
     # Check: When inetutils > 2.7 or nixpkgs patches gnulib
-    inetutils = prev.inetutils.overrideAttrs (old: prev.lib.optionalAttrs final.stdenv.isDarwin {
+    inetutils = prev.inetutils.overrideAttrs (old: prev.lib.optionalAttrs final.stdenv.hostPlatform.isDarwin {
       env = (old.env or { }) // {
         NIX_CFLAGS_COMPILE = toString ((old.env.NIX_CFLAGS_COMPILE or "") + " -Wno-error=format-security");
       };
+    });
+
+    # WORKAROUND (2026-10-21): glances 4.5.5 (nixos-26.05) RESTful browser tests
+    # race their own uvicorn server and fail with "Connection refused" on the
+    # aarch64 CI runner (and are not cached by Hydra for aarch64-linux).
+    # Affects: nixpi (modules.services.glances)
+    # Check: Drop when the 26.05 glances package is cached / stable on aarch64.
+    # Scoped to aarch64 so x86_64 hosts keep the Hydra-cached build.
+    glances = prev.glances.overridePythonAttrs (old: prev.lib.optionalAttrs final.stdenv.hostPlatform.isAarch64 {
+      disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "tests/test_browser_restful.py" ];
     });
 
     # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins

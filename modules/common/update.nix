@@ -186,7 +186,7 @@
       echo ""
       echo "✅ Update complete!"
       echo ""
-      echo "💡 Current generation: $(${if pkgs.stdenv.isDarwin then "darwin-rebuild" else "nixos-rebuild"} list-generations | tail -n 1)"
+      echo "💡 Current generation: $(${if pkgs.stdenv.hostPlatform.isDarwin then "darwin-rebuild" else "nixos-rebuild"} list-generations | tail -n 1)"
     '')
   ];
 }

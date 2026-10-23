@@ -24,7 +24,7 @@
     ripgrep # Fast grep alternative
     sops # Secret operations
     go-task # Task runner
-  ] ++ lib.optionals pkgs.stdenv.isDarwin [
+  ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     mas # Mac App Store CLI (Darwin only)
   ];
 }
