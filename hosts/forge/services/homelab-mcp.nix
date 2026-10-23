@@ -234,6 +234,9 @@ in
               # composes it server-side, so hermes needs no grant.
               "finances_loan_adjustments"
               "finances_loan_adjustment_post"
+              # mcp#100: post a statement-backed HELOC interest adjustment.
+              # Advisor-only, matching the source catalog; not granted to hermes.
+              "finances_loan_statement_adjustment_post"
               "finances_subscriptions"
               "finances_net_worth"
               "finances_payoff_projection"

@@ -36,7 +36,7 @@ let
       == lib.subtractLists
       [ "signal_send" "nixos_apply_config" "nixos_deploy_status" "homelab_list_status" ]
       catalog.scopes.advisor.tools
-      && lib.length catalog.scopes.atrium-personal-finance.tools == 52
+      && lib.length catalog.scopes.atrium-personal-finance.tools == 53
       && catalog.scopes.atrium-personal-scribe.tools
       == lib.remove "homelab_list_status" catalog.scopes.hermes.tools
       && lib.length catalog.scopes.atrium-personal-scribe.tools == 12
