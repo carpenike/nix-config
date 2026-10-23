@@ -518,8 +518,10 @@
               '';
             openproject-runtime =
               let
-                containers = inputs.self.nixosConfigurations.forge.config.virtualisation.oci-containers.containers;
-                database = inputs.self.nixosConfigurations.forge.config.modules.services.postgresql.databases.openproject;
+                lib = pkgs.lib;
+                forgeConfig = inputs.self.nixosConfigurations.forge.config;
+                containers = forgeConfig.virtualisation.oci-containers.containers;
+                database = forgeConfig.modules.services.postgresql.databases.openproject;
                 databaseConfig = pkgs.writeText "openproject-database.json" (builtins.toJSON {
                   inherit (database) owner extensions;
                 });
@@ -533,7 +535,33 @@
                         openproject-worker = null;
                       }
                       containers)));
+                # litellm/copilot-api Require+After the dataset anchor. The sync
+                # unit is Wants+After only, so a later dataset edit does not
+                # restart OpenProject. The mount guard is the shared helper.
+                openprojectOrdersOnDataset =
+                  let
+                    units = forgeConfig.systemd.services;
+                    anchor = "zfs-service-datasets.service";
+                    sync = "zfs-service-datasets-sync.service";
+                    ordered = name:
+                      let unit = units.${name}; in
+                      lib.elem anchor unit.requires
+                        && lib.elem anchor unit.after
+                        && lib.elem sync (unit.wants or [ ])
+                        && lib.elem sync unit.after
+                        && !(lib.elem sync unit.requires)
+                        && lib.hasInfix "findmnt" unit.preStart;
+                  in
+                  lib.all ordered [
+                    "podman-openproject-seeder"
+                    "podman-openproject-web"
+                    "podman-openproject-worker"
+                  ]
+                  && lib.elem sync (units.preseed-openproject.wants or [ ])
+                  && lib.elem sync units.preseed-openproject.after
+                  && !(lib.elem sync (units.preseed-openproject.requires or [ ]));
               in
+              assert openprojectOrdersOnDataset;
               pkgs.runCommand "openproject-runtime-tests"
                 { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.python3 ]; }
                 ''
@@ -967,15 +995,21 @@
 
             zfs-dataset-restart-trigger =
               let
+                lib = pkgs.lib;
                 forge = inputs.self.nixosConfigurations.forge;
-                triggersFor = cfg: cfg.config.systemd.services.zfs-service-datasets.restartTriggers;
+                syncOf = cfg: cfg.config.systemd.services.zfs-service-datasets-sync;
+                anchorOf = cfg: cfg.config.systemd.services.zfs-service-datasets;
                 withOverride = mod: forge.extendModules { modules = [ mod ]; };
 
+                triggersFor = cfg: (syncOf cfg).restartTriggers;
+                anchorExec = cfg: (anchorOf cfg).serviceConfig.ExecStart;
+
                 baseTriggers = triggersFor forge;
-                # A newly declared dataset must move the trigger (the issue #852 case).
-                addedTriggers = triggersFor (withOverride {
+                # A newly declared dataset must move the sync trigger (issue #852).
+                added = withOverride {
                   modules.storage.datasets.services.restart-trigger-regression.mountpoint = "none";
-                });
+                };
+                addedTriggers = triggersFor added;
                 # Changing a property the script consumes on an existing dataset
                 # must also move the trigger.
                 propertyTriggers = triggersFor (withOverride {
@@ -987,11 +1021,39 @@
                 metadataTriggers = triggersFor (withOverride {
                   modules.storage.datasets.services.postgresql.rootOwnedReason = "restart-trigger regression probe";
                 });
+
+                # Nothing may Require/BindsTo/PartOf the sync unit. An explicit
+                # restart would propagate to those units and take them down
+                # with every dataset edit.
+                syncUnit = "zfs-service-datasets-sync.service";
+                pullsSync = lib.filter
+                  (name:
+                    let unit = forge.config.systemd.services.${name}; in
+                    lib.elem syncUnit (unit.requires or [ ])
+                      || lib.elem syncUnit (unit.bindsTo or [ ])
+                      || lib.elem syncUnit (unit.partOf or [ ]))
+                  (builtins.attrNames forge.config.systemd.services);
+                anchor = anchorOf forge;
+                sync = syncOf forge;
               in
               assert builtins.length baseTriggers == 1;
               assert baseTriggers != addedTriggers;
               assert baseTriggers != propertyTriggers;
               assert baseTriggers == metadataTriggers;
+              # The anchor unit file stays put when the dataset set changes, so
+              # switch does not restart it (and therefore does not restart the
+              # units that Require it).
+              assert anchorExec forge == anchorExec added;
+              assert !(anchor.restartIfChanged or true);
+              assert !(anchor.stopIfChanged or true);
+              assert lib.elem syncUnit anchor.wants;
+              assert lib.elem syncUnit anchor.after;
+              assert !(lib.elem syncUnit (anchor.requires or [ ]));
+              assert anchor.serviceConfig.RemainAfterExit;
+              assert !(sync.stopIfChanged or true);
+              assert sync.restartIfChanged or true;
+              assert sync.serviceConfig.RemainAfterExit;
+              assert pullsSync == [ ];
               pkgs.runCommand "zfs-dataset-restart-trigger-check" { } ''
                 touch $out
               '';

@@ -150,9 +150,14 @@ in OpenProject after the initial login.
 
 1. Add the secrets (above) and merge.
 2. Deploy forge. The first start provisions role and database `openproject`
-   (with the `btree_gist`, `pg_trgm` and `unaccent` extensions), then the
-   seeder loads the schema and seeds. This takes a few minutes.
-   `journalctl -fu podman-openproject-seeder`.
+   (with the `btree_gist`, `pg_trgm` and `unaccent` extensions, created by the
+   superuser in `pg_catalog`, which is where the image's `structure.sql`
+   expects them), then the seeder loads the schema and seeds. This takes a
+   few minutes. `journalctl -fu podman-openproject-seeder`.
+   Confirm the assets dataset exists and is what is mounted:
+   `zfs list tank/services/openproject && findmnt /var/lib/openproject`
+   (SOURCE must be `tank/services/openproject`; see
+   [Assets dataset](#assets-dataset)).
 3. Log in at `https://tasks.holthome.net`. PocketID comes first (admin
    group), then OpenProject's own login: `admin` / the sops `admin_password`.
    Set a new password and enable 2FA (Administration → Authentication → Two-factor).
@@ -366,6 +371,115 @@ Design notes for the server:
   start. Upgrade major versions (17 → 18) one at a time, reading the release
   notes. Take a manual `pgbackrest backup --type=incr` first, because
   migrations are not reversible and a DB rollback means PITR.
+
+## Assets dataset
+
+`/var/lib/openproject` must be the ZFS dataset `tank/services/openproject`.
+Forge rolls `rpool/local/root` back to `@blank` on every boot, so anything
+written to that path while the dataset is missing is lost on the next reboot,
+and syncoid, sanoid and both Restic jobs fail with "dataset does not exist".
+
+`zfs-service-datasets-sync.service` creates every declared dataset. It
+re-runs on a switch when the declared set changes (issue #852).
+`zfs-service-datasets.service` is only the dependency anchor: other units
+`Require` it, and restarting it would restart them too, so do not restart
+the anchor to create a dataset. Restart the sync unit.
+
+Preseed does not create datasets. `preseed-openproject.service` only
+restores, and on an empty dataset with `allowEmptyBootstrap` still true it
+sets `holthome:preseed_complete=yes` so the next boot does not roll the
+dataset back.
+
+The seeder, web and worker refuse to start unless `findmnt --mountpoint
+/var/lib/openproject` reports `tank/services/openproject`. That check is
+`storageHelpers.assertDatasetMounted`, the same helper any other service
+can prepend to `preStart`. Ordering matches litellm and copilot-api:
+`Requires=` and `After=` on `zfs-service-datasets.service`. They also
+`Wants=` and `After=` the sync unit so the first start waits for the
+create, without being restarted every time some other dataset changes.
+
+### Wipe the unused first-deploy data on forge
+
+The first deploy (2026-10-22) never created `tank/services/openproject`.
+Whatever is under `/var/lib/openproject` is on the impermanence root and was
+never used. Wipe it. Run as root. Do this before the dataset is mounted: ZFS
+will not mount over a directory that still contains files, and the sync unit
+then fails instead of hiding those files.
+
+```bash
+# 1. Stop OpenProject and the timers that expect the dataset.
+systemctl stop \
+  podman-openproject-web.service \
+  podman-openproject-worker.service \
+  podman-openproject-seeder.service \
+  syncoid-tank-services-openproject.timer \
+  restic-backup-service-openproject.timer \
+  restic-backup-openproject-offsite.timer
+
+# 2. Remove the root-filesystem copy. The directory must not contain files.
+rm -rf /var/lib/openproject
+
+# 3. Drop only the openproject database and let provisioning recreate it.
+#    The provisioner skips when its stamp matches, so remove the stamp.
+#    The SQL creates a missing database and does not drop any other one.
+sudo -u postgres psql -d postgres -v ON_ERROR_STOP=1 -c \
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'openproject' AND pid <> pg_backend_pid();"
+sudo -u postgres dropdb --if-exists openproject
+sudo rm -f /var/lib/postgresql/provisioning/main/provisioned.sha256
+sudo systemctl start postgresql-provision-databases.service
+sudo -u postgres psql -d openproject -c \
+  "SELECT extname, extnamespace::regnamespace FROM pg_extension ORDER BY 1"
+# btree_gist, pg_trgm and unaccent must all be in pg_catalog.
+
+# 4. Deploy. This switch starts zfs-service-datasets-sync.service (the unit
+#    is new), which creates tank/services/openproject and mounts it at
+#    /var/lib/openproject. Later dataset edits restart that same unit.
+#    Do not restart zfs-service-datasets.service: postgresql and the other
+#    units that Require it would restart too.
+#    Without a deploy, this is the same create:
+#      systemctl restart zfs-service-datasets-sync.service
+
+# 5. The mount must be the dataset, not the root filesystem.
+findmnt --noheadings --output SOURCE,TARGET,FSTYPE --mountpoint /var/lib/openproject
+
+# 6. Preseed is ordered after the sync unit, so the same switch should set
+#    holthome:preseed_complete=yes after the restores find nothing
+#    (allowEmptyBootstrap is still true). Confirm before rebooting.
+#    Until it is yes, the next boot tries syncoid (there is no replica) and
+#    will roll the dataset back if a snapshot exists.
+zfs get -H -o value holthome:preseed_complete tank/services/openproject
+# If that is not yes:
+#   systemctl restart preseed-openproject.service
+#   zfs get -H -o value holthome:preseed_complete tank/services/openproject
+
+# 7. Web and worker pull the seeder. If the switch already started them, this
+#    is a no-op. The mount guard keeps them down when step 5 is wrong.
+systemctl start podman-openproject-web.service podman-openproject-worker.service
+systemctl is-active \
+  podman-openproject-seeder.service \
+  podman-openproject-web.service \
+  podman-openproject-worker.service
+curl -fsS http://127.0.0.1:8072/health_checks/default
+
+# 8. Replicate and back up, then re-arm the timers.
+systemctl start syncoid-tank-services-openproject.service
+systemctl start restic-backup-service-openproject.service restic-backup-openproject-offsite.service
+systemctl start \
+  syncoid-tank-services-openproject.timer \
+  restic-backup-service-openproject.timer \
+  restic-backup-openproject-offsite.timer
+```
+
+`ResticBackupSuccessMissing` waits until a job has been declared for 26
+hours, so the first successful run is the confirmation. The alert is not
+expected to fire the same day.
+
+If step 4's sync unit fails, fix that and see it succeed before rebooting.
+On the next boot the anchor only becomes active after the sync unit writes
+its ready stamp. A failed sync leaves PostgreSQL and every other unit that
+`Requires=` `zfs-service-datasets.service` unstarted. The switch itself does
+not restart the anchor, so a failed first sync does not take those units
+down until that reboot.
 
 ## Monitoring
 

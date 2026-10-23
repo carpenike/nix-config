@@ -269,16 +269,23 @@ The storage module will detect the existing dataset and update properties if nee
 
 ### Dataset Not Created
 
+`zfs-service-datasets-sync.service` is the unit that creates datasets.
+`zfs-service-datasets.service` only stays active so other units can
+`Require` it. Restarting the anchor restarts those units (including
+PostgreSQL on forge). Restart the sync unit instead.
+
 ```bash
-# Check activation script logs
-journalctl -u zfs-service-datasets
+systemctl restart zfs-service-datasets-sync.service
+journalctl -u zfs-service-datasets-sync.service
 
 # Verify parent dataset exists
 zfs list tank/services
-
-# Check for errors
-dmesg | grep -i zfs
 ```
+
+Do this before rebooting if the sync unit has failed. On the next boot
+`zfs-service-datasets.service` stays inactive until the sync unit writes
+`/run/zfs-service-datasets/ready`, and units that `Require` the anchor
+(PostgreSQL among them) wait for it.
 
 ### Permission Issues
 

@@ -29,6 +29,57 @@ let
       cfg.utility;
   };
 
+  # Stable path. The anchor unit's ExecStart points at a script that only
+  # tests this file, so a dataset edit does not change the anchor unit file.
+  datasetReadyStamp = "/run/zfs-service-datasets/ready";
+  datasetReadyCheck = pkgs.writeShellScript "zfs-service-datasets-ready" ''
+    if [ ! -f ${escape datasetReadyStamp} ]; then
+      echo "zfs-service-datasets-sync.service did not complete; datasets are not ready." >&2
+      exit 1
+    fi
+  '';
+
+  # canmount=off/noauto datasets are containers or receive-side copies and
+  # are not required to be mounted. Everything else must be mounted at the
+  # declared path before the sync unit reports success.
+  mountAssert = datasetPath: mountpoint: canmount:
+    lib.optionalString (mountpoint != "none" && mountpoint != "legacy" && canmount == "on") ''
+      mp=$(${pkgs.zfs}/bin/zfs get -H -o value mountpoint ${escape datasetPath})
+      mounted=$(${pkgs.zfs}/bin/zfs get -H -o value mounted ${escape datasetPath})
+      if [ "$mp" != ${escape mountpoint} ] || [ "$mounted" != "yes" ]; then
+        echo "Mounting ${datasetPath} at ${mountpoint} (currently mountpoint=$mp mounted=$mounted)"
+        if ! ${pkgs.zfs}/bin/zfs mount ${escape datasetPath}; then
+          echo "✗ CRITICAL: ${datasetPath} did not mount at ${mountpoint}." >&2
+          echo "If that directory is not empty, it still belongs to the parent filesystem. Move those contents aside and rerun zfs-service-datasets-sync.service." >&2
+          exit 1
+        fi
+        mp=$(${pkgs.zfs}/bin/zfs get -H -o value mountpoint ${escape datasetPath})
+        mounted=$(${pkgs.zfs}/bin/zfs get -H -o value mounted ${escape datasetPath})
+        if [ "$mp" != ${escape mountpoint} ] || [ "$mounted" != "yes" ]; then
+          echo "✗ CRITICAL: ${datasetPath} is not mounted at ${mountpoint} (mountpoint=$mp mounted=$mounted)" >&2
+          exit 1
+        fi
+      fi
+    '';
+
+  serviceMountAsserts = lib.concatStringsSep "\n" (lib.mapAttrsToList
+    (serviceName: serviceConfig:
+      mountAssert
+        "${cfg.parentDataset}/${serviceName}"
+        (if serviceConfig.mountpoint != null
+        then serviceConfig.mountpoint
+        else "${cfg.parentMount}/${serviceName}")
+        (serviceConfig.properties.canmount or "on"))
+    cfg.services);
+
+  utilityMountAsserts = lib.concatStringsSep "\n" (lib.mapAttrsToList
+    (datasetPath: datasetConfig:
+      mountAssert
+        datasetPath
+        datasetConfig.mountpoint
+        (datasetConfig.properties.canmount or "on"))
+    cfg.utility);
+
   # Type validation for ZFS properties
   zfsRecordsizeType = lib.types.addCheck lib.types.str
     (
@@ -259,21 +310,52 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Create datasets via systemd service
-    # This runs after ZFS pool import (zfs-import.target) and user creation (systemd-sysusers.service)
-    # Services that need these datasets explicitly depend on zfs-service-datasets.service
+    # Dataset creation is split in two because of issue #852.
+    #
+    # zfs-service-datasets.service is the dependency anchor. Long-running units
+    # (postgresql and the rest) Require it and order After it, and it stays
+    # RemainAfterExit so those Requires stay satisfied after the oneshot exits.
+    # Its unit file does not embed the dataset list. restartIfChanged and
+    # stopIfChanged are off: an explicit stop or restart of a unit propagates
+    # to every unit that Requires it (systemd UNIT_REQUIRED_BY /
+    # UNIT_ATOM_PROPAGATE_STOP). Restarting this anchor on a dataset edit
+    # would restart that fleet. switch-to-configuration reads those X-* flags
+    # from the new unit, so the one-time rewrite of this unit (the script used
+    # to live here) is skipped instead of stopping the fleet.
+    #
+    # zfs-service-datasets-sync.service holds the idempotent script. Nothing
+    # Requires, BindsTo, or PartOf it, so restarting it does not propagate.
+    # stopIfChanged is false so a changed unit is restarted after daemon-reload
+    # (the new script), not stopped before activation and started again.
+    # RemainAfterExit keeps it active, which is what makes switch notice the
+    # change; a dead oneshot is not restarted. restartTriggers tracks the
+    # script inputs, including a newly declared dataset. Wants= from the
+    # anchor pulls the sync unit in on boot without propagating restarts.
+    #
+    # Do not add "before = [ local-fs.target ]" on either unit. It cycles:
+    # zfs-service-datasets -> local-fs.target -> sysinit.target -> zfs-service-datasets.
     systemd.services.zfs-service-datasets = {
-      description = "Create ZFS datasets for service isolation";
+      description = "ZFS service datasets are ready";
       wantedBy = [ "multi-user.target" ];
-      after = [ "zfs-import.target" "systemd-sysusers.service" ];
-      # Note: Do NOT add "before = [ local-fs.target ]" - it creates a cycle:
-      # zfs-service-datasets -> local-fs.target -> sysinit.target -> zfs-service-datasets
-      # Services needing ZFS datasets already explicitly depend on zfs-service-datasets.service
+      after = [ "zfs-import.target" "systemd-sysusers.service" "zfs-service-datasets-sync.service" ];
+      wants = [ "zfs-service-datasets-sync.service" ];
+      restartIfChanged = false;
+      stopIfChanged = false;
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = datasetReadyCheck;
+      };
+    };
 
-      # Essential (issue #852): this is a RemainAfterExit oneshot, so switch does
-      # not re-run it on a bare script change and a newly declared dataset is
-      # silently skipped. Hashing the script inputs forces a stop/start whenever
-      # they change. Do not remove without replacing the re-execution mechanism.
+    systemd.services.zfs-service-datasets-sync = {
+      description = "Create and reconcile ZFS datasets for service isolation";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "zfs-service-datasets.service" ];
+      after = [ "zfs-import.target" "systemd-sysusers.service" ];
+      # Restart after daemon-reload. Do not let any unit Require this one.
+      restartIfChanged = true;
+      stopIfChanged = false;
       restartTriggers = [
         (builtins.hashString "sha256" (builtins.toJSON datasetScriptInputs))
       ];
@@ -288,6 +370,10 @@ in
       script = ''
         set -euo pipefail
         IFS=$'\n\t'
+
+        # Drop a stale stamp first. The anchor only checks it on its own start,
+        # so a failed run must not leave the previous boot's success in place.
+        rm -f ${escape datasetReadyStamp}
 
         echo "=== ZFS Service Datasets Setup ==="
 
@@ -456,12 +542,21 @@ in
           exit 1
         fi
 
+        # Existence is not enough: a dataset created while its mountpoint
+        # directory still holds files stays unmounted, and services then write
+        # to the parent filesystem (issue #852, openproject on 2026-10-22).
+        ${serviceMountAsserts}
+        ${utilityMountAsserts}
+
+        mkdir -p "$(dirname ${escape datasetReadyStamp})"
+        touch ${escape datasetReadyStamp}
+
         echo "=== ZFS Service Datasets Setup Complete ==="
       '';
     };
 
     # Generate tmpfiles rules as BACKUP layer for ownership
-    # Primary ownership is applied in zfs-service-datasets.service immediately after
+    # Primary ownership is applied in zfs-service-datasets-sync.service immediately after
     # dataset creation. These tmpfiles rules serve as:
     # 1. Safety net if zfs-service-datasets runs before sysusers (shouldn't happen with ordering)
     # 2. Correction layer if permissions are manually changed
