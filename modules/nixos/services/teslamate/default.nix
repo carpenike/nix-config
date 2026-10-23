@@ -18,13 +18,15 @@ let
 
   # renovate: depName=adriankumpf/teslamate datasource=github-releases
   teslamateDashboardsVersion = "4.3.0";
-  teslamateDashboardsSrc = pkgs.fetchzip {
-    url = "https://github.com/adriankumpf/teslamate/archive/refs/tags/v${teslamateDashboardsVersion}.tar.gz";
-    # WORKAROUND (2026-04-28): GitHub re-packs archive tarballs occasionally,
-    # breaking pinned hashes for fetchzip without any upstream version change.
-    # If a future re-pack drifts again, swap to fetchFromGitHub (git checkout)
-    # which is more stable, or pin to a release asset with a stable digest.
-    sha256 = "sha256-VWolbrAGEBFZCf0SFNS3rd5h6i5GzX6958OA35kxuQ4=";
+  # v4.3.0 is annotated tag cf1380d3c1a57dc8ee3c204366ea2dd8e3e1902d of this
+  # commit (2026-09-29). The previous hash was the v3.0.0 archive; Renovate
+  # bumped teslamateDashboardsVersion without it, and `archive/refs/tags/v…`
+  # follows that mutable tag. Pin the commit.
+  teslamateDashboardsSrc = pkgs.fetchFromGitHub {
+    owner = "adriankumpf";
+    repo = "teslamate";
+    rev = "33d200b2fba9d5138803916a788cef5eae31b1aa";
+    hash = "sha256-QukXDqTrXVuW0RpI2H24d0mpKjr5eWJgy/P9hjIffb4=";
   };
   defaultDashboardsPath = "${teslamateDashboardsSrc}/grafana/dashboards";
   grafanaCredentialName = "teslamate-db-password";

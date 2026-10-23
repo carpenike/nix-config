@@ -102,19 +102,18 @@ as everything else in this file.
 | **Upstream** | [sops-nix go.mod](https://github.com/Mic92/sops-nix/blob/7214124c20c1542c90deb54af50e2f53ae02711f/go.mod) |
 | **Impact** | Without the override, Forge deployment fails with `go.mod requires go >= 1.26.0 (running go 1.25.10; GOTOOLCHAIN=local)`. |
 
-### WorldMonitor - v2.10.0 Nix Build Compatibility
+### WorldMonitor - vendored file: dependencies and generated inventory
 
 | Field | Value |
 | --- | --- |
-| **Added** | 2026-09-09 |
+| **Added** | 2026-09-09, updated 2026-10-23 |
 | **Location** | `modules/nixos/services/worldmonitor/package.nix` |
-| **Affects** | WorldMonitor 2.10.0 builds for Forge |
-| **Reason** | The Renovate update from 2.5.23 changed only `version`, leaving both fixed-output hashes stale. After correcting them, nested `sharp` 0.34.5 required `node-gyp` as an importable module, and the root `postinstall` attempted an offline `npm ci` for the unshipped `blog-site` using dependencies absent from the root npm cache. |
-| **Workaround** | Use the verified 2.10.0 source and npm dependency hashes, expose nixpkgs `node-gyp` through `NODE_PATH`, and delete only the root `postinstall` during `postPatch`. Dependency lifecycle scripts remain enabled, so both Sharp versions compile normally. |
-| **Validation** | `task nix:build-nixos host=forge` built WorldMonitor, its Vite/PWA assets, Caddy configuration, systemd units, and the complete Forge closure at `/nix/store/c30xca6w2582m72pnkfmm5l0jix63nj1-nixos-system-forge-25.11.20260630.b6018f8`. |
-| **Check** | On each WorldMonitor update, recalculate both hashes and test removing `NODE_PATH` and `postPatch`. Remove each workaround when nested Sharp declares `node-gyp` itself and upstream no longer installs `blog-site` from the root lifecycle hook. |
-| **Upstream** | [WorldMonitor v2.10.0 package.json](https://github.com/koala73/worldmonitor/blob/v2.10.0/package.json), [Sharp source-build requirements](https://sharp.pixelplumbing.com/install#building-from-source) |
-| **Impact** | Without the fixes, the Forge closure fails first on stale fixed-output hashes, then on Sharp's missing `node-gyp`, or finally on the sandboxed nested blog install. |
+| **Affects** | WorldMonitor 2.11.2 on Forge (nixpkgs 25.11) |
+| **Reason** | v2.11.2 vendors `braces` and `stream-json` as `resolved: "file:…"` lockfile entries with no integrity. nixpkgs 25.11 `prefetch-npm-deps` parses those as URLs and panics (`non-git dependencies should have associated integrity`). The root `postinstall` (`npm run inventory:facts`) writes gitignored `api/_inventory-facts.generated.js`, which `npm ci --ignore-scripts` skips. Nested `sharp` still needs `node-gyp` on `NODE_PATH`. The release tag is mutable and Renovate rewrites only `version`, so the source is pinned to commit `39c1a1e7571131d40038aeb8474809a8376c8cfa`. |
+| **Workaround** | Override this package's `prefetch-npm-deps` to skip `file:` URLs, matching later nixpkgs. `npm ci` still installs those two packages from `vendor/`. Delete `postinstall` and run `scripts/generate-inventory-facts.mjs` in `buildPhase`. Keep `NODE_PATH` for `node-gyp`, and set `makeCacheWritable` so npm can use the read-only dependency cache. |
+| **Check** | Drop the prefetch override when Forge's nixpkgs `prefetch-npm-deps` skips the `file` scheme. Drop inventory generation when that module ships in the source archive. On each version bump, update `rev`, the source hash, and `npmDepsHash` together. |
+| **Upstream** | [package.json at the pinned commit](https://github.com/koala73/worldmonitor/blob/39c1a1e7571131d40038aeb8474809a8376c8cfa/package.json), [Sharp source-build requirements](https://sharp.pixelplumbing.com/install#building-from-source) |
+| **Impact** | Without the fetcher override the npm-deps fixed-output derivation panics. Without inventory generation the API imports a missing module. A version-only tag bump leaves the pinned commit behind. |
 
 ### copyparty - Security Release Pin
 
