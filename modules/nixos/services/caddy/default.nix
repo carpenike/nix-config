@@ -273,15 +273,20 @@ let
         if cfg.trustedProxies != [ ] then
           "  servers {\n    trusted_proxies static ${concatStringsSep " " cfg.trustedProxies}\n  }\n\n"
         else "";
+      # Bound how long Caddy waits for in-flight requests (Plex streams, SSE,
+      # websockets) when it stops or swaps config. Without this Caddy logs
+      # "servers shutting down with eternal grace period" and systemd SIGKILLs
+      # it at TimeoutStopSec.
+      gracePeriodLine = optionalString (cfg.gracePeriod != null) "  grace_period ${cfg.gracePeriod}\n\n";
     in
     if sec.enable then ''
       {
-      ${orderLine}${defaultBindLine}${serversBlock}  security {
+      ${gracePeriodLine}${orderLine}${defaultBindLine}${serversBlock}  security {
       ${securityBody}
         }
-      }'' else if cfg.bindAddresses != [ ] || cfg.trustedProxies != [ ] then ''
+      }'' else if cfg.gracePeriod != null || cfg.bindAddresses != [ ] || cfg.trustedProxies != [ ] then ''
       {
-      ${defaultBindLine}${serversBlock}}
+      ${gracePeriodLine}${defaultBindLine}${serversBlock}}
     '' else "";
 in
 {
@@ -337,6 +342,45 @@ in
 
         Without this, reverse-proxied services see the Caddy server IP instead of
         the actual client IP in X-Forwarded-For headers.
+      '';
+    };
+
+    enableReload = mkOption {
+      type = types.bool;
+      default = !(cfg.security.enable && cfg.security.localIdentityStores != { });
+      defaultText = literalExpression "!(security.enable && security.localIdentityStores != { })";
+      description = ''
+        Passed to `services.caddy.enableReload`. When true, a Caddyfile change
+        reloads Caddy in place; when false, the change restarts caddy.service
+        (restartTriggers) and `ExecReload` is dropped.
+
+        Defaults to false when caddy-security uses a local identity store:
+        caddy-security v1.4.x refuses an overlapping reload of a runtime that
+        owns a local identity file ("overlapping local file reload requires
+        AuthCrunch database coordination"), so every reload fails with HTTP 400
+        and leaves the old config running.
+      '';
+    };
+
+    gracePeriod = mkOption {
+      type = types.nullOr types.str;
+      default = "3s";
+      example = "10s";
+      description = ''
+        Caddy `grace_period` global option: how long Caddy waits for active
+        connections to finish when it stops or replaces its servers before it
+        closes them. `null` keeps Caddy's default (wait forever), which makes a
+        stop with long-lived streams open run into `stopTimeout` and SIGKILL.
+      '';
+    };
+
+    stopTimeout = mkOption {
+      type = types.str;
+      default = "15s";
+      description = ''
+        systemd `TimeoutStopSec` for caddy.service. Keep it comfortably above
+        `gracePeriod` so a normal stop finishes on its own instead of being
+        killed (the upstream unit ships 5s).
       '';
     };
 
@@ -1217,7 +1261,10 @@ in
         enable = true;
         package = cfg.package;
         configFile = pkgs.writeText "caddy_config" caddyfileText;
+        inherit (cfg) enableReload;
       };
+
+    systemd.services.caddy.serviceConfig.TimeoutStopSec = cfg.stopTimeout;
 
     # Open firewall for HTTP/HTTPS
     networking.firewall.allowedTCPPorts = [ 80 443 ];
