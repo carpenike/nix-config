@@ -889,6 +889,21 @@
               touch $out
             '';
 
+            # Fake zfs, including a missing dataset. Does not evaluate forge.
+            zfs-snapshot-metrics = pkgs.runCommand "zfs-snapshot-metrics-check"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.gnugrep
+                  pkgs.prometheus.cli
+                ];
+              } ''
+              bash ${./scripts/test-zfs-snapshot-metrics.sh} ${./scripts/zfs-snapshot-metrics.sh}
+              touch $out
+            '';
+
             oci-image-pinning =
               let
                 lib = inputs.nixpkgs.lib;
@@ -1402,7 +1417,7 @@
                 enabledResticJobs = pkgs.lib.filterAttrs
                   (_name: job: job.enable)
                   forge.modules.services.backup._internal.allJobs;
-                snapshotMetricsScript = forge.systemd.services.zfs-snapshot-metrics.script;
+                snapshotMetricsScript = builtins.readFile ./scripts/zfs-snapshot-metrics.sh;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
                 atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
                 atriumAdapterJobs =
@@ -1512,6 +1527,13 @@
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
+              assert pkgs.lib.hasInfix "zfs_snapshot_dataset_missing" snapshotMetricsScript;
+              assert pkgs.lib.hasInfix "zfs_snapshot_dataset_exists" snapshotMetricsScript;
+              assert !(pkgs.lib.hasInfix "|| echo" snapshotMetricsScript);
+              assert pkgs.lib.hasInfix "zfs-snapshot-metrics.sh" forge.systemd.services.zfs-snapshot-metrics.script;
+              assert builtins.hasAttr "zfs-snapshot-dataset-missing" forge.modules.alerting.rules;
+              assert forge.modules.alerting.rules.zfs-snapshot-dataset-missing.alertname == "ZFSSnapshotDatasetMissing";
+              assert pkgs.lib.hasInfix "zfs_snapshot_dataset_missing" forge.modules.alerting.rules.zfs-snapshot-dataset-missing.expr;
               assert pkgs.lib.hasInfix "pgbackrest_scrape_timestamp_seconds" pgBackRestMetricsScript;
               assert pkgs.lib.hasInfix ".*/syncoid_replication_" forge.modules.alerting.rules.zfs-replication-exporter-stale.expr;
               assert !(pkgs.lib.hasInfix "syncoid-replication-info" forge.modules.alerting.rules.zfs-replication-exporter-stale.expr);
