@@ -343,8 +343,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1792605156,
-        "narHash": "sha256-1qTtWpZliy6ky68u0za5UhEtXgAbVeqIUCJ2Mrl+X6Y=",
+        "lastModified": 1792755156,
+        "narHash": "sha256-EOrPkZCWCmS4+IcvQOJ3unsJIpgzLXxnpQvTECc9jTE=",
         "owner": "carpenike",
         "repo": "mcp",
         "rev": "b5b9e9dcc9ff643a6149225d2073355788cda8f9",
