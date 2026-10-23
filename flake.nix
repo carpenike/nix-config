@@ -197,8 +197,11 @@
       # the Ryan-only atrium-personal-deploy scope (mcp#99), OpenProject bot task
       # tools and scope (mcp#93), statement-backed HELOC interest adjustments
       # (mcp#100), and school_get_grades flat-grade carry-forward (mcp#101).
+      # DRAFT: temporarily pinned to the unmerged ingestion-anchor branch so
+      # this host builds with financesIngest.anchorUtc; re-pin to the merged
+      # main commit before this lands.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/ff75de609920bc76e5f635662dad286860fa4901";
+      url = "github:carpenike/mcp/e0c3a3551cc99e5e779d5b0626921fc30290af60";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

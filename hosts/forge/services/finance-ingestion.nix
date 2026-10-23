@@ -31,6 +31,16 @@ in
     ownershipConfirmed = true;
     environmentFile = config.sops.secrets."homelab-mcp/ingest-env".path;
     minimumIntervalSeconds = 86400;
+    # Land the daily pull at 19:30 UTC (15:30 EDT / 14:30 EST), before the
+    # Friday 16:00 ET weekly report and well clear of the 08:00 ET daily.
+    # Without an anchor the reservation is exactly post + 24 h, and the
+    # jittered 15-minute ticks push the pull a tick later most days (it had
+    # reached ~17:00 ET by 2026-10-23, after the weekly). The anchor pulls a
+    # reservation at most 30 minutes earlier onto 19:30 UTC and never later,
+    # so no day is skipped; converging from 21:00 UTC takes three pulls.
+    # UTC rather than Eastern so there is no 23-hour daylight-saving day.
+    anchorUtc = "19:30";
+    anchorToleranceSeconds = 1800;
     timer = {
       enable = true;
       onCalendar = "*-*-* *:00/15:00 UTC";
@@ -59,9 +69,10 @@ in
     {
       assertion =
         cfg.minimumIntervalSeconds >= 86400
+        && (cfg.anchorUtc == null || cfg.anchorToleranceSeconds <= 1800)
         &&
         config.systemd.services.${worker}.environment.HOMELAB_MCP_FINANCES_INGEST_STATE_PATH == statePath;
-      message = "finance-ingestion must preserve the canonical durable reservation and at least 24 hours between POST attempts.";
+      message = "finance-ingestion must preserve the canonical durable reservation and 24 hours between POST attempts (at most 30 minutes less when anchored).";
     }
     {
       assertion = cfg.environmentFile != app.environmentFile;
