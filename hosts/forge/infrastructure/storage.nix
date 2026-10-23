@@ -476,6 +476,23 @@ in
       };
     };
 
+    # Sanoid dataset the snapshot exporter could not list. Medium, not the
+    # critical ZfsDatasetDeclaredGap rule (zfs_dataset_declared_gap): that
+    # one belongs to the storage-module pool check and is not this series.
+    "zfs-snapshot-dataset-missing" = {
+      type = "promql";
+      alertname = "ZFSSnapshotDatasetMissing";
+      expr = "zfs_snapshot_dataset_missing == 1";
+      for = "15m";
+      severity = "medium";
+      labels = { service = "zfs"; category = "backup"; };
+      annotations = {
+        summary = "Sanoid dataset {{ $labels.dataset }} is missing on {{ $labels.instance }}";
+        description = "The snapshot exporter could not list this dataset, so its count, age, and space series were left out. Other datasets in zfs_snapshots.prom are still published.";
+        command = "zfs list {{ $labels.dataset }}; systemctl status zfs-snapshot-metrics.service";
+      };
+    };
+
     "zfs-snapshot-exporter-stale" = {
       type = "promql";
       alertname = "ZFSSnapshotExporterStale";
@@ -750,18 +767,30 @@ in
   };
 
   # ZFS snapshot metrics exporter
-  # Collects snapshot count, age, and space usage for all datasets with backup policies
-  # Moved from pgbackrest.nix for proper co-location (monitors ZFS lifecycle, not pgBackRest)
+  # Collects snapshot count, age, and space usage for Sanoid autosnap datasets.
+  # Moved from pgbackrest.nix for proper co-location (monitors ZFS lifecycle, not pgBackRest).
+  # scripts/zfs-snapshot-metrics.sh owns the textfile write so a missing dataset
+  # cannot emit a stray line that makes node_exporter drop the whole file.
   systemd.services.zfs-snapshot-metrics =
     let
       allDatasets = builtins.attrNames (
         lib.filterAttrs (_name: dataset: dataset.autosnap)
           config.modules.backup.sanoid.datasets
       );
-      datasetsArray = lib.concatMapStrings (ds: ''"${ds}" '') allDatasets;
+      datasetArgs = lib.concatMapStringsSep " " lib.escapeShellArg allDatasets;
     in
     {
       description = "Export ZFS snapshot metrics for all backup datasets";
+      path = [
+        pkgs.coreutils
+        pkgs.gawk
+        pkgs.prometheus.cli
+        config.boot.zfs.package
+      ];
+      environment = {
+        LC_ALL = "C";
+        PROMTOOL = lib.getExe' pkgs.prometheus.cli "promtool";
+      };
       serviceConfig = {
         Type = "oneshot";
         User = "root";
@@ -772,59 +801,10 @@ in
         CPUSchedulingPolicy = "batch";
       };
       script = ''
-                set -euo pipefail
-
-                METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
-                METRICS_TEMP="$METRICS_FILE.tmp"
-
-                # Start metrics file
-                cat > "$METRICS_TEMP" <<'HEADER'
-              # HELP zfs_snapshot_dataset_info Whether a dataset is configured for Sanoid snapshots
-              # TYPE zfs_snapshot_dataset_info gauge
-        # HELP zfs_snapshot_count Number of snapshots per dataset
-        # TYPE zfs_snapshot_count gauge
-        HEADER
-
-                # Datasets to monitor (dynamically generated from backup.nix)
-                DATASETS=(${datasetsArray})
-
-                # Count snapshots per dataset
-                for dataset in "''${DATASETS[@]}"; do
-                  echo "zfs_snapshot_dataset_info{dataset=\"$dataset\"} 1" >> "$METRICS_TEMP"
-                  SNAPSHOT_COUNT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name | ${lib.getExe' pkgs.gnugrep "grep"} -c "^$dataset@" || echo 0)
-                  echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
-                done
-
-                # Add latest snapshot age metrics (using locale-safe Unix timestamps)
-                cat >> "$METRICS_TEMP" <<'HEADER2'
-
-        # HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)
-        # TYPE zfs_snapshot_latest_timestamp gauge
-        HEADER2
-
-                for dataset in "''${DATASETS[@]}"; do
-                  # Get most recent snapshot name
-                  LATEST_SNAPSHOT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || echo "")
-                  if [ -n "$LATEST_SNAPSHOT" ]; then
-                    # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
-                    LATEST_TIMESTAMP=$(${lib.getExe config.boot.zfs.package} get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
-                    echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
-                  fi
-                done
-
-                # Add total space used by all snapshots per dataset
-                cat >> "$METRICS_TEMP" <<'HEADER3'
-
-        # HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
-        # TYPE zfs_snapshot_total_used_bytes gauge
-        HEADER3
-
-                for dataset in "''${DATASETS[@]}"; do
-                  TOTAL_USED=$(${lib.getExe config.boot.zfs.package} list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${lib.getExe' pkgs.gawk "awk"} '{sum+=$1} END {print sum}' || echo 0)
-                  echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
-                done
-
-                mv "$METRICS_TEMP" "$METRICS_FILE"
+        set -euo pipefail
+        exec ${lib.getExe pkgs.bash} ${../../scripts/zfs-snapshot-metrics.sh} \
+          --metrics-file /var/lib/node_exporter/textfile_collector/zfs_snapshots.prom \
+          -- ${datasetArgs}
       '';
       after = [ "zfs-mount.service" ];
       wants = [ "zfs-mount.service" ];
