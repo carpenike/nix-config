@@ -21,6 +21,31 @@ in
         # Attach to media services network for DNS resolution to Sonarr and Radarr
         podmanNetwork = forgeDefaults.podmanNetwork;
 
+        # Pin config-templates to the last revision that still ships the v7
+        # official include templates.
+        #
+        # recyclarr 7.x tracks config-templates `master`. On 2026-08-07 upstream
+        # merged the `v8` branch into master (a530812, "Merge branch 'v8' into
+        # master") and removed includes.json (9faf65f), so every
+        # `include: - template:` below stopped resolving and recyclarr-sync
+        # failed with "unable to find config include with name
+        # 'radarr-quality-definition-sqp-streaming'". 4ae377b is the first
+        # parent of that merge, i.e. the final v7-layout commit on master.
+        #
+        # Remove this pin when moving to recyclarr v8+, which replaces official
+        # includes with guide-backed quality profiles (`trash_id`) and
+        # custom_format_groups. See
+        # https://recyclarr.dev/guide/upgrade-guide/v8.0/#official-include-templates-removed
+        settings.resource_providers = [
+          {
+            name = "config-templates-v7";
+            type = "config-templates";
+            clone_url = "https://github.com/recyclarr/config-templates.git";
+            reference = "4ae377bb704fc7fd69a544ad04e91357e0b09f62";
+            replace_default = true;
+          }
+        ];
+
         # Sonarr configuration - WEB-1080p and WEB-2160p quality profiles
         # Mirrors the Radarr dual-resolution setup:
         # - WEB-1080p: Standard HD content
