@@ -530,6 +530,35 @@ in
       {
         services.sanoid.unitConfig.StopWhenUnneeded = lib.mkForce false;
       }
+      # Shared resource budget for snapshot/replication work.
+      #
+      # Sanoid and every per-dataset syncoid job run in this slice, so their
+      # COMBINED CPU use is capped no matter how many start at once. That is
+      # the case timers cannot prevent: when activation (nixos-rebuild switch)
+      # stops and later restarts the syncoid timers, every timer whose
+      # quarter-hour slot passed in between fires immediately on restart -
+      # RandomizedDelaySec is measured from the missed slot, so it is already
+      # in the past. On forge that started 66 jobs within 10 s and drove the
+      # CPU to 103-105 C. The cap turns such a burst into a longer, cooler
+      # one instead of a thermal spike.
+      #
+      # 400% = four CPUs' worth; well above what a normal quarter-hour batch
+      # of incremental sends needs, far below the whole package. CPUWeight
+      # makes the slice yield to everything else when the host is busy.
+      {
+        slices.zfs-backup = {
+          description = "Sanoid/Syncoid snapshot and replication resource control";
+          sliceConfig = {
+            CPUQuota = "400%";
+            CPUWeight = 20;
+          };
+        };
+        services.sanoid.serviceConfig = {
+          Slice = "zfs-backup.slice";
+          Nice = 10;
+          CPUSchedulingPolicy = "batch";
+        };
+      }
       # Add pre/post snapshot script hooks for datasets that need them
       # SECURITY: Scripts run as sanoid user, not root. Use sudo for privileged operations.
       # If scripts need elevated privileges, configure sudoers with NOPASSWD for specific commands.
@@ -634,6 +663,14 @@ in
               MemoryMax = "4G";
               IOWeight = 500; # Lower I/O priority than default (1000)
 
+              # Share one CPU budget with every other sanoid/syncoid job (see
+              # systemd.slices.zfs-backup below) and yield to interactive work.
+              # The per-unit CPUQuota above only bounds a single job; it did
+              # nothing when dozens of jobs started together.
+              Slice = "zfs-backup.slice";
+              Nice = 10;
+              CPUSchedulingPolicy = "batch";
+
               # TODO: Add SSH timeouts via SSH config or wrapper script
               # For now, systemd timeout provides protection, but SSH-level timeouts would be better
 
@@ -710,12 +747,23 @@ in
           serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
         in
         {
-          # CRITICAL: Add RandomizedDelaySec to syncoid timers to prevent simultaneous startup
-          # This prevents race conditions during system rebuild when all timers trigger at once
-          # 5 minutes is sufficient to stagger startup without delaying normal operations
+          # Spread syncoid jobs across the replication interval instead of
+          # starting them together on the calendar boundary.
+          #
+          # FixedRandomDelay makes each job's offset a stable hash of the
+          # machine and unit name rather than a fresh draw on every run, so
+          # the jobs stay evenly spread and each dataset keeps an exact
+          # interval-length cadence (with a fresh draw, consecutive runs of
+          # one dataset could be up to interval + delay apart). The 10m window
+          # stays below forge's 15-minute replicationInterval, so a job never
+          # overlaps its own next run and the replication RPO is unchanged.
+          #
+          # This does NOT spread catch-up runs after a timer restart (see the
+          # zfs-backup slice above); the slice's CPU cap handles that case.
           timers.${serviceName} = {
             timerConfig = {
-              RandomizedDelaySec = "5m";
+              RandomizedDelaySec = "10m";
+              FixedRandomDelay = true;
             };
           };
         }
