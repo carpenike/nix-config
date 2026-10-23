@@ -56,7 +56,7 @@ in
 
   # Storage helper functions for ZFS datasets, NFS mounts, and preseed services
   # Usage: storageHelpers = mylib.storageHelpers pkgs;
-  # Functions: mkPreseedService, mkReplicationConfig, mkNfsMountConfig, etc.
+  # Functions: datasetUnitDeps, mkPreseedService, mkReplicationConfig, mkNfsMountConfig, etc.
   storageHelpers = pkgs: import ../modules/nixos/storage/helpers-lib.nix { inherit pkgs lib; };
 
   # Service UID/GID Registry

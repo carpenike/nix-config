@@ -1,4 +1,4 @@
-{ lib, pkgs, config, options, ... }:
+{ lib, pkgs, config, options, mylib, ... }:
 # PostgreSQL Module - Simplified Single-Instance Design
 #
 # This module defines options and generates PostgreSQL service configuration.
@@ -1064,6 +1064,14 @@ in
       cfg = config.modules.services.postgresql;
       pgPackage = if cfg.enable then pkgs.${"postgresql_${lib.replaceStrings ["."] [""] cfg.version}"} else null;
       storageIntegrationEnabled = cfg.integration.storage.enable or true;
+      storageHelpers = mylib.storageHelpers pkgs;
+      # Guard dataRoot, the dataset mount. dataDir is a versioned subdirectory;
+      # findmnt on that path would fail while the dataset is mounted correctly.
+      pgDatasetDeps = storageHelpers.datasetUnitDeps {
+        managed = storageIntegrationEnabled;
+        dataset = "${config.modules.storage.datasets.parentDataset}/postgresql";
+        mountpoint = if (config.modules.storage.datasets.enable or false) then cfg.dataRoot else null;
+      };
       majorUpgradeGate = pkgs.writeShellScript "postgresql-major-upgrade-gate" ''
         set -eu
 
@@ -1239,8 +1247,10 @@ in
             "postgresql-preseed.service"
             "postgresql.service"
           ];
-          after = lib.optionals storageIntegrationEnabled [ "zfs-service-datasets.service" ];
-          requires = lib.optionals storageIntegrationEnabled [ "zfs-service-datasets.service" ];
+          after = pgDatasetDeps.after;
+          requires = pgDatasetDeps.requires;
+          wants = pgDatasetDeps.wants;
+          preStart = lib.mkIf (pgDatasetDeps.preStart != "") (lib.mkBefore pgDatasetDeps.preStart);
           path = with pkgs; [ coreutils findutils ];
 
           unitConfig = {

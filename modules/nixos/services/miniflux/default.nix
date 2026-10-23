@@ -15,7 +15,7 @@
 { config, lib, mylib, pkgs, ... }:
 
 let
-  inherit (lib) mkOption mkEnableOption mkIf types optionals optionalAttrs;
+  inherit (lib) mkOption mkEnableOption mkIf types optionalAttrs;
   cfg = config.modules.services.miniflux;
   serviceName = "miniflux";
 
@@ -30,6 +30,18 @@ let
 
   # Construct the dataset path for miniflux
   datasetPath = "${storageCfg.datasets.parentDataset}/miniflux";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = cfg.zfs.dataset != null && (storageCfg.datasets.enable or false);
+    dataset = datasetPath;
+    mountpoint = cfg.dataDir;
+    preseedUnit = if cfg.preseed.enable then "preseed-miniflux.service" else null;
+    inherit allowEmptyBootstrap;
+    afterZfsMount = true;
+  };
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
@@ -399,13 +411,10 @@ in
             NoNewPrivileges = lib.mkDefault true;
           };
 
-          # Service dependencies for ZFS dataset mounting and preseed
-          after =
-            optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-            ++ optionals cfg.preseed.enable [ "preseed-miniflux.service" ];
-          wants =
-            optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-            ++ optionals cfg.preseed.enable [ "preseed-miniflux.service" ];
+          requires = datasetDeps.requires;
+          wants = datasetDeps.wants;
+          after = datasetDeps.after;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
         };
 
         # Create miniflux user/group with stable UID (required for secrets)

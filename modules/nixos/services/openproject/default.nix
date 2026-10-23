@@ -123,23 +123,15 @@ let
     "--cpus=${res.cpus}"
   ] ++ lib.optional (res.memoryReservation != null) "--memory-reservation=${res.memoryReservation}");
 
-  # The anchor is what peers Require. The sync unit is what actually creates
-  # the dataset; Wants= pulls it into this start without propagating later
-  # sync restarts back here (Requires= would). See datasets.nix, issue #852.
-  datasetManaged = datasetPath != null && (datasetsCfg.enable or false);
-  datasetAnchor = "zfs-service-datasets.service";
-  datasetSync = "zfs-service-datasets-sync.service";
-  datasetRequires = lib.optional datasetManaged datasetAnchor;
-  datasetWants = lib.optional datasetManaged datasetSync;
-  datasetAfter = lib.optionals datasetManaged [ datasetAnchor datasetSync ];
-  mountGuard = lib.optionalString datasetManaged (storageHelpers.assertDatasetMounted {
+  # Requires the anchor, Wants the sync unit, and guards dataDir. Preseed is
+  # Required only when an empty dataset is not an acceptable start.
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = datasetPath != null && (datasetsCfg.enable or false);
     dataset = datasetPath;
     mountpoint = cfg.dataDir;
-  });
-
-  preseedRequires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) preseedUnit;
-  preseedWants = lib.optional (cfg.preseed.enable && allowEmptyBootstrap) preseedUnit;
-  preseedAfter = lib.optional cfg.preseed.enable preseedUnit;
+    preseedUnit = if cfg.preseed.enable then preseedUnit else null;
+    inherit allowEmptyBootstrap;
+  };
 in
 {
   options.modules.services.openproject = {
@@ -479,12 +471,12 @@ in
         # "active" so web/worker can Require it; restartTriggers re-runs it
         # (and so the migrations) whenever the image changes (issue #852).
         ${seederUnit} = {
-          requires = datasetRequires ++ preseedRequires;
-          wants = datasetWants ++ dbUnits ++ cacheUnits ++ preseedWants;
-          after = datasetAfter ++ dbUnits ++ cacheUnits ++ preseedAfter;
+          requires = datasetDeps.requires;
+          wants = datasetDeps.wants ++ dbUnits ++ cacheUnits;
+          after = datasetDeps.after ++ dbUnits ++ cacheUnits;
           before = [ "${webUnit}.service" "${workerUnit}.service" ];
           restartTriggers = [ cfg.image ];
-          preStart = lib.mkBefore mountGuard;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
           unitConfig.RequiresMountsFor = [ cfg.dataDir ];
           serviceConfig = {
             Type = lib.mkForce "oneshot";
@@ -496,18 +488,18 @@ in
         };
 
         ${webUnit} = {
-          requires = [ "${seederUnit}.service" ] ++ datasetRequires ++ preseedRequires;
-          wants = datasetWants ++ dbUnits ++ cacheUnits ++ preseedWants;
-          after = [ "${seederUnit}.service" ] ++ datasetAfter ++ dbUnits ++ cacheUnits ++ preseedAfter;
-          preStart = lib.mkBefore mountGuard;
+          requires = [ "${seederUnit}.service" ] ++ datasetDeps.requires;
+          wants = datasetDeps.wants ++ dbUnits ++ cacheUnits;
+          after = [ "${seederUnit}.service" ] ++ datasetDeps.after ++ dbUnits ++ cacheUnits;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
           unitConfig.RequiresMountsFor = [ cfg.dataDir ];
         };
 
         ${workerUnit} = {
-          requires = [ "${seederUnit}.service" ] ++ datasetRequires ++ preseedRequires;
-          wants = datasetWants ++ dbUnits ++ cacheUnits ++ preseedWants;
-          after = [ "${seederUnit}.service" ] ++ datasetAfter ++ dbUnits ++ cacheUnits ++ preseedAfter;
-          preStart = lib.mkBefore mountGuard;
+          requires = [ "${seederUnit}.service" ] ++ datasetDeps.requires;
+          wants = datasetDeps.wants ++ dbUnits ++ cacheUnits;
+          after = [ "${seederUnit}.service" ] ++ datasetDeps.after ++ dbUnits ++ cacheUnits;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
           unitConfig.RequiresMountsFor = [ cfg.dataDir ];
         };
       };
@@ -524,8 +516,8 @@ in
       };
     })
 
-    (mkIf (cfg.enable && cfg.preseed.enable) (lib.mkMerge [
-      (storageHelpers.mkPreseedService {
+    (mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
         inherit serviceName allowEmptyBootstrap;
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
@@ -543,18 +535,7 @@ in
         hasCentralizedNotifications = (config.modules.notifications or { }).enable or false;
         owner = cfg.user;
         group = cfg.group;
-      })
-      # Preseed restores; it does not create the dataset. Wait for the sync
-      # unit so an empty bootstrap can set holthome:preseed_complete on the
-      # dataset the sync unit just created. Wants, not Requires: a later sync
-      # restart must not restart preseed (and must not roll a populated
-      # dataset back).
-      {
-        systemd.services."preseed-${serviceName}" = lib.mkIf datasetManaged {
-          wants = [ datasetSync ];
-          after = [ datasetSync ];
-        };
       }
-    ]))
+    ))
   ];
 }

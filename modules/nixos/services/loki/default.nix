@@ -14,6 +14,18 @@ let
 
   # Construct the dataset path for loki
   datasetPath = "${storageCfg.datasets.parentDataset}/loki";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = "loki";
+  };
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = cfg.zfs.dataset != null && (storageCfg.datasets.enable or false);
+    dataset = datasetPath;
+    mountpoint = cfg.dataDir;
+    preseedUnit = if cfg.preseed.enable then "preseed-loki.service" else null;
+    inherit allowEmptyBootstrap;
+    afterZfsMount = true;
+  };
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
@@ -358,11 +370,10 @@ in
           CPUQuota = cfg.resources.CPUQuota;
         };
 
-        # Service dependencies for ZFS dataset mounting and preseed
-        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "preseed-loki.service" ];
-        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "preseed-loki.service" ];
+        requires = datasetDeps.requires;
+        wants = datasetDeps.wants;
+        after = datasetDeps.after;
+        preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
       };
 
       # Automatically register with Caddy reverse proxy using standardized pattern

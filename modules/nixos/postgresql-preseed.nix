@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, mylib, ... }:
 
 with lib;
 
@@ -17,6 +17,13 @@ let
   # Stored in parent directory (/var/lib/postgresql/) to survive PGDATA deletion
   # Version-independent to avoid orphaned markers after upgrades
   markerFile = "/var/lib/postgresql/.preseed-completed";
+
+  # No mount guard here. This unit runs as postgres, and PGDATA is a
+  # subdirectory of the dataset. data-layout already checks dataRoot.
+  pgDatasetDeps = (mylib.storageHelpers pkgs).datasetUnitDeps {
+    managed = config.modules.storage.datasets.enable or false;
+    dataset = "${config.modules.storage.datasets.parentDataset}/postgresql";
+  };
 
   # Build the pgbackrest restore command
   restoreCommand = pkgs.writeShellScript "postgresql-preseed-restore" ''
@@ -415,7 +422,8 @@ in
     # Prepare service to ensure PGDATA ownership/permissions after storage mount
     systemd.services.postgresql-preseed-prepare = {
       description = "Prepare PostgreSQL data directory (ownership, permissions)";
-      after = [ "zfs-service-datasets.service" "zfs-mount.service" "postgresql-data-layout.service" ];
+      after = [ "zfs-service-datasets.service" "zfs-mount.service" "postgresql-data-layout.service" ] ++ pgDatasetDeps.after;
+      wants = pgDatasetDeps.wants;
       requires = [ "postgresql-data-layout.service" ];
       path = with pkgs; [ util-linux coreutils ];
       unitConfig = {
@@ -453,8 +461,8 @@ in
       description = "PostgreSQL Pre-Seed Restore (New Server Provisioning)";
       wantedBy = [ "multi-user.target" ];
       before = [ "postgresql.service" ];
-      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ];
-      wants = [ "network-online.target" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ] ++ pgDatasetDeps.after;
+      wants = [ "network-online.target" ] ++ pgDatasetDeps.wants;
       requires = [ "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ];
 
       # Always evaluate whether preseed is needed - script handles idempotency

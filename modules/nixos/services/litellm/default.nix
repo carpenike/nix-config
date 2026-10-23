@@ -73,6 +73,18 @@ let
   envDir = "/run/${serviceName}";
   envFile = "${envDir}/env";
   secretsDirOn = cfg: "${cfg.dataDir}/secrets";
+  storageHelpers = mylib.storageHelpers pkgs;
+  litellmCfg = config.modules.services.${serviceName};
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = config.modules.storage.datasets.enable or false;
+    dataset = "${config.modules.storage.datasets.parentDataset}/${serviceName}";
+    mountpoint = litellmCfg.dataDir;
+    preseedUnit = if (litellmCfg.preseed.enable or false) then "preseed-${serviceName}.service" else null;
+    allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+      inherit config;
+      datasetName = serviceName;
+    };
+  };
 
   yamlFormat = pkgs.formats.yaml { };
 
@@ -551,10 +563,13 @@ mylib.mkContainerService {
           Restart = lib.mkForce "on-failure";
           RestartSec = "10s";
         };
-        preStart = ''
-          install -d -o ${lib.escapeShellArg cfg.nativeDataOwner} \
-            -g ${lib.escapeShellArg cfg.nativeDataGroup} -m 0750 ${lib.escapeShellArg cfg.nativeDataDir}
-        '';
+        preStart = lib.mkMerge [
+          (lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart))
+          ''
+            install -d -o ${lib.escapeShellArg cfg.nativeDataOwner} \
+              -g ${lib.escapeShellArg cfg.nativeDataGroup} -m 0750 ${lib.escapeShellArg cfg.nativeDataDir}
+          ''
+        ];
       };
 
       # Assembles /run/litellm/env from systemd credentials. PartOf ties its
@@ -565,10 +580,12 @@ mylib.mkContainerService {
         before = [ mainServiceUnit ];
         requiredBy = [ mainServiceUnit ];
         partOf = [ mainServiceUnit ];
-        # Writes generated keys into <dataDir>/secrets, so the dataset must be
-        # mounted (and restored) first — see the copilot-api-keys note.
-        after = [ "zfs-service-datasets.service" "preseed-${serviceName}.service" ];
-        requires = [ "zfs-service-datasets.service" ];
+        # Writes generated keys into <dataDir>/secrets. datasetUnitDeps is the
+        # same edge copilot-api-keys uses, including the mount guard.
+        requires = datasetDeps.requires;
+        wants = datasetDeps.wants;
+        after = datasetDeps.after;
+        preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
 
         serviceConfig = {
           Type = "oneshot";

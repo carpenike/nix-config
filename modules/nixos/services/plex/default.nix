@@ -27,6 +27,14 @@ let
     inherit config;
     datasetName = "plex";
   };
+  datasetDeps = storageHelpers.datasetUnitDeps {
+    managed = cfg.zfs.dataset != null && (storageCfg.datasets.enable or false);
+    dataset = datasetPath;
+    mountpoint = cfg.dataDir;
+    preseedUnit = if cfg.preseed.enable then "preseed-plex.service" else null;
+    inherit allowEmptyBootstrap;
+    afterZfsMount = true;
+  };
 
   # Container mode helpers
   isContainerMode = cfg.deploymentMode == "container";
@@ -608,17 +616,15 @@ in
       ];
 
       # Ensure Plex starts after mounts and tmpfiles rules are applied
-      systemd.services.plex.unitConfig = lib.mkMerge [
-        (lib.mkIf (cfg.zfs.dataset != null) {
+      systemd.services.plex = {
+        requires = datasetDeps.requires;
+        wants = datasetDeps.wants;
+        after = datasetDeps.after;
+        preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
+        unitConfig = lib.mkIf (cfg.zfs.dataset != null) {
           RequiresMountsFor = [ cfg.dataDir ];
-          After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
-        })
-        (lib.mkIf cfg.preseed.enable {
-          After = [ "preseed-plex.service" ];
-          Requires = lib.optional (!allowEmptyBootstrap) "preseed-plex.service";
-          Wants = lib.optional allowEmptyBootstrap "preseed-plex.service";
-        })
-      ];
+        };
+      };
 
       # WORKAROUND (2025-12-31): VA-API library mismatch in native mode
       # The NixOS system libva is built with glibc 2.38+ which has __isoc23_sscanf symbol
@@ -785,19 +791,15 @@ in
           requires = [ nfsMountConfig.mountUnitName ];
           after = [ nfsMountConfig.mountUnitName ];
         })
-        # ZFS mount dependency
-        (lib.mkIf (cfg.zfs.dataset != null) {
-          unitConfig = {
+        {
+          requires = datasetDeps.requires;
+          wants = datasetDeps.wants;
+          after = datasetDeps.after;
+          preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
+          unitConfig = lib.mkIf (cfg.zfs.dataset != null) {
             RequiresMountsFor = [ cfg.dataDir ];
-            After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
           };
-        })
-        # Preseed dependency
-        (lib.mkIf cfg.preseed.enable {
-          requires = lib.optional (!allowEmptyBootstrap) "preseed-plex.service";
-          wants = lib.optional allowEmptyBootstrap "preseed-plex.service";
-          after = [ "preseed-plex.service" ];
-        })
+        }
         # Failure notifications
         (lib.mkIf (config.modules.notifications.enable or false) {
           unitConfig.OnFailure = [ "notify@plex-failure:%n.service" ];

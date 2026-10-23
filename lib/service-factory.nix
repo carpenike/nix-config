@@ -436,6 +436,22 @@ in
         inherit config;
         datasetName = name;
       };
+      # Guard only when dataDir is the dataset mount. dataDir is a path and
+      # the dataset mountpoint is a string; compare the path text. A host
+      # that mounts the dataset somewhere else, or stores state in a
+      # subdirectory, keeps the ordering and skips findmnt (it is exact-path).
+      declaredMountpoint = storageCfg.datasets.services.${name}.mountpoint or null;
+      dataDirText = toString cfg.dataDir;
+      datasetDeps = storageHelpers.datasetUnitDeps {
+        managed = storageCfg.datasets.enable or false;
+        dataset = datasetPath;
+        mountpoint =
+          if declaredMountpoint != null && declaredMountpoint == dataDirText
+          then dataDirText
+          else null;
+        preseedUnit = if (cfg.preseed.enable or false) then "preseed-${name}.service" else null;
+        inherit allowEmptyBootstrap;
+      };
 
       usesExternalAuth =
         cfg.reverseProxy != null
@@ -698,12 +714,14 @@ in
                 systemdRestart.mkStartLimit { restartSec = 30; }
               );
             }
-            # Preseed dependency
-            (lib.mkIf (cfg.preseed.enable or false) {
-              requires = lib.optional (!allowEmptyBootstrap) "preseed-${name}.service";
-              wants = lib.optional allowEmptyBootstrap "preseed-${name}.service";
-              after = [ "preseed-${name}.service" ];
-            })
+            # Dataset creation, restore, and the dataDir mount guard.
+            # datasetUnitDeps is the only ordering against zfs-service-datasets.
+            {
+              requires = datasetDeps.requires;
+              wants = datasetDeps.wants;
+              after = datasetDeps.after;
+              preStart = lib.mkIf (datasetDeps.preStart != "") (lib.mkBefore datasetDeps.preStart);
+            }
             # Config generator dependency
             (lib.mkIf (cfg.configGenerator.enable or false) {
               wants = [ "${name}-config-generator.service" ];

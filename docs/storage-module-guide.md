@@ -267,6 +267,41 @@ The storage module will detect the existing dataset and update properties if nee
 
 ## Troubleshooting
 
+### Depending on a dataset
+
+Service modules should not hand-write `Requires=` / `Wants=` / `After=` for
+`zfs-service-datasets.service`. Use `storageHelpers.datasetUnitDeps`:
+
+```nix
+datasetDeps = storageHelpers.datasetUnitDeps {
+  managed = config.modules.storage.datasets.enable;
+  dataset = datasetPath;
+  mountpoint = cfg.dataDir; # only when this path IS the mount, not a subdirectory
+  preseedUnit = if cfg.preseed.enable then "preseed-${name}.service" else null;
+  inherit allowEmptyBootstrap;
+};
+```
+
+That Requires the anchor (`zfs-service-datasets.service`) and Wants the sync
+unit (`zfs-service-datasets-sync.service`). Requires is fail-closed: the
+service does not start if dataset setup never succeeded. Wants, not Requires,
+on the sync unit: the first start waits for creation, and a later sync
+restart does not bounce the service. Preseed is Required only when
+`allowEmptyBootstrap` is false. Pass `mountpoint` only when `findmnt
+--mountpoint` should see that exact path; a versioned subdirectory
+(PostgreSQL) must pass null. `afterZfsMount = true` keeps a `zfs-mount.service`
+edge that a service already had.
+
+Container services from `mkContainerService` get this automatically when
+`modules.storage.datasets.enable` is on.
+
+`zfs-dataset-reality.timer` compares those declarations to the live pool
+every five minutes and writes textfile metrics. A missing or unmounted
+dataset raises `ZfsDatasetDeclaredGap`. The build-time protection manifest
+does not know whether the dataset exists; the alert is what makes a gap
+visible. Property drift is `ZfsDatasetPropertyMismatch` at low severity,
+because the sync unit logs a property it cannot set and continues.
+
 ### Dataset Not Created
 
 `zfs-service-datasets-sync.service` is the unit that creates datasets.

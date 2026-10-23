@@ -312,8 +312,9 @@ in
   config = lib.mkIf cfg.enable {
     # Dataset creation is split in two because of issue #852.
     #
-    # zfs-service-datasets.service is the dependency anchor. Long-running units
-    # (postgresql and the rest) Require it and order After it, and it stays
+    # zfs-service-datasets.service is the dependency anchor. Service modules get
+    # that edge from storageHelpers.datasetUnitDeps (Requires this anchor,
+    # Wants the sync unit). Long-running units Require the anchor, and it stays
     # RemainAfterExit so those Requires stay satisfied after the oneshot exits.
     # Its unit file does not embed the dataset list. restartIfChanged and
     # stopIfChanged are off: an explicit stop or restart of a unit propagates

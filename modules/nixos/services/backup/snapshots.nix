@@ -6,7 +6,7 @@
 # - Integrates with existing Sanoid for ongoing snapshot management
 # - No coupling between services and centralized Sanoid config
 
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, mylib, ... }:
 
 let
   cfg = config.modules.services.backup;
@@ -41,13 +41,17 @@ let
       snapshotName = "backup-${jobName}";
       cloneName = "${sourcePool}/temp/clone-${jobName}"; # Temporary clone dataset
       cloneMountpoint = "/var/lib/backup-snapshots/${jobName}"; # Mount location outside of /tmp to avoid PrivateTmp conflicts
+      # The clone lands on the utility dataset the sync unit creates.
+      # Requires the anchor so a backup does not run before that exists.
+      datasetDeps = (mylib.storageHelpers pkgs).datasetUnitDeps {
+        managed = config.modules.storage.datasets.enable or false;
+        dataset = dataset;
+      };
     in
     {
       "zfs-snapshot-${jobName}" = {
         description = "Create ZFS snapshot and clone for ${jobName} backup";
-        # Ensure the declarative datasets service has run first (creates the pool's temp dataset)
-        after = [ "zfs-service-datasets.service" ];
-        wants = [ "zfs-service-datasets.service" ];
+        inherit (datasetDeps) after requires wants;
         # Automatically stop when no longer needed by any active unit
         # This works with BindsTo= on the backup service to trigger cleanup
         unitConfig = {
