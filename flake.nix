@@ -194,9 +194,11 @@
     homelab-mcp = {
       # Pocket ID refresh group evidence (C12, sealed token), transient refresh retry,
       # Family School browser preflight, school_parent_today, the ambit policy schema,
-      # and the Ryan-only atrium-personal-deploy scope (mcp#99).
+      # the Ryan-only atrium-personal-deploy scope (mcp#99), OpenProject bot task
+      # tools and scope (mcp#93), statement-backed HELOC interest adjustments
+      # (mcp#100), and school_get_grades flat-grade carry-forward (mcp#101).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/b5b9e9dcc9ff643a6149225d2073355788cda8f9";
+      url = "github:carpenike/mcp/ff75de609920bc76e5f635662dad286860fa4901";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
