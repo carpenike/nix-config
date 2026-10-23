@@ -108,11 +108,11 @@ as everything else in this file.
 | --- | --- |
 | **Added** | 2026-09-09, updated 2026-10-23 |
 | **Location** | `modules/nixos/services/worldmonitor/package.nix` |
-| **Affects** | WorldMonitor 2.11.2 on Forge (nixpkgs 25.11) |
-| **Reason** | v2.11.2 vendors `braces` and `stream-json` as `resolved: "file:…"` lockfile entries with no integrity. nixpkgs 25.11 `prefetch-npm-deps` parses those as URLs and panics (`non-git dependencies should have associated integrity`). The root `postinstall` (`npm run inventory:facts`) writes gitignored `api/_inventory-facts.generated.js`, which `npm ci --ignore-scripts` skips. Nested `sharp` still needs `node-gyp` on `NODE_PATH`. The release tag is mutable and Renovate rewrites only `version`, so the source is pinned to commit `39c1a1e7571131d40038aeb8474809a8376c8cfa`. |
+| **Affects** | WorldMonitor 2.11.3 on Forge (nixpkgs 25.11) |
+| **Reason** | v2.11.3 vendors `braces` and `stream-json` as `resolved: "file:…"` lockfile entries with no integrity. nixpkgs 25.11 `prefetch-npm-deps` parses those as URLs and panics (`non-git dependencies should have associated integrity`). The root `postinstall` (`npm run inventory:facts`) writes gitignored `api/_inventory-facts.generated.js`, which `npm ci --ignore-scripts` skips. Nested `sharp` still needs `node-gyp` on `NODE_PATH`. The release tag is mutable and Renovate rewrites only `version`, so the source is pinned to commit `30aa0940eb6f26056400f14dd01245b2f4ea8005`. |
 | **Workaround** | Override this package's `prefetch-npm-deps` to skip `file:` URLs, matching later nixpkgs. `npm ci` still installs those two packages from `vendor/`. Delete `postinstall` and run `scripts/generate-inventory-facts.mjs` in `buildPhase`. Keep `NODE_PATH` for `node-gyp`, and set `makeCacheWritable` so npm can use the read-only dependency cache. |
-| **Check** | Drop the prefetch override when Forge's nixpkgs `prefetch-npm-deps` skips the `file` scheme. Drop inventory generation when that module ships in the source archive. On each version bump, update `rev`, the source hash, and `npmDepsHash` together. |
-| **Upstream** | [package.json at the pinned commit](https://github.com/koala73/worldmonitor/blob/39c1a1e7571131d40038aeb8474809a8376c8cfa/package.json), [Sharp source-build requirements](https://sharp.pixelplumbing.com/install#building-from-source) |
+| **Check** | Drop the prefetch override when Forge's nixpkgs `prefetch-npm-deps` skips the `file` scheme. Drop inventory generation when that module ships in the source archive. On each version bump, update `nix-pin-version`, `rev`, the source hash, and `npmDepsHash` together. |
+| **Upstream** | [package.json at the pinned commit](https://github.com/koala73/worldmonitor/blob/30aa0940eb6f26056400f14dd01245b2f4ea8005/package.json), [Sharp source-build requirements](https://sharp.pixelplumbing.com/install#building-from-source) |
 | **Impact** | Without the fetcher override the npm-deps fixed-output derivation panics. Without inventory generation the API imports a missing module. A version-only tag bump leaves the pinned commit behind. |
 
 ### copyparty - Security Release Pin

@@ -26,7 +26,7 @@
 
 let
   # nixpkgs 25.11 prefetch-npm-deps treats `resolved: "file:…"` as a URL and
-  # panics when the entry has no integrity. v2.11.2 vendors braces and
+  # panics when the entry has no integrity. v2.11.3 vendors braces and
   # stream-json that way. Later nixpkgs skips the file scheme; this is that
   # skip, scoped to this package's dependency fetch.
   prefetch-npm-deps = pkgs.prefetch-npm-deps.overrideAttrs (old: {
@@ -58,22 +58,21 @@ in
 buildNpmPackage rec {
   pname = "worldmonitor";
   # renovate: depName=koala73/worldmonitor datasource=github-releases
-  version = "2.11.2";
+  version = "2.11.3";
 
   src = fetchFromGitHub {
     owner = "koala73";
     repo = "worldmonitor";
-    # v2.11.2 is annotated tag 3c7e907146cca28b661dd4cbebfa3a4901fb7b3c of this
-    # commit (github-actions, 2026-10-20T06:15:46Z). GitHub release tags are
-    # mutable, and `rev = "v${version}"` makes the fixed-output source follow
-    # whatever the tag currently points at. Renovate's regex manager only
-    # rewrites `version`, so a tag bump with this hash left stale fails the
-    # fetch. Pin the commit; update rev and both hashes together with version.
-    rev = "39c1a1e7571131d40038aeb8474809a8376c8cfa";
-    hash = "sha256-M5xFoI7hhR1/KR2vnd+qxdELIJRFltsQAbZuAr3qu3Q=";
+    # v2.11.3 is annotated tag 92a40b21b1972ddf3de2ea53de074e0208bba1f0 of this
+    # commit (github-actions, 2026-10-23T03:16:04Z). GitHub release tags are
+    # mutable. Renovate's regex manager rewrites `version` only, so keep the
+    # commit here and move `nix-pin-version`, rev, and both hashes with it.
+    # nix-pin-version: 2.11.3
+    rev = "30aa0940eb6f26056400f14dd01245b2f4ea8005";
+    hash = "sha256-JfsUfYUx6HKqrU6wSD5eWIlcLRPPI+kMS+XEV5b6KsY=";
   };
 
-  npmDepsHash = "sha256-EeoI6YKKz1eavM9yGWboVJZXHaZIknVOlZ2tpkiz5Sc=";
+  npmDepsHash = "sha256-NnYNSLvnVxzOTO2xWMJ0hRnbFYj6kjBnbueI6OaFTAY=";
 
   # npm ci writes a temp dir inside the dependency cache. The fixed-output
   # cache is root-owned and read-only, so the install copies it first.
@@ -90,11 +89,11 @@ buildNpmPackage rec {
   nodejs = nodejs_22;
   NODE_PATH = "${node-gyp}/lib/node_modules";
 
-  # v2.11.2's postinstall is `npm run inventory:facts`, which writes the
+  # v2.11.3's postinstall is `npm run inventory:facts`, which writes the
   # gitignored api/_inventory-facts.generated.js imported by the API.
   # npm ci --ignore-scripts skips it. Drop the script so npm rebuild cannot
   # start a nested install, and generate the module in buildPhase.
-  # Upstream: https://github.com/koala73/worldmonitor/blob/39c1a1e7571131d40038aeb8474809a8376c8cfa/package.json
+  # Upstream: https://github.com/koala73/worldmonitor/blob/30aa0940eb6f26056400f14dd01245b2f4ea8005/package.json
   postPatch = ''
     ${nodejs_22}/bin/node -e '
       const fs = require("node:fs");

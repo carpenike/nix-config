@@ -21,10 +21,11 @@ let
   # v4.3.0 is annotated tag cf1380d3c1a57dc8ee3c204366ea2dd8e3e1902d of this
   # commit (2026-09-29). The previous hash was the v3.0.0 archive; Renovate
   # bumped teslamateDashboardsVersion without it, and `archive/refs/tags/v…`
-  # follows that mutable tag. Pin the commit.
+  # follows that mutable tag. Pin the commit. Move nix-pin-version with it.
   teslamateDashboardsSrc = pkgs.fetchFromGitHub {
     owner = "adriankumpf";
     repo = "teslamate";
+    # nix-pin-version: 4.3.0
     rev = "33d200b2fba9d5138803916a788cef5eae31b1aa";
     hash = "sha256-QukXDqTrXVuW0RpI2H24d0mpKjr5eWJgy/P9hjIffb4=";
   };

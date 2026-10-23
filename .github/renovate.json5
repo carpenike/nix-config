@@ -88,6 +88,21 @@
       ],
     },
     {
+      // The regex managers above rewrite version text and leave pinned
+      // commits and fixed-output hashes stale. Lint rejects the mismatch
+      // via the nix-pin-version marker; this note tells the reviewer why.
+      matchDatasources: [
+        'github-releases',
+        'github-tags',
+      ],
+      matchFileNames: [
+        '**/*.nix',
+      ],
+      prBodyNotes: [
+        'Regex managers rewrite the version text only. If this Nix file pins a commit (`rev`) or a fixed-output hash, update those and rebuild in the same PR. A version-only diff fails the nix-pin-version Lint check and the next Forge build.',
+      ],
+    },
+    {
       // Go modules (e.g., Caddy plugins)
       matchDatasources: ['go'],
       semanticCommits: 'enabled',

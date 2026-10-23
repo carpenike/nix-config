@@ -503,19 +503,28 @@
 
           # Checks for CI
           checks = {
-            renovate-extraction = pkgs.runCommand "renovate-extraction-tests"
-              {
-                nativeBuildInputs = [
-                  (pkgs.python3.withPackages (python: [ python.json5 python.google-re2 ]))
-                ];
-              }
-              ''
-                export PYTHONDONTWRITEBYTECODE=1
-                export RENOVATE_CONFIG=${./.github/renovate.json5}
-                export PLEX_MODULE=${./modules/nixos/services/plex/default.nix}
-                python3 ${./tests/renovate/test_extraction.py}
-                touch "$out"
-              '';
+            renovate-extraction =
+              let
+                nixPinFiles = pkgs.writeText "nix-pin-files.txt" (pkgs.lib.concatLines [
+                  "${./modules/nixos/services/worldmonitor/package.nix}"
+                  "${./modules/nixos/services/teslamate/default.nix}"
+                  "${./modules/nixos/services/qbittorrent/default.nix}"
+                ]);
+              in
+              pkgs.runCommand "renovate-extraction-tests"
+                {
+                  nativeBuildInputs = [
+                    (pkgs.python3.withPackages (python: [ python.json5 python.google-re2 ]))
+                  ];
+                }
+                ''
+                  export PYTHONDONTWRITEBYTECODE=1
+                  export RENOVATE_CONFIG=${./.github/renovate.json5}
+                  export PLEX_MODULE=${./modules/nixos/services/plex/default.nix}
+                  export NIX_PIN_FILES=${nixPinFiles}
+                  python3 ${./tests/renovate/test_extraction.py}
+                  touch "$out"
+                '';
             openproject-runtime =
               let
                 containers = inputs.self.nixosConfigurations.forge.config.virtualisation.oci-containers.containers;

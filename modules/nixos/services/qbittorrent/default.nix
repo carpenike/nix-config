@@ -19,7 +19,8 @@ let
   vuetorrentPackage = pkgs.fetchzip {
     url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.36.1/vuetorrent.zip";
     # Unpacked v2.36.1 release asset. The URL and this hash move together;
-    # Renovate rewrites only the URL.
+    # Renovate rewrites only the URL. Move nix-pin-version with that hash.
+    # nix-pin-version: 2.36.1
     hash = "sha256-CLft+uJXHJCwdZG4dlMOJ46VOzZSu9HdojNe9H+kgso=";
     stripRoot = false;
   };

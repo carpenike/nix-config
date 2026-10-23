@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 import unittest
 
 import json5
@@ -117,6 +118,74 @@ class DockerExtractionTests(unittest.TestCase):
                 ("grafana/oncall", "v1.16.7"),
             },
         )
+
+
+PIN_PATTERN = re.compile(r"^[ \t]*# nix-pin-version:[ \t]*(\S+)[ \t]*$", re.M)
+DECLARED_PATTERN = re.compile(
+    r'(?i)version\s*=\s*"([^"]+)"|https://github\.com/[^"\s]+/v([^/"\s]+)/'
+)
+
+
+def declared_versions(text):
+    return {
+        value
+        for match in DECLARED_PATTERN.finditer(text)
+        for value in match.groups()
+        if value
+    }
+
+
+class NixPinVersionTests(unittest.TestCase):
+    """Renovate regex managers rewrite version text and leave pinned revs and
+    hashes behind. A `# nix-pin-version: X` marker must name a version that
+    the same file still declares, so a version-only bump fails Lint.
+    """
+
+    def pin_files(self):
+        listed = os.environ.get("NIX_PIN_FILES")
+        if listed:
+            return [
+                Path(line.strip())
+                for line in Path(listed).read_text().splitlines()
+                if line.strip()
+            ]
+        return [
+            path
+            for root in (ROOT / "modules", ROOT / "pkgs")
+            if root.exists()
+            for path in root.rglob("*.nix")
+        ]
+
+    def test_version_only_bump_leaves_the_marker_behind(self):
+        before = '\n'.join(
+            [
+                'version = "2.11.2";',
+                "# nix-pin-version: 2.11.2",
+                'rev = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";',
+            ]
+        )
+        self.assertIn("2.11.2", declared_versions(before))
+        bumped = before.replace('version = "2.11.2";', 'version = "2.11.3";')
+        pins = PIN_PATTERN.findall(bumped)
+        self.assertEqual(pins, ["2.11.2"])
+        self.assertNotIn(pins[0], declared_versions(bumped))
+
+    def test_markers_match_declared_versions(self):
+        found = False
+        for path in self.pin_files():
+            text = path.read_text()
+            pins = PIN_PATTERN.findall(text)
+            if not pins:
+                continue
+            found = True
+            declared = declared_versions(text)
+            for pin in pins:
+                self.assertIn(
+                    pin,
+                    declared,
+                    f"{path} nix-pin-version {pin} is not a declared version {sorted(declared)}",
+                )
+        self.assertTrue(found, "expected at least one nix-pin-version marker")
 
 
 if __name__ == "__main__":
