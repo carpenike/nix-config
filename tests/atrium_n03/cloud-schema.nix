@@ -161,8 +161,8 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "personal:ryan": ["atrium-personal-ryan"],
         "family:holt": ["atrium-family"],
     }
-    automation_instances = {"personal-scribe", "personal-status"}
-    automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status"}
+    automation_instances = {"personal-scribe", "personal-status", "personal-deploy"}
+    automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status", "cc.personal.ryan.deploy"}
     owner_instances = automation_instances | {"personal-money"}
     owner_templates = automation_templates | {"cc.personal.ryan.money"}
     owner_family_instances = {"family-school", "family-outings"}
@@ -205,6 +205,18 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert outings.grants[0].request.permissions == ("read",)
     assert outings.grants[0].request.scopes == ()
     assert outings.grants[0].principal == "ryan" and not outings.grants[0].can_delegate
+    deploy = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["deployClients"]))
+    assert len(deploy.grants) == 1
+    assert deploy.grants[0].request.domain == "personal:ryan"
+    assert deploy.grants[0].request.instance == "personal-deploy"
+    assert deploy.grants[0].request.template_id == "cc.personal.ryan.deploy"
+    assert deploy.grants[0].request.scopes == ("atrium-personal-deploy",)
+    assert deploy.grants[0].request.permissions == ()
+    assert deploy.grants[0].request.lifetime_seconds == 900
+    assert deploy.grants[0].principal == "ryan" and not deploy.grants[0].can_delegate
+    assert deploy.grants[0].id == "cc.personal.ryan.deploy.baseline"
+    assert "cc.personal.ryan.deploy" not in {grant.request.template_id for grant in finance.grants}
+    assert "cc.personal.ryan.deploy" not in {grant.request.template_id for grant in ordinary.grants}
     assert set(data["authority_token_types"].values()) == {"access_token"}
     assert settings.group_authority == "pocketid"
     assert data["group_evidence"]["status"] == "accepted-unconfigured"
@@ -297,7 +309,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "real_runtime_schema_parsers": True, "certificate_derived_bindings": True,
         "wrong_certificate_refused": True, "wrong_native_target_refused": True,
         "ordinary_human_acls_remain_group_only": True,
-        "explicit_automation_principal_acls": ["personal-scribe", "personal-status"],
+        "explicit_automation_principal_acls": ["personal-scribe", "personal-status", "personal-deploy"],
         "separate_bounded_finance_grants_parsed": True,
         "identity_carrier_remains_access_token": True,
         "group_carrier_integration": "accepted-unconfigured",

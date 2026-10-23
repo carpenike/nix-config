@@ -137,6 +137,15 @@ lib.recursiveUpdate base {
       automation // {
       scopes = [ "atrium-personal-money" ];
     };
+    # Infrastructure deploy capability. Ryan-only explicit principal grant.
+    # Never bundled into the ordinary read view, Family views, finance
+    # clients, or unattended profiles.
+    personal-deploy = instance "personal:ryan" "home-mcp" "/cc/views/personal-deploy"
+      "Personal wing Forge deploy"
+      automation // {
+      access = "read-write";
+      scopes = [ "atrium-personal-deploy" ];
+    };
     family-school = instance "family:holt" "home-mcp" "/cc/views/family-school"
       "Family School today"
       automation // {
@@ -178,6 +187,8 @@ lib.recursiveUpdate base {
       automation [ "atrium-personal-status" ] [ ];
     "cc.personal.ryan.money" = routeTemplate "personal:ryan" "personal-money"
       automation [ "atrium-personal-money" ] [ ];
+    "cc.personal.ryan.deploy" = routeTemplate "personal:ryan" "personal-deploy"
+      automation [ "atrium-personal-deploy" ] [ ];
     "cc.family.holt.school" = routeTemplate "family:holt" "family-school"
       automation [ "atrium-family-school" ] [ ];
     "cc.family.holt.outings" = routeTemplate "family:holt" "family-outings"

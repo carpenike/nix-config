@@ -347,13 +347,13 @@
         "narHash": "sha256-1qTtWpZliy6ky68u0za5UhEtXgAbVeqIUCJ2Mrl+X6Y=",
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "c76ae82829958ca432d497fb68283c639aa13b2d",
+        "rev": "b5b9e9dcc9ff643a6149225d2073355788cda8f9",
         "type": "github"
       },
       "original": {
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "c76ae82829958ca432d497fb68283c639aa13b2d",
+        "rev": "b5b9e9dcc9ff643a6149225d2073355788cda8f9",
         "type": "github"
       }
     },

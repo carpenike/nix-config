@@ -45,6 +45,7 @@ Use these separate Home MCP connections:
 | Advisor finance | `https://mcp.holthome.net/cc/views/personal-finance` | `atrium-personal-finance` |
 | Hermes finance summaries and notes | `https://mcp.holthome.net/cc/views/personal-scribe` | `atrium-personal-scribe` |
 | Hermes status | `https://mcp.holthome.net/cc/views/personal-status` | `atrium-personal-status` |
+| Assistant Forge deploy | `https://mcp.holthome.net/cc/views/personal-deploy` | `atrium-personal-deploy` |
 
 Using the existing Forge-managed Hermes CLI, sign in sequentially:
 
@@ -52,6 +53,21 @@ Using the existing Forge-managed Hermes CLI, sign in sequentially:
 hermes mcp login atrium-finance
 hermes mcp login atrium-status
 ```
+
+The Forge deploy connection is not a Hermes alias and is not part of the
+finance, school, or outings preparation seeds. It is an explicit Ryan
+principal grant for infrastructure deploy (`nixos_apply_config`,
+`nixos_deploy_status`, `homelab_list_status`; read and write; no resources).
+Point the assistant's connector — the same kind of client as Home Services —
+at `https://mcp.holthome.net/cc/views/personal-deploy` and, after this host
+is deployed, append the grant once:
+
+```sh
+systemctl start atrium-grant-personal-deploy.service
+```
+
+Group removal does not revoke that grant. It is never added to the ordinary
+read view, Family views, or unattended profiles.
 
 The existing confidential client and callback are reused. The new aliases have
 separate target-bound token caches. No broad cache deletion or `--force` option

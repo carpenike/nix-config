@@ -209,6 +209,7 @@ in
         "atrium/bootstrap/school-clients.json".text = json bootstrap.schoolClients;
         "atrium/bootstrap/home-services-grant.json".text = json bootstrap.homeServicesClients;
         "atrium/bootstrap/outings-clients.json".text = json bootstrap.outingsClients;
+        "atrium/bootstrap/personal-deploy-clients.json".text = json bootstrap.deployClients;
         "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
@@ -306,6 +307,22 @@ in
         # Manual, once: the widened Home Services (/mcp) grant (school + recipe
         # reads). Not wanted by any target; a second run refuses with
         # grant_already_exists rather than duplicating it.
+        # Manual, once: the Ryan-only Forge deploy grant. Not wanted by any
+        # target; a second run refuses with grant_already_exists rather than
+        # duplicating it. Infrastructure deploy is never bundled into read,
+        # Family, or unattended views.
+        atrium-grant-personal-deploy = (mounted [ runtime.paths.resolver ]) // {
+          description = "Explicit Ryan-only Forge deploy grant";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          serviceConfig = (privateState "atrium-resolver") // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/personal-deploy-clients.json";
+          };
+        };
         atrium-grant-home-services = (mounted [ runtime.paths.resolver ]) // {
           description = "Explicit widened Home Services read grant (school and recipe reads)";
           unitConfig.AssertFileNotEmpty = [
