@@ -193,9 +193,10 @@
     # https://github.com/carpenike/mcp
     homelab-mcp = {
       # Pocket ID refresh group evidence (C12, sealed token), transient refresh retry,
-      # Family School browser preflight, school_parent_today, and the ambit policy schema.
+      # Family School browser preflight, school_parent_today, the ambit policy schema,
+      # and the Ryan-only atrium-personal-deploy scope (mcp#99).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/c76ae82829958ca432d497fb68283c639aa13b2d";
+      url = "github:carpenike/mcp/b5b9e9dcc9ff643a6149225d2073355788cda8f9";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

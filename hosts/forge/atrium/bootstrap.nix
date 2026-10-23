@@ -78,6 +78,15 @@ in
   outingsClients = seed [
     "cc.family.holt.outings"
   ];
+  # Infrastructure deploy. Kept out of financeClients: that list is asserted
+  # exactly, and this capability must not ride a finance, ordinary, Family,
+  # or unattended grant. The assistant's connector is granted the same way
+  # Home Services is — a separate non-delegable seed, applied once by hand
+  # (seed-policy never rewrites a grant):
+  #   systemctl start atrium-grant-personal-deploy.service
+  deployClients = seed [
+    "cc.personal.ryan.deploy"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;

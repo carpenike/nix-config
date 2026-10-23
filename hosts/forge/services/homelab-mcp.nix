@@ -88,6 +88,9 @@ let
       # the Cooklang reads. Both are "read" ceilings in the source catalog.
       "atrium-personal-school"
       "atrium-personal-recipes"
+      # Infrastructure deploy. Ryan-only; never added to the Home Services
+      # (/mcp) scopes, Family views, or unattended profiles.
+      "atrium-personal-deploy"
     ]
       (builtins.fromJSON (builtins.readFile
         (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);

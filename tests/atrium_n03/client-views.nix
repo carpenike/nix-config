@@ -16,7 +16,7 @@ let
   catalog = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"));
   scopes = [ "atrium-personal-read" "atrium-family-read" "atrium-family-school" ]
-    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" "school" "recipes" ];
+    ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" "school" "recipes" "deploy" ];
   tools = config: builtins.fromJSON
     config.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
   resources = config: builtins.fromJSON
@@ -42,6 +42,10 @@ let
       && lib.length catalog.scopes.atrium-personal-scribe.tools == 12
       && catalog.scopes.atrium-personal-status.tools == [ "homelab_list_status" ]
       && catalog.scopes.atrium-personal-status.resources == [ ]
+      && catalog.scopes.atrium-personal-deploy.tools
+      == [ "nixos_apply_config" "nixos_deploy_status" "homelab_list_status" ]
+      && catalog.scopes.atrium-personal-deploy.resources == [ ]
+      && catalog.scopes.atrium-personal-deploy.permissions == [ "read" "write" ]
       && catalog.scopes.atrium-personal-money.tools == [ "finances_overview" "finances_cashflow" "finances_balance_history" ]
       && catalog.scopes.atrium-personal-money.resources == [ ]
       && catalog.scopes.atrium-personal-money.permissions == [ "read" ]
@@ -60,10 +64,10 @@ let
       && catalog.scopes.atrium-personal-recipes.resources == [ ]
       && catalog.scopes.atrium-personal-recipes.permissions == [ "read" ]
       && lib.all (scope: !lib.any (lib.hasPrefix "school_") catalog.scopes.${scope}.tools)
-      [ "hermes" "advisor" "atrium-family-read" "atrium-personal-scribe" "atrium-personal-status" "atrium-personal-money" ];
+      [ "hermes" "advisor" "atrium-family-read" "atrium-personal-scribe" "atrium-personal-status" "atrium-personal-money" "atrium-personal-deploy" ];
     honest-write-permissions = lib.all
       (scope: catalog.scopes.${scope}.permissions == [ "read" "write" ])
-      [ "atrium-personal-finance" "atrium-personal-scribe" ]
+      [ "atrium-personal-finance" "atrium-personal-scribe" "atrium-personal-deploy" ]
     && catalog.scopes.atrium-personal-status.permissions == [ "read" ];
     ordinary-read-ceilings-preserved =
       lib.length catalog.scopes.atrium-personal-read.tools == 20
@@ -96,9 +100,42 @@ let
       == { principals = [ ]; groups = [ "atrium-personal-ryan" ]; };
     automation-is-explicit-not-group-fallback = lib.all
       (name: registry.instances.${name}.acl == { principals = [ "ryan" ]; groups = [ ]; })
-      [ "personal-scribe" "personal-status" ];
+      [ "personal-scribe" "personal-status" "personal-deploy" ];
     money-is-owner-only = registry.instances.personal-money.acl
       == { principals = [ "ryan" ]; groups = [ ]; };
+    deploy-is-read-write-owner-only =
+      registry.instances.personal-deploy.domain == "personal:ryan"
+      && registry.instances.personal-deploy.ownerPrincipal == "ryan"
+      && registry.instances.personal-deploy.deployment == "home-mcp"
+      && registry.instances.personal-deploy.kind == "view"
+      && registry.instances.personal-deploy.route == "/cc/views/personal-deploy"
+      && registry.instances.personal-deploy.scopes == [ "atrium-personal-deploy" ]
+      && registry.instances.personal-deploy.access == "read-write"
+      && registry.instances.personal-deploy.authorityBinding == [ "pocketid" ]
+      && registry.instances.personal-deploy.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.routeTemplates."cc.personal.ryan.deploy".domain == "personal:ryan"
+      && registry.routeTemplates."cc.personal.ryan.deploy".instance == "personal-deploy"
+      && registry.routeTemplates."cc.personal.ryan.deploy".scopes == [ "atrium-personal-deploy" ]
+      && registry.routeTemplates."cc.personal.ryan.deploy".permissions == [ ]
+      && registry.routeTemplates."cc.personal.ryan.deploy".acl == registry.instances.personal-deploy.acl
+      && registry.routeTemplates."cc.personal.ryan.deploy".maxLifetimeSeconds == 900
+      && map (grant: grant.request.template_id) bootstrap.deployClients.grants == [ "cc.personal.ryan.deploy" ]
+      && (builtins.head bootstrap.deployClients.grants).id == "cc.personal.ryan.deploy.baseline"
+      && (builtins.head bootstrap.deployClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.deployClients.grants).can_delegate
+      && (builtins.head bootstrap.deployClients.grants).request.lifetime_seconds == 900
+      && (builtins.head bootstrap.deployClients.grants).request.domain == "personal:ryan"
+      && (builtins.head bootstrap.deployClients.grants).request.instance == "personal-deploy"
+      && (builtins.head bootstrap.deployClients.grants).request.scopes == [ "atrium-personal-deploy" ]
+      && (builtins.head bootstrap.deployClients.grants).request.permissions == [ ]
+      && !lib.elem "cc.personal.ryan.deploy" (map (grant: grant.request.template_id) bootstrap.financeClients.grants)
+      && !lib.elem "cc.personal.ryan.deploy" (map (grant: grant.request.template_id) bootstrap.ordinary.grants)
+      && !lib.elem "cc.personal.ryan.deploy" (map (grant: grant.request.template_id) bootstrap.schoolClients.grants)
+      && !lib.elem "cc.personal.ryan.deploy" (map (grant: grant.request.template_id) bootstrap.outingsClients.grants)
+      && !lib.elem "atrium-personal-deploy" registry.instances.personal-data-read.scopes
+      && !lib.elem "atrium-personal-deploy" registry.instances.personal-status.scopes
+      && !lib.elem "atrium-personal-deploy" registry.instances.family-home-read.scopes
+      && !lib.elem "atrium-personal-deploy" registry.instances.family-school.scopes;
     school-is-owner-family = registry.instances.family-school.domain == "family:holt"
       && registry.instances.family-school.route == "/cc/views/family-school"
       && registry.instances.family-school.scopes == [ "atrium-family-school" ]
@@ -165,6 +202,7 @@ let
         "personal-scribe"
         "personal-status"
         "personal-money"
+        "personal-deploy"
         "family-school"
       ];
     default-public-resource-unchanged = runtime.native.resource == {
@@ -207,6 +245,28 @@ let
       && lib.hasSuffix
         "seed-policy --append --grants /etc/atrium/bootstrap/finance-clients.json"
         grantService.serviceConfig.ExecStart;
+    deploy-grant-append-is-manual =
+      let
+        unit = "atrium-grant-personal-deploy";
+        deployService = native.systemd.services.${unit};
+      in
+      deployService.wantedBy == [ ]
+      && deployService.requiredBy == [ ]
+      && !(native.systemd.timers ? ${unit})
+      && lib.all
+        (service: !lib.elem "${unit}.service" (service.requires ++ service.wants))
+        (builtins.attrValues native.systemd.services)
+      && deployService.serviceConfig.User == "atrium-resolver"
+      && deployService.serviceConfig.PrivateNetwork
+      && deployService.unitConfig.AssertFileNotEmpty == [
+        "/var/lib/atrium-resolver/foundation.initialized"
+        "/var/lib/atrium-resolver/resolver.sqlite3"
+      ]
+      && lib.hasSuffix
+        "seed-policy --append --grants /etc/atrium/bootstrap/personal-deploy-clients.json"
+        deployService.serviceConfig.ExecStart
+      && builtins.fromJSON baseline.environment.etc."atrium/bootstrap/personal-deploy-clients.json".text
+      == bootstrap.deployClients;
     legacy-dispatch-lists-unchanged = builtins.attrNames legacyTools == [ "advisor" "hermes" ]
       && legacyTools.advisor == catalog.scopes.advisor.tools
       && legacyTools.hermes == catalog.scopes.hermes.tools

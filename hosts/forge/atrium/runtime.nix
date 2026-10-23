@@ -143,6 +143,7 @@ in
           "personal-scribe"
           "personal-status"
           "personal-money"
+          "personal-deploy"
           "family-school"
         ];
         # Replaced by the actual nominated public leaf's fingerprint at runtime.
@@ -303,6 +304,7 @@ in
         "Separate manual finance-client grants; ordinary read-only grants are not widened."
         "Separate manual Family School grant for the owner only; the ordinary Family read is not widened."
         "Separate manual Family Outings grant for the owner only; Ambit is not a Home MCP view."
+        "Separate manual Personal deploy grant for Ryan only; infrastructure deploy is never bundled into read, Family, or unattended views."
         "Exact-resource OAuth for finance/scribe/status; fresh client sign-in without deleting old token caches or refresh history."
         "Scribe/status use explicit Ryan principal grants; group removal alone does not revoke those automation grants."
         "Explicit admitted public OAuth clients for accepted C10; no service-client or resource-audience inference."

@@ -119,9 +119,20 @@ from the selected Home MCP catalog, not a second tool inventory in Nix.
 | `/cc/views/personal-finance` | `atrium-personal-finance` | Advisor's 52 finance/document/purchase tools and finance resources; read/write | Fresh Personal group evidence |
 | `/cc/views/personal-scribe` | `atrium-personal-scribe` | Hermes's 12 finance-summary/context tools; read/write | Explicit Ryan principal grant |
 | `/cc/views/personal-status` | `atrium-personal-status` | Only `homelab_list_status`; read-only | Explicit Ryan principal grant |
+| `/cc/views/personal-deploy` | `atrium-personal-deploy` | `nixos_apply_config`, `nixos_deploy_status`, and `homelab_list_status`; read/write; no resources | Explicit Ryan principal grant |
 
 Finance excludes messaging, infrastructure deployment and general service
-status. Scribe excludes purchase history, Fidelity/net-worth detail and
+status. Forge deploy is a separate infrastructure capability on
+`/cc/views/personal-deploy` only (`https://mcp.holthome.net/cc/views/personal-deploy`).
+It is Ryan-only and is never bundled into the ordinary Personal read view,
+the Home Services `/mcp` connector, Family views, finance clients, or
+unattended profiles. Its non-delegable grant is the separate `deployClients`
+seed at `/etc/atrium/bootstrap/personal-deploy-clients.json`, applied once by
+hand with `atrium-grant-personal-deploy.service` (`seed-policy --append`),
+the same manual style as the Home Services widening. It has no startup
+target, timer, or activation dependency. Group removal does not revoke it.
+
+Scribe excludes purchase history, Fidelity/net-worth detail and
 ledger/rule/payee/loan mutations; its explicit note writer, provider sync and
 maintenance are not mislabeled read-only. No view reclassifies household
 finance data as Family data or claims per-human row isolation. Existing
