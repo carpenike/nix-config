@@ -176,7 +176,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "teslamate/teslamate:2.2.0@sha256:db111162f1037a8c8ce6fe56e538a4432b8a34d3d6176916ba22d42ef7ee4b78";
+      default = "teslamate/teslamate:4.4.0@sha256:c85b3d447502683ed7bf12fb478e0dae9a985fe975ac22cccb64faeb4c4a5d31";
       description = ''
         TeslaMate container image (pin to a specific tag or digest for reproducibility).
         Override this to track upstream releases and digests as needed.
