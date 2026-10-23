@@ -20,6 +20,20 @@ in
         # Renovate bot can be configured to automate updates.
         image = "ghcr.io/home-operations/sonarr:5.0.0.2742@sha256:491f13c731083c1e3a5eb707750ad61f0052a5a6c12b37f6f524eaa35664915d";
 
+        # Raised from the module default of 512M so v5 migration 225
+        # (mediainfo_multiple_streams) can finish. That migration loads every
+        # EpisodeFiles.MediaInfo row at once (buffered query, upstream fix
+        # Sonarr/Sonarr#9095 unmerged as of 2026-10-23). On this library that is
+        # ~538M chars, ~1.1G as .NET strings, and .NET caps its GC heap at ~75%
+        # of the cgroup limit: 512M OOMed at ~390M loaded. 3G gives a ~2.25G
+        # heap. This is a cap, not a reservation; consider lowering it once 225
+        # has completed and steady-state v5 usage has been measured.
+        resources = {
+          memory = "3G";
+          memoryReservation = "256M";
+          cpus = "2.0";
+        };
+
         # Use shared NFS mount and attach to the media services network.
         nfsMountDependency = "media";
         podmanNetwork = forgeDefaults.podmanNetwork;
