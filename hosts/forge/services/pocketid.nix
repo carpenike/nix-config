@@ -35,17 +35,32 @@ let
   # Caddy Security tokens are issued by the hostname that handles the callback.
   # Keep them host-only so one app cannot reuse another app's issuer-bound token.
   # Rotated names make browsers ignore legacy .holthome.net AUTHP_* cookies.
+  sessionIdCookieName = "AUTHP_HOST_SESSION_ID";
+  accessTokenCookieName = "AUTHP_HOST_ACCESS_TOKEN";
   portalExtraConfig = ''
-    set session_id cookie name AUTHP_HOST_SESSION_ID
+    set session_id cookie name ${sessionIdCookieName}
     set redirect_url cookie name AUTHP_HOST_REDIRECT_URL
     set sandbox_id cookie name AUTHP_HOST_SANDBOX_ID
     set id_token cookie name AUTHP_HOST_ID_TOKEN
-    set access_token cookie name AUTHP_HOST_ACCESS_TOKEN
+    set access_token cookie name ${accessTokenCookieName}
     set refresh_token cookie name AUTHP_HOST_REFRESH_TOKEN
 
     ${portalTransforms}
   '';
   serviceEnabled = config.modules.services.pocketid.enable or false;
+
+  # Since caddy-security v1.4.x, authorization policies no longer inherit a
+  # portal's custom cookie names: each policy is pinned to the defaults
+  # (AUTHP_ACCESS_TOKEN / AUTHP_SESSION_ID) unless it names its own
+  # (caddy-security caddyfile_resolve.go, "Custom names require an explicit
+  # policy list"). Without these lines every policy ignores the
+  # AUTHP_HOST_ACCESS_TOKEN cookie the portal just issued, reports "no token
+  # found", expires the cookie and redirects back to the IdP: an endless
+  # login loop on every caddy-security-protected host.
+  policyExtraConfig = ''
+    set session_id cookie name ${sessionIdCookieName}
+    set access_token cookie name ${accessTokenCookieName}
+  '';
 
   # The login page's backdrop, RENDERED AT BUILD TIME from a checked-in
   # script rather than committed as an opaque blob.
@@ -342,6 +357,7 @@ in
         authorizationPolicies = {
           default = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
+            extraConfig = policyExtraConfig;
             allowRoles = [ "authenticated" ];
             # Enable API key authentication via local identity store
             apiKeyAuth = {
@@ -353,6 +369,7 @@ in
 
           admins = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
+            extraConfig = policyExtraConfig;
             allowRoles = [ "admins" ];
             apiKeyAuth = {
               enable = true;
@@ -363,6 +380,7 @@ in
 
           media = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
+            extraConfig = policyExtraConfig;
             allowRoles = [ "media" ];
             apiKeyAuth = {
               enable = true;
@@ -373,6 +391,7 @@ in
 
           home = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
+            extraConfig = policyExtraConfig;
             allowRoles = [ "home" ];
             apiKeyAuth = {
               enable = true;
@@ -383,6 +402,7 @@ in
 
           lan-only = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
+            extraConfig = policyExtraConfig;
             allowRoles = [ "automation" ];
           };
         };
