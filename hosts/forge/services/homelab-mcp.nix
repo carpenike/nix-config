@@ -77,14 +77,16 @@ let
   financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
   # Optional dedicated read token for the ha_* READ tools (homelab-mcp >=
   # 0.35.0, HOMELAB_MCP_HA_READ_TOKEN; unset = they use HOMELAB_MCP_HA_TOKEN).
-  # MANUAL, and off until done (sops-nix validates every declared key at build
-  # time, so declaring it before the value exists would break the build):
+  # Provisioned 2026-10-23: HA user "homelab-mcp read" (group
+  # system-read-only, local-only, non-admin). Steps, for a re-provision
+  # (sops-nix validates every declared key at build time, so the value must
+  # exist before this is true):
   #   1. Create the non-admin, "system-read-only" HA user and its long-lived
   #      token per carpenike/mcp README "Dedicated read-only HA user".
   #   2. `sops hosts/forge/secrets.sops.yaml`: add the bare token as
   #      `homelab-mcp/ha_read_token`.
   #   3. Flip this to true; ha_health then reports read_token = "read".
-  haReadTokenProvisioned = false;
+  haReadTokenProvisioned = true;
   atriumScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
     (lib.getAttrs [
       "atrium-personal-read"
