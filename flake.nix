@@ -202,9 +202,10 @@
       # ingestion reservation with financesIngest.anchorUtc (mcp#106), and the
       # HA read tools: bounded history/logbook windows, entity-scoped reads,
       # statistics/logbook/registry tools, optional read token, and the
-      # house-sensors view (mcp#107, v0.35.0).
+      # house-sensors view (mcp#107, v0.35.0), and explicit start/end windows
+      # plus mean_type for ha_get_statistics (mcp#108, v0.35.1).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/2ce8b4d99f03a2a5f202a1734efff80267102e2a";
+      url = "github:carpenike/mcp/5228fcfe19c78ba02c08241dce4f6af824d2b864";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
