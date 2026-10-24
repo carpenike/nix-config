@@ -457,12 +457,12 @@ in
       # HOMELAB_MCP_RESTRICTED_SCOPES below. The ambient household agent must
       # not be able to read three children's grades; interactive access is
       # already bounded by the OAuth user allowlist.
-      systemd.services.homelab-mcp.serviceConfig.EnvironmentFile = lib.mkForce [
+      systemd.services.homelab-mcp.serviceConfig.EnvironmentFile = lib.mkForce ([
         config.sops.secrets."homelab-mcp/env".path
         config.sops.templates."homelab-mcp-schoolhouse-env".path
         config.sops.templates."homelab-mcp-lading-env".path
       ] ++ lib.optional haReadTokenProvisioned
-        config.sops.templates."homelab-mcp-ha-read-env".path;
+        config.sops.templates."homelab-mcp-ha-read-env".path);
 
       # Key that seals the stored Pocket ID refresh token (see
       # HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE above). systemd copies it into
