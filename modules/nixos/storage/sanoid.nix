@@ -430,6 +430,16 @@ in
             target = "${conf.replication.targetUser}@${conf.replication.targetHost}:${conf.replication.targetDataset}";
             recursive = conf.recursive; # Inherit recursiveness from snapshot config
             inherit (conf.replication) sendOptions recvOptions;
+            # Never replicate the temporary @backup-<job> snapshots that
+            # modules/nixos/services/backup/snapshots.nix creates (and destroys)
+            # around each restic run. Without this, syncoid's `zfs send -I`
+            # carries whichever one exists at send time to the target, where it
+            # outlives its source; the next run that includes a same-named
+            # snapshot then fails with "destination already exists". With a
+            # filter set, syncoid (>= 2.2.0) sends a chain of `-i` increments
+            # between the remaining snapshots instead, so sanoid/syncoid
+            # snapshots still replicate unchanged.
+            extraArgs = [ "--exclude-snaps=^backup-" ];
           }
         )
         datasetsWithReplication;
