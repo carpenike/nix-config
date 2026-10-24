@@ -198,10 +198,13 @@
       # tools and scope (mcp#93), statement-backed HELOC interest adjustments
       # (mcp#100), school_get_grades flat-grade carry-forward (mcp#101), the
       # finance-signal preparation failure reason in the journal (mcp#103), one
-      # bank-balance fetch per native report run (mcp#105), and the anchored
-      # ingestion reservation with financesIngest.anchorUtc (mcp#106).
+      # bank-balance fetch per native report run (mcp#105), the anchored
+      # ingestion reservation with financesIngest.anchorUtc (mcp#106), and the
+      # HA read tools: bounded history/logbook windows, entity-scoped reads,
+      # statistics/logbook/registry tools, optional read token, and the
+      # house-sensors view (mcp#107, v0.35.0).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/9c204fce0f46fd11516810eacdde409132e6b213";
+      url = "github:carpenike/mcp/2ce8b4d99f03a2a5f202a1734efff80267102e2a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

@@ -87,6 +87,12 @@ in
   deployClients = seed [
     "cc.personal.ryan.deploy"
   ];
+  # Groundskeeper's house-sensors HA read view. Separate, non-delegable,
+  # applied once by hand (seed-policy never rewrites a grant):
+  #   systemctl start atrium-grant-house-sensors.service
+  houseSensorsClients = seed [
+    "cc.family.holt.house-sensors"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;
