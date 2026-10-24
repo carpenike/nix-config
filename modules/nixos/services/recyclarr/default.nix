@@ -656,9 +656,9 @@ in
           main = {
             baseUrl = "http://sonarr:8989";
             apiKeyFile = config.sops.secrets."sonarr/api-key".path;
-            templates = [
-              "sonarr-quality-definition-series"
-              "sonarr-v4-quality-profile-web-1080p"
+            qualityDefinition = "series";
+            qualityProfiles = [
+              { trash_id = "72dae194fc92bf828f32cde7744e51a1"; } # WEB-1080p
             ];
           };
         }
@@ -675,9 +675,9 @@ in
           main = {
             baseUrl = "http://radarr:7878";
             apiKeyFile = config.sops.secrets."radarr/api-key".path;
-            templates = [
-              "radarr-quality-definition-movie"
-              "radarr-quality-profile-hd-bluray-web"
+            qualityDefinition = "movie";
+            qualityProfiles = [
+              { trash_id = "d1d67249d3890e49bc12e275d989a7e9"; } # HD Bluray + WEB
             ];
           };
         }
