@@ -161,7 +161,7 @@ let
       && nativeCatalog.scopes.atrium-personal-read.permissions == [ "read" ]
       && nativeCatalog.scopes.atrium-family-read.permissions == [ "read" ]
       && lib.length nativeCatalog.scopes.atrium-personal-read.tools == 20
-      && lib.length nativeCatalog.scopes.atrium-family-read.tools == 9
+      && lib.length nativeCatalog.scopes.atrium-family-read.tools == 12
       && nativeCatalog.scopes.atrium-personal-read.resources == [ ]
       && nativeCatalog.scopes.atrium-family-read.resources == [ ];
     explicit-native-read-ceilings =

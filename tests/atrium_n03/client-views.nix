@@ -15,7 +15,7 @@ let
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   catalog = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"));
-  scopes = [ "atrium-personal-read" "atrium-family-read" "atrium-family-school" ]
+  scopes = [ "atrium-personal-read" "atrium-family-read" "atrium-family-school" "atrium-family-house-sensors" ]
     ++ map (name: "atrium-personal-${name}") [ "finance" "scribe" "status" "money" "school" "recipes" "deploy" ];
   tools = config: builtins.fromJSON
     config.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
@@ -64,14 +64,54 @@ let
       && catalog.scopes.atrium-personal-recipes.resources == [ ]
       && catalog.scopes.atrium-personal-recipes.permissions == [ "read" ]
       && lib.all (scope: !lib.any (lib.hasPrefix "school_") catalog.scopes.${scope}.tools)
-      [ "hermes" "advisor" "atrium-family-read" "atrium-personal-scribe" "atrium-personal-status" "atrium-personal-money" "atrium-personal-deploy" ];
+      [ "hermes" "advisor" "atrium-family-read" "atrium-personal-scribe" "atrium-personal-status" "atrium-personal-money" "atrium-personal-deploy" "atrium-family-house-sensors" ];
+    house-sensors-is-ha-reads-only =
+      catalog.scopes.atrium-family-house-sensors.tools == [
+        "ha_health"
+        "ha_list_entities"
+        "ha_get_state"
+        "ha_get_history"
+        "ha_get_statistics"
+        "ha_get_logbook"
+        "ha_list_areas_devices"
+      ]
+      && catalog.scopes.atrium-family-house-sensors.resources == [ ]
+      && catalog.scopes.atrium-family-house-sensors.permissions == [ "read" ]
+      && registry.instances.family-house-sensors.domain == "family:holt"
+      && registry.instances.family-house-sensors.deployment == "home-mcp"
+      && registry.instances.family-house-sensors.route == "/cc/views/family-house-sensors"
+      && registry.instances.family-house-sensors.scopes == [ "atrium-family-house-sensors" ]
+      && registry.instances.family-house-sensors.access == "read-only"
+      && registry.instances.family-house-sensors.ownerPrincipal == "ryan"
+      && registry.instances.family-house-sensors.acl == { principals = [ "ryan" ]; groups = [ ]; }
+      && registry.routeTemplates."cc.family.holt.house-sensors".instance == "family-house-sensors"
+      && registry.routeTemplates."cc.family.holt.house-sensors".scopes == [ "atrium-family-house-sensors" ]
+      && registry.routeTemplates."cc.family.holt.house-sensors".permissions == [ ]
+      && registry.routeTemplates."cc.family.holt.house-sensors".acl == registry.instances.family-house-sensors.acl
+      && map (grant: grant.request.template_id) bootstrap.houseSensorsClients.grants == [ "cc.family.holt.house-sensors" ]
+      && (builtins.head bootstrap.houseSensorsClients.grants).principal == "ryan"
+      && !(builtins.head bootstrap.houseSensorsClients.grants).can_delegate
+      && (builtins.head bootstrap.houseSensorsClients.grants).request.scopes == [ "atrium-family-house-sensors" ]
+      && lib.all
+        (seed: !lib.elem "cc.family.holt.house-sensors" (map (grant: grant.request.template_id) seed.grants))
+        [ bootstrap.ordinary bootstrap.financeClients bootstrap.schoolClients bootstrap.outingsClients bootstrap.deployClients ]
+      && lib.all
+        (name: !lib.elem "atrium-family-house-sensors" registry.instances.${name}.scopes)
+        [ "personal-data-read" "family-home-read" "family-school" "personal-status" ]
+      && nativeTools.atrium-family-house-sensors == catalog.scopes.atrium-family-house-sensors.tools
+      && builtins.fromJSON baseline.environment.etc."atrium/bootstrap/house-sensors-clients.json".text
+      == bootstrap.houseSensorsClients
+      && native.systemd.services.atrium-grant-house-sensors.wantedBy == [ ]
+      && lib.hasSuffix
+        "seed-policy --append --grants /etc/atrium/bootstrap/house-sensors-clients.json"
+        native.systemd.services.atrium-grant-house-sensors.serviceConfig.ExecStart;
     honest-write-permissions = lib.all
       (scope: catalog.scopes.${scope}.permissions == [ "read" "write" ])
       [ "atrium-personal-finance" "atrium-personal-scribe" "atrium-personal-deploy" ]
     && catalog.scopes.atrium-personal-status.permissions == [ "read" ];
     ordinary-read-ceilings-preserved =
       lib.length catalog.scopes.atrium-personal-read.tools == 20
-      && lib.length catalog.scopes.atrium-family-read.tools == 9
+      && lib.length catalog.scopes.atrium-family-read.tools == 12
       && lib.all
         (scope: catalog.scopes.${scope}.permissions == [ "read" ]
         && catalog.scopes.${scope}.resources == [ ])
@@ -204,6 +244,7 @@ let
         "personal-money"
         "personal-deploy"
         "family-school"
+        "family-house-sensors"
       ];
     default-public-resource-unchanged = runtime.native.resource == {
       id = "personal-data-read";

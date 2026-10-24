@@ -165,8 +165,8 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status", "cc.personal.ryan.deploy"}
     owner_instances = automation_instances | {"personal-money"}
     owner_templates = automation_templates | {"cc.personal.ryan.money"}
-    owner_family_instances = {"family-school", "family-outings"}
-    owner_family_templates = {"cc.family.holt.school", "cc.family.holt.outings"}
+    owner_family_instances = {"family-school", "family-outings", "family-house-sensors"}
+    owner_family_templates = {"cc.family.holt.school", "cc.family.holt.outings", "cc.family.holt.house-sensors"}
     assert automation_instances <= data["instance_acls"].keys()
     assert owner_family_instances <= data["instance_acls"].keys()
     assert automation_templates <= data["human_template_acls"].keys()
@@ -205,6 +205,13 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert outings.grants[0].request.permissions == ("read",)
     assert outings.grants[0].request.scopes == ()
     assert outings.grants[0].principal == "ryan" and not outings.grants[0].can_delegate
+    sensors = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["houseSensorsClients"]))
+    assert len(sensors.grants) == 1
+    assert sensors.grants[0].request.domain == "family:holt"
+    assert sensors.grants[0].request.instance == "family-house-sensors"
+    assert sensors.grants[0].request.scopes == ("atrium-family-house-sensors",)
+    assert sensors.grants[0].request.permissions == ()
+    assert sensors.grants[0].principal == "ryan" and not sensors.grants[0].can_delegate
     deploy = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["deployClients"]))
     assert len(deploy.grants) == 1
     assert deploy.grants[0].request.domain == "personal:ryan"

@@ -145,6 +145,7 @@ in
           "personal-money"
           "personal-deploy"
           "family-school"
+          "family-house-sensors"
         ];
         # Replaced by the actual nominated public leaf's fingerprint at runtime.
         certificates = [ ];

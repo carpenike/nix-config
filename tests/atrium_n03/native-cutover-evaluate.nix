@@ -63,6 +63,7 @@ let
         "atrium-native-deny-initialize"
         "atrium-grant-finance-clients"
         "atrium-grant-personal-deploy"
+        "atrium-grant-house-sensors"
       ];
     native-startup-still-requires-approval = lib.all
       (name: lib.elem "/var/lib/atrium-policy/native-adoption.approved"

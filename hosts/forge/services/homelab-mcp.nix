@@ -75,6 +75,16 @@ let
   financeMoneyRole = "atrium-money-reader";
   financeSchema = "household_finance";
   financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
+  # Optional dedicated read token for the ha_* READ tools (homelab-mcp >=
+  # 0.35.0, HOMELAB_MCP_HA_READ_TOKEN; unset = they use HOMELAB_MCP_HA_TOKEN).
+  # MANUAL, and off until done (sops-nix validates every declared key at build
+  # time, so declaring it before the value exists would break the build):
+  #   1. Create the non-admin, "system-read-only" HA user and its long-lived
+  #      token per carpenike/mcp README "Dedicated read-only HA user".
+  #   2. `sops hosts/forge/secrets.sops.yaml`: add the bare token as
+  #      `homelab-mcp/ha_read_token`.
+  #   3. Flip this to true; ha_health then reports read_token = "read".
+  haReadTokenProvisioned = false;
   atriumScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
     (lib.getAttrs [
       "atrium-personal-read"
@@ -91,6 +101,8 @@ let
       # Infrastructure deploy. Ryan-only; never added to the Home Services
       # (/mcp) scopes, Family views, or unattended profiles.
       "atrium-personal-deploy"
+      # Groundskeeper's house-sensors view: HA reads only, allowlist-scoped.
+      "atrium-family-house-sensors"
     ]
       (builtins.fromJSON (builtins.readFile
         (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);
@@ -140,8 +152,70 @@ in
           # is a plain reverse-proxy pass-through (no PocketID gate at Caddy),
           # so HA's own bearer-token auth gates the API. The ha_* tools
           # authenticate with the long-lived token (HOMELAB_MCP_HA_TOKEN)
-          # sourced from the env file below.
+          # sourced from the env file below; the read tools prefer the
+          # optional HOMELAB_MCP_HA_READ_TOKEN (see haReadTokenProvisioned).
+          # Read-only views (atrium-family-read) are additionally entity-
+          # scoped inside homelab-mcp: person, device_tracker, lock,
+          # alarm_control_panel and camera are hidden by default
+          # (HOMELAB_MCP_HA_READONLY_ENTITY_DENYLIST), and camera tokens / GPS
+          # attributes are stripped for every caller.
           HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
+          # Entity scoping, declared here so the deployed policy is reviewable
+          # (homelab-mcp >= 0.35.0). Patterns: a bare domain or an entity-id
+          # glob; malformed patterns fail service start. Read-only views
+          # (family-home-read) see everything not denied below; the
+          # Groundskeeper house-sensors view sees ONLY its allowlist, minus
+          # both denylists. Tune the allowlist to real entity ids with
+          # ha_list_entities from the Personal view.
+          HOMELAB_MCP_HA_READONLY_ENTITY_DENYLIST = builtins.toJSON [
+            "person"
+            "device_tracker"
+            "lock"
+            "alarm_control_panel"
+            "camera"
+          ];
+          HOMELAB_MCP_HA_HOUSE_SENSORS_ENTITY_ALLOWLIST = builtins.toJSON [
+            "climate"
+            "water_heater"
+            "binary_sensor.*leak*"
+            "binary_sensor.*water*"
+            "binary_sensor.*moisture*"
+            "binary_sensor.*flood*"
+            "binary_sensor.*sump*"
+            "binary_sensor.*freeze*"
+            "binary_sensor.*power*"
+            "binary_sensor.*hvac*"
+            "binary_sensor.*furnace*"
+            "sensor.*leak*"
+            "sensor.*water*"
+            "sensor.*moisture*"
+            "sensor.*sump*"
+            "sensor.*freeze*"
+            "sensor.*temperature*"
+            "sensor.*humidity*"
+            "sensor.*dew_point*"
+            "sensor.*power*"
+            "sensor.*energy*"
+            "sensor.*voltage*"
+            "sensor.*hvac*"
+            "sensor.*furnace*"
+            "sensor.*thermostat*"
+          ];
+          HOMELAB_MCP_HA_HOUSE_SENSORS_ENTITY_DENYLIST = builtins.toJSON [
+            "person"
+            "device_tracker"
+            "camera"
+            "lock"
+            "alarm_control_panel"
+            "zone"
+            "image"
+            "media_player"
+            "*.*phone*"
+            "*.*location*"
+            "*.*geocoded*"
+            "*.*latitude*"
+            "*.*longitude*"
+          ];
           # Finances and Paperless integration endpoints.
           HOMELAB_MCP_FINANCES_SIDECAR_BASE_URL = "http://127.0.0.1:${toString actualSidecarPort}";
           HOMELAB_MCP_MONEY_PG_DSN = "postgresql:///${financeDb}?host=/run/postgresql&user=${financeMoneyRole}";
@@ -387,7 +461,8 @@ in
         config.sops.secrets."homelab-mcp/env".path
         config.sops.templates."homelab-mcp-schoolhouse-env".path
         config.sops.templates."homelab-mcp-lading-env".path
-      ];
+      ] ++ lib.optional haReadTokenProvisioned
+        config.sops.templates."homelab-mcp-ha-read-env".path;
 
       # Key that seals the stored Pocket ID refresh token (see
       # HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE above). systemd copies it into
@@ -599,6 +674,27 @@ in
         }];
       };
     }
+
+    # Dedicated HA read token (see haReadTokenProvisioned above). A template,
+    # like the schoolhouse/lading DSNs, so the sops value stays the bare token
+    # and the unit gets a one-line dotenv.
+    (lib.mkIf ((config.services.homelab-mcp.enable or false) && haReadTokenProvisioned) {
+      sops.secrets."homelab-mcp/ha_read_token" = {
+        mode = "0400";
+        owner = "root";
+        group = "root";
+        restartUnits = [ "homelab-mcp.service" ];
+      };
+      sops.templates."homelab-mcp-ha-read-env" = {
+        content = ''
+          HOMELAB_MCP_HA_READ_TOKEN=${config.sops.placeholder."homelab-mcp/ha_read_token"}
+        '';
+        mode = "0400";
+        owner = "root";
+        group = "root";
+        restartUnits = [ "homelab-mcp.service" ];
+      };
+    })
 
     # Service-down alert (native systemd service, not a container).
     (lib.mkIf (config.services.homelab-mcp.enable or false) (

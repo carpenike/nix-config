@@ -151,6 +151,16 @@ lib.recursiveUpdate base {
       automation // {
       scopes = [ "atrium-family-school" ];
     };
+    # Groundskeeper's house-sensors view: Home Assistant READS only (no
+    # automations list, no writer, no other category), entity-scoped inside
+    # homelab-mcp to an allowlist of leak/water/sump/freeze, temperature/
+    # humidity, HVAC and power entities. Owner-only automation ACL, like
+    # family-school; granted by hand (atrium-grant-house-sensors).
+    family-house-sensors = instance "family:holt" "home-mcp" "/cc/views/family-house-sensors"
+      "Family house sensors (Groundskeeper)"
+      automation // {
+      scopes = [ "atrium-family-house-sensors" ];
+    };
     family-outings = instance "family:holt" "ambit" "/cc/views/family-outings"
       "Family Outings"
       automation // {
@@ -191,6 +201,8 @@ lib.recursiveUpdate base {
       automation [ "atrium-personal-deploy" ] [ ];
     "cc.family.holt.school" = routeTemplate "family:holt" "family-school"
       automation [ "atrium-family-school" ] [ ];
+    "cc.family.holt.house-sensors" = routeTemplate "family:holt" "family-house-sensors"
+      automation [ "atrium-family-house-sensors" ] [ ];
     "cc.family.holt.outings" = routeTemplate "family:holt" "family-outings"
       automation [ ] [ "read" ];
     "cc.personal.ryan.whiskey" = routeTemplate "personal:ryan" "personal-whiskey"
