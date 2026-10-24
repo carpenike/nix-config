@@ -26,6 +26,20 @@ in
         permissionsPolicy = "owner-readwrite+readonly-select";
       };
 
+      # Defense in depth for ha.<domain>: Caddy serves this vhost only to peers
+      # on loopback or a private range. It matches the TCP peer (remote_ip), not
+      # client_ip, so a forged X-Forwarded-For cannot satisfy it. LAN, WireGuard
+      # and container clients connect from private addresses, and a Cloudflare
+      # Tunnel (cloudflared) connects from loopback. Any public source, such as
+      # a future WAN port-forward that bypasses Cloudflare, gets a 403. A
+      # Cloudflare path that is not a tunnel would need its edge ranges listed.
+      modules.services.caddy.virtualHosts.home-assistant.extraConfig = ''
+        @ha_public_source not remote_ip private_ranges
+        respond @ha_public_source "Forbidden" 403 {
+          close
+        }
+      '';
+
       # Ensure Home Assistant waits for PostgreSQL when using the recorder database
       systemd.services.home-assistant = {
         wants = lib.mkAfter [ "postgresql.service" ];
