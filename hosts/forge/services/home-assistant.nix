@@ -105,29 +105,28 @@ in
               local = localMediaDir; # Local media (LLM Vision snapshots, generated content)
             };
             packages = "!include_dir_named packages";
-            # Auth providers - trusted_networks must come before homeassistant
-            # Allows localhost connections (e.g., from Caddy, internal services) to bypass login
+            # Auth providers: standard Home Assistant login only.
+            # Deliberately no trusted_networks provider. Every request reaches HA
+            # through Caddy on loopback, so a trusted_networks entry would either be
+            # refused by HA (it rejects logins from trusted proxies) or, if it ever
+            # matched, would skip login for anything that can reach the proxy.
+            # Use long-lived access tokens for service-to-service access instead.
             auth_providers = [
-              {
-                type = "trusted_networks";
-                trusted_networks = [
-                  "127.0.0.1" # IPv4 localhost
-                  "::1" # IPv6 localhost
-                  "10.20.0.30" # Server IP
-                ];
-              }
-              { type = "homeassistant"; } # Standard login for all other connections
+              { type = "homeassistant"; }
             ];
           };
           http = {
             # server_host removed: deprecated in 2026.6.0, HA now binds all interfaces by default
             server_port = 8123;
             use_x_forwarded_for = true;
+            # Only Caddy proxies to HA, and its ha vhost dials 127.0.0.1:8123
+            # (modules/nixos/services/home-assistant reverseProxy backend). Port
+            # 8123 is not opened in the host firewall. Containers and LAN clients
+            # reach HA via https://ha.<domain>, i.e. through Caddy, so they must not
+            # be trusted to set X-Forwarded-For themselves.
             trusted_proxies = [
-              "127.0.0.1" # Caddy reverse proxy (loopback)
-              "::1" # IPv6 loopback (localhost resolution)
-              "10.20.0.30" # Caddy reverse proxy (main interface binding)
-              "10.88.0.0/16" # Podman container network
+              "127.0.0.1" # Caddy reverse proxy (loopback backend)
+              "::1" # IPv6 loopback, in case the backend host resolves to it
             ];
             ip_ban_enabled = true;
             login_attempts_threshold = 5;
