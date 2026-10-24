@@ -196,9 +196,12 @@
       # Family School browser preflight, school_parent_today, the ambit policy schema,
       # the Ryan-only atrium-personal-deploy scope (mcp#99), OpenProject bot task
       # tools and scope (mcp#93), statement-backed HELOC interest adjustments
-      # (mcp#100), and school_get_grades flat-grade carry-forward (mcp#101).
+      # (mcp#100), school_get_grades flat-grade carry-forward (mcp#101), the
+      # finance-signal preparation failure reason in the journal (mcp#103), one
+      # bank-balance fetch per native report run (mcp#105), and the anchored
+      # ingestion reservation with financesIngest.anchorUtc (mcp#106).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/ff75de609920bc76e5f635662dad286860fa4901";
+      url = "github:carpenike/mcp/9c204fce0f46fd11516810eacdde409132e6b213";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
