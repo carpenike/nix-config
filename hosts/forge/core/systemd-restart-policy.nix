@@ -78,7 +78,10 @@ let
       "whiskey-whiskey-whiskey"
       "worldmonitor-api"
       "zwave-js-ui"
-    ];
+    ] ++ lib.optionals
+      ((config.modules.services."obsidian-vault".enable or false)
+        && (config.modules.services."obsidian-vault".mcp.tokenProvisioned or false))
+      [ "obsidian-vault-mcp" ];
     "10" = [
       "cooklang"
       "lading"
@@ -89,6 +92,8 @@ let
       "grafana-oncall-plugin-setup"
       "pgweb"
       "syncoid-post-fixup-nas1"
+    ] ++ lib.optionals (config.modules.services."obsidian-vault".enable or false) [
+      "obsidian-sync"
     ];
   };
 

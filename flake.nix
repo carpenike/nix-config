@@ -1171,6 +1171,10 @@
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
                 agentHostStateNames = pkgs.lib.optional
                   forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
+                # Off by default. A disabled vault adds no dataset, so the
+                # baseline counts below stay put until enable is flipped.
+                obsidianVaultStates = pkgs.lib.optional
+                  forge.modules.services."obsidian-vault".enable "obsidian-vault";
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -1259,7 +1263,8 @@
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 56 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames;
+                == 56 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames
+                + builtins.length obsidianVaultStates;
               assert manifest.summary.byClass == {
                 critical = 15 + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
@@ -1271,7 +1276,9 @@
                 # (re-enabled) both declare `standard`.
                 # 18 since 2026-10-20: openproject (new) declares `standard`
                 # with an offsite tier for its attachments dataset.
-                standard = 18 + builtins.length agentHostStateNames;
+                # obsidian-vault (2026-10-25) adds one more standard dataset
+                # only while that service is enabled.
+                standard = 18 + builtins.length agentHostStateNames + builtins.length obsidianVaultStates;
                 system = 2;
               };
               assert builtins.all
@@ -1329,6 +1336,15 @@
               assert openproject.classification == "standard";
               assert openproject.missingRequiredTiers == [ ];
               assert openproject.coverage.offsiteBackup;
+              # Not in standardServicePaths: that list forbids allowEmptyBootstrap,
+              # and the vault is empty until the interactive ob sync-setup.
+              # No offsite restic tier; Obsidian Sync is the remote replica.
+              assert !(forge.modules.services."obsidian-vault".enable) || (
+                manifest.datasets."tank/services/obsidian-vault".classification == "standard"
+                  && manifest.datasets."tank/services/obsidian-vault".missingRequiredTiers == [ ]
+                  && manifest.datasets."tank/services/obsidian-vault".policy.allowEmptyBootstrap
+                  && manifest.datasets."tank/services/obsidian-vault".policy.objectives.offsiteRpoSeconds == null
+              );
               assert builtins.all
                 (name:
                   let
@@ -1449,6 +1465,16 @@
                     "syncoid-tank-services-${name}.timer"
                   ])
                   agentHostStates;
+                # Same gate as the protection-manifest check. Enabled vault:
+                # one restic job (no r2-offsite) and one syncoid timer.
+                obsidianVaultStates = pkgs.lib.optional
+                  forge.modules.services."obsidian-vault".enable "obsidian-vault";
+                obsidianVaultTimers = pkgs.lib.concatMap
+                  (name: [
+                    "restic-backup-service-${name}.timer"
+                    "syncoid-tank-services-${name}.timer"
+                  ])
+                  obsidianVaultStates;
                 requiredAlerts = [
                   "deployment-backup-guard-abandoned"
                   "deployment-backup-guard-monitoring-stale"
@@ -1502,10 +1528,16 @@
                 # 73 -> 75 restic jobs: openproject (new) brings
                 # restic-backup-service-openproject, restic-backup-openproject-offsite
                 # and syncoid-tank-services-openproject for its attachments dataset.
+                # 2026-10-25: obsidian-vault is declared with enable = false.
+                # Turning it on adds restic-backup-service-obsidian-vault and
+                # syncoid-tank-services-obsidian-vault, one snapshot dataset,
+                # and one NAS restic job. It does not add an r2-offsite job.
               assert builtins.length expectedTimers
-                == 153 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers;
+                == 153 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
+                + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
+              assert builtins.all (name: builtins.elem name expectedTimers) obsidianVaultTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
@@ -1513,13 +1545,19 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 66 + builtins.length agentHostStates;
+                == 66 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
-                (atriumStateNames ++ agentHostStates);
+                (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 75 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates;
+                == 75 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
+                + builtins.length obsidianVaultStates;
+              assert builtins.all
+                (name: enabledResticJobs."service-${name}".useSnapshots
+                  && enabledResticJobs."service-${name}".repository == "nas-primary"
+                  && !(builtins.hasAttr "${name}-offsite" enabledResticJobs))
+                obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
                   && enabledResticJobs."${name}-offsite".useSnapshots
