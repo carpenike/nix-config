@@ -80,6 +80,8 @@ let
             }
             trap cleanup EXIT
 
+            ${cfg._internal.resticIndexLockSnippet repoName}
+
             exec > >(tee -a "$LOG_FILE") 2>&1
             echo "$(date): Starting verification for repository ${repoName}"
 
@@ -190,6 +192,8 @@ let
               } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
             }
             trap cleanup EXIT
+
+            ${cfg._internal.resticIndexLockSnippet repoName}
 
             exec > >(tee -a "$LOG_FILE") 2>&1
             echo "$(date): Starting restore test for repository ${repoName}"

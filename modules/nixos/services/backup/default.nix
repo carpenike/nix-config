@@ -117,6 +117,46 @@ in
         description = "Systemd unit name (no suffix) for a restic backup job.";
       };
 
+      # Shell snippet that blocks until this process may load `repoName`'s index.
+      # Held until the shell exits, so the caller's EXIT trap (snapshot stats)
+      # still runs under the lock. flock(1) on a shell-owned fd keeps the lock
+      # after the utility returns; the kernel drops it when the unit dies.
+      resticIndexLockSnippet = lib.mkOption {
+        internal = true;
+        readOnly = true;
+        type = lib.types.functionTo lib.types.str;
+        description = "Shell that flock(1)s before restic loads a repository index.";
+        default = repoName:
+          let
+            lockDir = "${cfg.performance.cacheDir}/locks";
+            repoLock = lib.escapeShellArg "${lockDir}/${repoName}.lock";
+            hostLock = lib.escapeShellArg "${lockDir}/host.lock";
+            # Host scope is taken first so two repositories cannot deadlock
+            # against each other, and so a second index cannot start while
+            # the machine is already paying for one.
+            hostLockScript = lib.optionalString (cfg.performance.indexConcurrency == "host") ''
+              host_lock_file=${hostLock}
+              ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$host_lock_file")"
+              exec {host_lock_fd}>"$host_lock_file"
+              echo "Waiting for host-wide restic index lock ($host_lock_file)..."
+              ${pkgs.util-linux}/bin/flock "$host_lock_fd"
+              echo "Acquired host-wide restic index lock"
+            '';
+          in
+          ''
+            # Serialize index loads. Overlapping restic processes against one
+            # repository each hold the whole index, which is what overflows
+            # restic-backups.slice.
+            ${hostLockScript}
+            repo_lock_file=${repoLock}
+            ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$repo_lock_file")"
+            exec {repo_lock_fd}>"$repo_lock_file"
+            echo "Waiting for exclusive lock on restic repository ${repoName} ($repo_lock_file)..."
+            ${pkgs.util-linux}/bin/flock "$repo_lock_fd"
+            echo "Acquired exclusive lock on restic repository ${repoName}"
+          '';
+      };
+
       allJobs = lib.mkOption {
         internal = true;
         type = lib.types.attrsOf (lib.types.submodule {
@@ -350,6 +390,20 @@ in
             description = "I/O scheduling configuration";
           };
 
+          # "repository" is the safe default for any host: jobs that share a
+          # repo cannot load its index together. "host" is stricter and is
+          # what a memory-tight machine wants, because two repositories still
+          # share restic-backups.slice.
+          indexConcurrency = lib.mkOption {
+            type = lib.types.enum [ "repository" "host" ];
+            default = "repository";
+            description = ''
+              How many restic processes may load repository indexes at once.
+              `repository` allows one process per repository.
+              `host` allows one process on the machine.
+            '';
+          };
+
           resources = lib.mkOption {
             type = lib.types.submodule {
               options = {
@@ -477,6 +531,7 @@ in
     # Create necessary directories
     systemd.tmpfiles.rules = [
       "d ${cfg.performance.cacheDir} 0750 restic-backup restic-backup -"
+      "d ${cfg.performance.cacheDir}/locks 0750 restic-backup restic-backup -"
       "d /var/log/backup 0755 root root -"
       "d /var/lib/node_exporter/textfile_collector 0755 root root -"
       "d /tmp/restore-tests 0750 restic-backup restic-backup -"

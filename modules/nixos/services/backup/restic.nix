@@ -281,6 +281,10 @@ let
 
           echo "Starting backup for ${jobName}..."
 
+          # Block before any restic invocation, including the EXIT trap's
+          # snapshot listing, which loads the same index.
+          ${cfg._internal.resticIndexLockSnippet jobConfig.repository}
+
           # Pre-backup script
           ${jobConfig.preBackupScript}
 
@@ -431,9 +435,10 @@ in
       wantedBy = [ "multi-user.target" ];
     };
 
-    # Resource control slice for all restic backup jobs
-    # Caps aggregate memory and CPU so a midnight stampede of ~30 daily jobs
-    # cannot saturate the host even when timers overlap.
+    # Resource control slice for all restic backup jobs.
+    # Index loads are serialized (resticIndexLockSnippet). 4G stays the
+    # ceiling: one Forge-sized 2G job plus 2G of margin, not a second index.
+    # A higher ceiling is also what a missed lock is allowed to spend.
     systemd.slices.restic-backups = {
       description = "Restic backup resource control";
       sliceConfig = {
@@ -460,6 +465,10 @@ in
               Type = "oneshot";
               User = "restic-backup";
               Group = "restic-backup";
+
+              # Same slice as backups so a prune that misses the lock cannot
+              # sit outside the aggregate cap. Prune loads the index too.
+              Slice = "restic-backups.slice";
 
               # Security
               PrivateTmp = true;
@@ -517,6 +526,8 @@ in
                 } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
               }
               trap cleanup EXIT
+
+              ${cfg._internal.resticIndexLockSnippet repoName}
 
               echo "Starting prune for repository ${repoName}..."
 

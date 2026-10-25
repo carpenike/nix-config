@@ -106,6 +106,14 @@ in
           cpus = "1.5";
         };
 
+        # One restic index load on this machine. nas-primary and r2-offsite
+        # otherwise each load an index inside the same 4G slice. On 2026-10-25
+        # two nas-primary loads (about 1.5GiB each) were enough, with the rest
+        # of the slice, to cross MemoryMax, and swap was already full with
+        # about 4GiB RAM available. Repository scope would still allow that
+        # second repository. The 4G slice is intentionally not raised.
+        performance.indexConcurrency = "host";
+
         # PostgreSQL backup (pgBackRest with dual-repo PITR)
         # Restic meta-backup DISABLED - redundant now that repo2 has WAL archiving
         # Both repo1 (NFS) and repo2 (R2) now support full Point-in-Time Recovery
@@ -176,7 +184,8 @@ in
       };
 
       # WORKAROUND (2026-10-15): Bound shared NAS index allocation peaks.
-      # Affects: Forge's 2G NAS backup jobs; the 4G aggregate cap is unchanged.
+      # Affects: Forge's 2G NAS backup jobs. The 4G slice stays the ceiling;
+      # overlap is stopped by performance.indexConcurrency = "host".
       # Upstream: https://github.com/restic/restic/issues/2523
       # Check: Re-profile after Restic index-memory improvements; see docs/workarounds.md.
       systemd.services = lib.mapAttrs'
