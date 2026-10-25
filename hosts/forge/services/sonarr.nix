@@ -18,7 +18,7 @@ in
 
         # Pin container image to a specific version with a digest for immutability.
         # Renovate bot can be configured to automate updates.
-        image = "ghcr.io/home-operations/sonarr:5.0.0.2742@sha256:491f13c731083c1e3a5eb707750ad61f0052a5a6c12b37f6f524eaa35664915d";
+        image = "ghcr.io/home-operations/sonarr:5.0.0.2785@sha256:825bf13276077b2fa57dd1c0a67d10b2e71891b7391d19636615ede8ddc0a4a5";
 
         # Raised from the module default of 512M so v5 migration 225
         # (mediainfo_multiple_streams) can finish. That migration loads every
