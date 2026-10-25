@@ -104,6 +104,7 @@ in
     ./services/grocy.nix # Grocy household & groceries management
     ./services/miniflux.nix # Miniflux minimalist RSS reader
     ./services/n8n.nix # n8n workflow automation
+    ./services/obsidian-vault.nix # Obsidian Sync client and vault MCP (enable = false)
     ./services/netvisor.nix # NetVisor network discovery and visualization
     ./services/open-webui.nix # Open WebUI AI chat interface
     ./services/paperless.nix # Paperless-ngx document management system

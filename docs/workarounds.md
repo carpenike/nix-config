@@ -53,6 +53,18 @@ as everything else in this file.
 
 ---
 
+## Obsidian headless Sync client from nixpkgs-unstable
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-10-25 |
+| **Location** | `modules/nixos/services/obsidian-vault/default.nix` (`package` default) |
+| **Affects** | Forge, and only once `modules.services.obsidian-vault.enable` is set. The default is false, and the package is not evaluated until then. |
+| **Reason** | `obsidian-headless` 0.0.14 is unfree (`lib.licenses.obsidian`) and is not in nixos-25.11. It landed on nixpkgs master in NixOS/nixpkgs#537074 (2026-08-23), after this channel branched. |
+| **Workaround** | Use `pkgs.unstable.obsidian-headless`. The unstable overlay already sets `allowUnfree = true`. Do not widen `allowUnfreePredicate` to pull this one package in. |
+| **Check** | When `inputs.nixpkgs` moves to a release that contains `obsidian-headless` (re-check as part of the owed 26.05 migration), switch the default to `pkgs.obsidian-headless` and delete this entry. |
+| **Upstream** | [obsidianmd/obsidian-headless](https://github.com/obsidianmd/obsidian-headless) tag 0.0.14, command `ob`. |
+
 ## Pinned Flake Inputs
 
 ### Actual Budget - 26.7 Schema Compatibility Pin

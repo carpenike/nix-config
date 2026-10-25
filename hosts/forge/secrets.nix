@@ -185,6 +185,9 @@ in
 
     sops = {
       defaultSopsFile = ./secrets.sops.yaml;
+      # obsidian-vault/mcp_token is not listed here. The obsidian-vault module
+      # declares that secret only when mcp.tokenProvisioned is true, which
+      # stays false until the ciphertext is added to secrets.sops.yaml.
       useSystemdActivation = true;
       age.sshKeyPaths = [
         "/etc/ssh/ssh_host_ed25519_key"

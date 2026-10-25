@@ -54,6 +54,25 @@
     extraGroups = [ ];
   };
 
+  obsidian-sync = {
+    uid = 1070;
+    gid = 1070;
+    description = "Obsidian headless Sync client; credentials stay in this user's 0700 config dir";
+    extraGroups = [ "obsidian-vault" ];
+  };
+
+  obsidian-vault-mcp = {
+    uid = 1071;
+    gid = 1071;
+    description = "obsidian-web-mcp; supplementary obsidian-vault group is its only vault access";
+    extraGroups = [ "obsidian-vault" ];
+  };
+
+  # Shared group for the vault directory. No uid: neither daemon uses it as a primary group.
+  obsidian-vault = {
+    gid = 1072;
+  };
+
   vscode-agent-host = {
     uid = 1068;
     gid = 1068;
@@ -835,12 +854,13 @@
   # ============================================================================
 
   _meta = {
-    version = 7;
-    lastUpdated = "2026-09-04";
+    version = 8;
+    lastUpdated = "2026-10-25";
     lastAuditedAgainst = "forge.holthome.net";
     sharedUids = [ 911 ]; # Document intentional sharing (lidarr/readarr)
     sharedGids = [ 973 ]; # cooklang and cooklang-federation share a group
     changes = [
+      "v8: Added obsidian-sync (1070), obsidian-vault-mcp (1071), and shared group obsidian-vault (1072)"
       "v7: Added copilot-api service identity (924; 948 collided with forge auto-allocations)"
       "v6: Added PeaNUT service identity"
       "v5: Added extraGroups to all service entries"
