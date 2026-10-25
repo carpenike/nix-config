@@ -1004,9 +1004,34 @@
                   else
                     !(service.environment ? GOGC)
                       && !(service.environment ? GOMEMLIMIT);
+                # Host scope plus the per-repo flock. The slice stays 4G:
+                # one 2G job and 2G of margin, not two index loads.
+                indexLockHeld = script: repoName:
+                  lib.hasInfix ''flock "$host_lock_fd"'' script
+                    && lib.hasInfix "/var/cache/restic/locks/host.lock" script
+                    && lib.hasInfix ''flock "$repo_lock_fd"'' script
+                    && lib.hasInfix "/var/cache/restic/locks/${repoName}.lock" script;
+                jobHoldsIndexLock = jobName:
+                  let
+                    job = enabledJobs.${jobName};
+                    service = forge.systemd.services.${forge.modules.services.backup._internal.unitName jobName};
+                  in
+                  indexLockHeld service.script job.repository;
+                pruneHoldsIndexLock = repoName:
+                  let
+                    repo = forge.modules.services.backup.repositories.${repoName};
+                    service = forge.systemd.services."restic-prune-${repoName}";
+                  in
+                  repo.pruneSchedule != ""
+                    && service.serviceConfig.Slice == "restic-backups.slice"
+                    && service.serviceConfig.MemoryMax == "2G"
+                    && indexLockHeld service.script repoName;
               in
               assert lib.all jobIsProtected affectedJobs;
               assert lib.all memoryBudgetIsCorrect (builtins.attrNames enabledJobs);
+              assert forge.modules.services.backup.performance.indexConcurrency == "host";
+              assert lib.all jobHoldsIndexLock (builtins.attrNames enabledJobs);
+              assert lib.all pruneHoldsIndexLock (builtins.attrNames forge.modules.services.backup.repositories);
               assert forge.systemd.slices.restic-backups.sliceConfig.MemoryMax == "4G";
               assert lib.hasInfix ''exit "$restic_exit"'' resultScript;
               assert lib.hasInfix "restic_backup_result" resultScript;
@@ -1024,6 +1049,9 @@
                 test -n "$snapshot_destroy_line"
                 test -n "$lock_release_line"
                 test "$lock_release_line" -gt "$snapshot_destroy_line"
+                # Verification and restore-test embed the same helper. They are
+                # store scripts, so check the generator rather than realizing them.
+                grep -q 'resticIndexLockSnippet repoName' ${./modules/nixos/services/backup/verification.nix}
                 touch $out
               '';
 
