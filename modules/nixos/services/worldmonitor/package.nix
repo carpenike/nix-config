@@ -59,7 +59,7 @@ in
 buildNpmPackage rec {
   pname = "worldmonitor";
   # renovate: depName=koala73/worldmonitor datasource=github-releases
-  version = "2.11.3";
+  version = "2.11.6";
 
   src = fetchFromGitHub {
     owner = "koala73";
