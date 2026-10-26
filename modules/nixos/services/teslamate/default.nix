@@ -17,7 +17,7 @@ let
   mainServiceUnit = "${serviceAttrName}.service";
 
   # renovate: depName=adriankumpf/teslamate datasource=github-releases
-  teslamateDashboardsVersion = "4.3.0";
+  teslamateDashboardsVersion = "4.4.0";
   # v4.3.0 is annotated tag cf1380d3c1a57dc8ee3c204366ea2dd8e3e1902d of this
   # commit (2026-09-29). The previous hash was the v3.0.0 archive; Renovate
   # bumped teslamateDashboardsVersion without it, and `archive/refs/tags/v…`
