@@ -93,8 +93,16 @@
   # 10.30.0.0/16 is on-link there) instead of through the default gateway.
   # This causes asymmetric routing which breaks connectivity.
   #
-  # Solution: Traffic originating FROM 10.20.0.30 uses a separate routing table
-  # that only has the default gateway, ensuring replies go back the same way.
+  # Solution: Traffic originating FROM 10.20.0.30 uses the main-out table.
+  # Its default route is the gateway on enp8s0, so off-subnet replies
+  # (including 10.30.0.0/16 IoT VLAN clients) go back out the main interface
+  # instead of the wireless VLAN.
+  #
+  # 10.20.0.0/16 is on-link on enp8s0. Those peers already delivered the
+  # request directly over L2, and the gateway has no connection state for
+  # the flow, so a gateway-only default hairpins the reply to the router
+  # and it is dropped. main-out therefore also has an on-link route for
+  # that prefix; longest-prefix match prefers it over the default.
   systemd.services.policy-routing-main = {
     description = "Policy routing for main interface";
     after = [ "network-online.target" ];
@@ -105,8 +113,11 @@
       Type = "oneshot";
       RemainAfterExit = true;
     };
-    # Use 'replace' for route (idempotent) and delete-before-add for rule
+    # Use 'replace' for routes (idempotent) and delete-before-add for the rule.
+    # No Nix bindings exist in this file for the prefix, device, or address;
+    # they match the literals already used by the rule and the default route.
     script = ''
+      ip route replace 10.20.0.0/16 dev enp8s0 src 10.20.0.30 table main-out
       ip route replace default via 10.20.0.1 dev enp8s0 table main-out
       ip rule del from 10.20.0.30 table main-out priority 100 2>/dev/null || true
       ip rule add from 10.20.0.30 table main-out priority 100
@@ -114,6 +125,7 @@
     preStop = ''
       ip rule del from 10.20.0.30 table main-out priority 100 2>/dev/null || true
       ip route del default via 10.20.0.1 dev enp8s0 table main-out 2>/dev/null || true
+      ip route del 10.20.0.0/16 dev enp8s0 src 10.20.0.30 table main-out 2>/dev/null || true
     '';
   };
 }
