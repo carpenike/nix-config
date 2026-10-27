@@ -903,14 +903,44 @@ in
                 bypassResources = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
-                  description = "Regex path matchers that should bypass authentication (converted to expression matchers).";
+                  description = ''
+                    Regex paths that should bypass authentication, emitted as
+                    quoted `path_regexp` matchers (RE2). Several patterns are
+                    OR'd with each other and AND'd with `bypassPaths`,
+                    `bypassMethods`, and `allowedNetworks`.
+                    `expression {regexp(path, ...)}` is not used: Caddy 2.11
+                    leaves that text as a CEL program and refuses to load it.
+                  '';
                   example = [ "^/api/system/status$" "^/rss/.*$" ];
+                };
+
+                bypassMethods = mkOption {
+                  type = types.listOf types.str;
+                  default = [ ];
+                  description = ''
+                    HTTP methods the bypass requires, for example `[ "POST" ]`.
+                    Empty allows any method. Emitted as one `method` matcher inside
+                    the bypass matcher only, so it is AND'd with `bypassPaths`,
+                    `bypassResources`, and `allowedNetworks`. It does not apply to
+                    the rest of the vhost. Requires a bypass path or resource;
+                    a method list on its own is rejected. Tokens must be uppercase.
+                  '';
+                  example = [ "POST" ];
                 };
 
                 allowedNetworks = mkOption {
                   type = types.listOf types.str;
                   default = [ ];
-                  description = "CIDR ranges allowed to use bypass paths (empty = allow all, not recommended).";
+                  description = ''
+                    CIDRs of immediate TCP peers allowed to use the bypass.
+                    Emitted as one `remote_ip` matcher inside the bypass matcher
+                    only, so it is AND'd with the path, resource, and method
+                    matchers. It does not restrict or exempt the rest of the vhost.
+                    Empty means the bypass is not limited by source address.
+                    `remote_ip` is the connecting peer (or the PROXY-protocol
+                    address), not the X-Forwarded-For client IP (`client_ip`).
+                    A spoofed forwarding header cannot satisfy this list.
+                  '';
                   example = [ "10.0.0.0/8" "192.168.0.0/16" ];
                 };
 
@@ -1099,6 +1129,22 @@ in
           message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
         })
         cfg.virtualHosts) ++
+      (mapAttrsToList
+        (name: vhost:
+          let
+            sec = vhost.caddySecurity;
+            methods = if sec == null then [ ] else sec.bypassMethods;
+            hasBypassTarget = sec != null && (sec.bypassPaths != [ ] || sec.bypassResources != [ ]);
+            methodToken = method: builtins.match "[A-Z][A-Z0-9]*" method != null;
+          in
+          {
+            assertion = !vhost.enable || sec == null || (
+              (methods == [ ] || hasBypassTarget)
+              && builtins.all methodToken methods
+            );
+            message = "Virtual host '${name}' caddySecurity.bypassMethods must be uppercase HTTP tokens and requires bypassPaths or bypassResources, so a method limit cannot float off a path.";
+          })
+        cfg.virtualHosts) ++
       (optional (cfg.security.enable && cfg.security.identityProviders == { }) {
         assertion = false;
         message = "Caddy security is enabled but no identity providers are defined.";
@@ -1137,6 +1183,8 @@ in
                     if useCaddySecurity then vhost.caddySecurity.bypassPaths else [ ];
                   caddySecurityBypassResources =
                     if useCaddySecurity then vhost.caddySecurity.bypassResources else [ ];
+                  caddySecurityBypassMethods =
+                    if useCaddySecurity then vhost.caddySecurity.bypassMethods else [ ];
                   caddySecurityAllowedNetworks =
                     if useCaddySecurity then vhost.caddySecurity.allowedNetworks else [ ];
                   hasCaddySecurityBypassPaths = caddySecurityBypassPaths != [ ];
@@ -1162,14 +1210,28 @@ in
                   reverseProxyBlockIndented = indentLines reverseProxyBlockBase;
                   reverseProxyBlockDoubleIndented = indentLines reverseProxyBlockIndented;
 
-                  escapeForExpression = str: lib.replaceStrings [ "\"" ] [ "\\\"" ] str;
+                  # Quote regexes so `$` and spaces stay inside the token. Backslash
+                  # first, then quotes, so a pattern survives Caddyfile strings.
+                  escapeCaddyQuoted = str: lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] str;
                   caddySecurityBypassMatcher = "@caddy_security_bypass_${sanitizeForMatcher vhost.hostName}";
+                  # One Caddy matcher set: different matcher types are AND'd,
+                  # and the whole set is referenced only by the bypass route
+                  # below. method and remote_ip therefore cannot open the rest
+                  # of the vhost. remote_ip is the immediate peer, not client_ip.
+                  # Empty lines are omitted so the block stays one matcher set.
+                  caddySecurityBypassLines = filter (line: line != "") (
+                    optional hasCaddySecurityBypassPaths
+                      "path ${concatStringsSep " " (map (path: "${path}*") caddySecurityBypassPaths)}"
+                    ++ map (pattern: "path_regexp \"${escapeCaddyQuoted pattern}\"") caddySecurityBypassResources
+                    ++ optional (caddySecurityBypassMethods != [ ])
+                      "method ${concatStringsSep " " caddySecurityBypassMethods}"
+                    ++ optional (caddySecurityAllowedNetworks != [ ])
+                      "remote_ip ${concatStringsSep " " caddySecurityAllowedNetworks}"
+                  );
                   caddySecurityBypassConfig = optionalString (useCaddySecurity && hasCaddySecurityBypass) ''
                     # Matcher: Allowlisted paths that bypass caddy-security
                     ${caddySecurityBypassMatcher} {
-                      ${optionalString hasCaddySecurityBypassPaths "path ${concatStringsSep " " (map (path: "${path}*") caddySecurityBypassPaths)}"}
-                      ${concatStringsSep "\n                  " (map (pattern: "expression {regexp(path, \"${escapeForExpression pattern}\")}") caddySecurityBypassResources)}
-                      ${optionalString (caddySecurityAllowedNetworks != []) "remote_ip ${concatStringsSep " " caddySecurityAllowedNetworks}"}
+                      ${concatStringsSep "\n  " caddySecurityBypassLines}
                     }
 
                     route ${caddySecurityBypassMatcher} {

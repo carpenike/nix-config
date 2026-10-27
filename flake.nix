@@ -772,6 +772,51 @@
                   fi
                   grep -Fq 'upstream address scheme is HTTP but transport is configured for HTTP+TLS' invalid.log
                 '';
+            alertmanager-caddy-bypass =
+              let
+                lib = pkgs.lib;
+                caddyfile = inputs.self.nixosConfigurations.forge.config.services.caddy.configFile.text;
+                report = import ./tests/alertmanager-caddy-bypass.nix { inherit lib caddyfile; };
+                failed = lib.filterAttrs (_: ok: !ok) report.checks;
+              in
+              lib.throwIf (failed != { })
+                "alertmanager caddy bypass check failed: ${builtins.toJSON failed}\n${toString report.sitePreview}"
+                (pkgs.runCommand "alertmanager-caddy-bypass"
+                  {
+                    nativeBuildInputs = [ pkgs.caddy pkgs.jq ];
+                    snippet = pkgs.writeText "alertmanager-bypass.Caddyfile" report.adaptSnippet;
+                  } ''
+                  set -eu
+                  caddy adapt --adapter caddyfile --config "$snippet" > adapted.json
+                  # One match object means AND. A second object would OR another
+                  # way in. `route` compiles to a subroute, so handlers are nested.
+                  # Only the bypass route carries remote_ip; the fallback does not.
+                  if ! jq -e '
+                    # Site blocks nest the bypass under a host route. Walk every
+                    # route object. One match object ANDs its keys; a second
+                    # object would OR another way in.
+                    def opened: [ .. | objects | select(.match != null and (.match[0].remote_ip != null)) ];
+                    (opened | length) == 1
+                    and (opened[0].match | length) == 1
+                    and ((opened[0].match[0] | keys | sort) == ["method", "path_regexp", "remote_ip"])
+                    and (opened[0].match[0].method == ["POST"])
+                    and (opened[0].match[0].path_regexp.pattern == "^/api/v2/alerts$")
+                    and (opened[0].match[0].remote_ip.ranges == [
+                      "10.20.10.20/32",
+                      "10.20.10.21/32",
+                      "10.20.10.22/32",
+                      "10.20.10.23/32"
+                    ])
+                    and ([ opened[0] | .. | objects | select(.handler == "reverse_proxy") ] | length) == 1
+                    and ([ .. | objects | select(.handler == "static_response") ] | length) == 1
+                    and ([ opened[0] | .. | objects | select(.handler == "static_response") ] | length) == 0
+                  ' adapted.json > verdict.json; then
+                    echo "caddy adapt JSON did not match the bypass matcher contract" >&2
+                    cat adapted.json >&2
+                    exit 1
+                  fi
+                  cp verdict.json "$out"
+                '');
             atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (

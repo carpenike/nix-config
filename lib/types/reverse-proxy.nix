@@ -191,14 +191,42 @@ in
             bypassResources = mkOption {
               type = types.listOf types.str;
               default = [ ];
-              description = "Regex resources that should bypass caddy-security authorization checks.";
+              description = ''
+                Regex paths that should bypass caddy-security, emitted as
+                quoted `path_regexp` matchers (RE2). Several patterns are OR'd
+                with each other and AND'd with the path, method, and network
+                matchers. The Caddy module does not emit
+                `expression {regexp(path, ...)}`; Caddy 2.11 does not load that
+                form.
+              '';
               example = [ "^/api/system/status$" "^/rss/.*$" ];
+            };
+
+            bypassMethods = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = ''
+                HTTP methods the bypass requires, for example `[ "POST" ]`.
+                Empty allows any method. The Caddy module emits this as one
+                `method` matcher inside the bypass matcher only (AND'd with
+                the path, resource, and network matchers). It does not apply
+                to the rest of the vhost. Tokens must be uppercase, and a
+                method list requires bypassPaths or bypassResources.
+              '';
+              example = [ "POST" ];
             };
 
             allowedNetworks = mkOption {
               type = types.listOf types.str;
               default = [ ];
-              description = "List of CIDR ranges permitted to use bypassed paths; leave empty to allow any source (not recommended).";
+              description = ''
+                CIDRs of immediate TCP peers allowed to use the bypass.
+                The Caddy module emits one `remote_ip` matcher inside the
+                bypass matcher only, AND'd with the path, resource, and method
+                matchers. It does not restrict or exempt the rest of the vhost.
+                Empty means the bypass is not limited by source address.
+                This is the connecting peer, not the X-Forwarded-For client IP.
+              '';
               example = [ "10.0.0.0/8" "192.168.0.0/16" ];
             };
 
