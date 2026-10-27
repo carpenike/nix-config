@@ -1703,9 +1703,13 @@ in
           };
         }
         // optionalAttrs githubRunnerEnabled {
-          # GitHub Actions runner personal access token
-          # Fine-grained PAT with "Self-hosted runners" read+write permission
-          # Create at: https://github.com/settings/tokens?type=beta
+          # GitHub Actions runners' shared registration token
+          # (hosts/forge/services/github-runner.nix). Fine-grained PAT owned
+          # by carpenike, repository access = every private repo with a Forge
+          # runner, permission "Administration: read and write" (needed to
+          # mint repo-level runner registration tokens).
+          # Root-only on purpose: only the runners' root-privileged
+          # ExecStartPre reads it; job users never can.
           "github/runner-token" = {
             mode = "0400";
             owner = "root";
