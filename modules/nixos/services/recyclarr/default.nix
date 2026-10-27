@@ -13,13 +13,14 @@
 # - Secrets managed via SOPS with environment variable injection
 # - Supports multiple Sonarr/Radarr instances simultaneously
 #
-# **Configuration Levels** (from simple to advanced):
-# 1. Templates: Use TRaSH guide presets (recommended for most users)
-# 2. Custom Formats: Fine-tune individual format scores
-# 3. Quality Profiles: Full control over upgrade rules and thresholds
+# **Configuration Levels** (from simple to advanced, recyclarr v8+):
+# 1. Guide-backed quality profiles (`qualityProfiles` with `trash_id`) plus
+#    `qualityDefinition`: TRaSH presets (recommended for most users)
+# 2. Custom format groups / custom formats: opt into extra CFs, tweak scores
+# 3. Quality profile overrides: full control over upgrade rules and thresholds
 #
 # **Best Practices**:
-# - Start with templates, add custom formats only when needed
+# - Start with guide-backed profiles, add custom formats only when needed
 # - Enable deleteOldCustomFormats to prevent obsolete formats
 # - Run dry-run mode first to preview changes
 # - Use specific version tags for production (avoid 'latest')
@@ -54,6 +55,13 @@ let
   # YAML configuration generation using pkgs.formats.yaml with post-processing
   # to unquote !env_var tags (following Home-Assistant module pattern)
   yamlFormat = pkgs.formats.yaml { };
+
+  # Render a quality profile reference ({ name } or { trash_id }) used by
+  # assign_scores_to in custom_formats and custom_format_groups.
+  mkProfileRef = ref:
+    lib.optionalAttrs (ref.name or null != null) { name = ref.name; }
+    // lib.optionalAttrs (ref.trash_id or null != null) { trash_id = ref.trash_id; }
+    // lib.optionalAttrs (ref.score or null != null) { score = ref.score; };
 
   # Build instance config as Nix attrset (will be converted to YAML properly)
   mkInstanceConfig = service: name: inst:
@@ -102,6 +110,31 @@ let
         }
       );
 
+      # Quality definition (file size limits), e.g. "series" or "sqp-streaming"
+      qualityDefinition = lib.optionalAttrs (inst.qualityDefinition != null) {
+        quality_definition = { type = inst.qualityDefinition; };
+      };
+
+      # Custom format groups (recyclarr v8+): opt in/out of TRaSH CF groups
+      # on top of the defaults that guide-backed quality profiles pull in.
+      customFormatGroups =
+        let
+          g = inst.customFormatGroups;
+          mkGroup = grp:
+            { trash_id = grp.trash_id; }
+            // lib.optionalAttrs (grp.select != [ ]) { select = grp.select; }
+            // lib.optionalAttrs (grp.exclude != [ ]) { exclude = grp.exclude; }
+            // lib.optionalAttrs grp.select_all { select_all = true; }
+            // lib.optionalAttrs (grp.assign_scores_to != [ ]) {
+              assign_scores_to = map mkProfileRef grp.assign_scores_to;
+            };
+        in
+        lib.optionalAttrs (g.add != [ ] || g.skip != [ ]) {
+          custom_format_groups =
+            lib.optionalAttrs (g.add != [ ]) { add = map mkGroup g.add; }
+            // lib.optionalAttrs (g.skip != [ ]) { inherit (g) skip; };
+        };
+
       # Templates as include list
       templates = lib.optionalAttrs (inst.templates != [ ]) {
         include = map (t: { template = t; }) inst.templates;
@@ -115,12 +148,7 @@ let
             else {
               trash_ids = cf.trash_ids or [ ];
             } // lib.optionalAttrs (cf.assign_scores_to or [ ] != [ ]) {
-              assign_scores_to = map
-                (score:
-                  { name = score.name; }
-                    // lib.optionalAttrs (score.score or null != null) { score = score.score; }
-                )
-                cf.assign_scores_to;
+              assign_scores_to = map mkProfileRef cf.assign_scores_to;
             }
           )
           inst.customFormats;
@@ -132,7 +160,8 @@ let
           (qp:
             if builtins.isString qp then qp
             else
-              { name = qp.name; }
+              lib.optionalAttrs (qp.trash_id or null != null) { trash_id = qp.trash_id; }
+              // lib.optionalAttrs (qp.name or null != null) { name = qp.name; }
               // lib.optionalAttrs (qp.min_format_score or 0 != 0) {
                 min_format_score = qp.min_format_score;
               }
@@ -153,6 +182,8 @@ let
     baseConfig
     // deleteOldCF
     // (if service == "sonarr" then sonarrMediaNaming else radarrMediaNaming)
+    // qualityDefinition
+    // customFormatGroups
     // templates
     // customFormats
     // qualityProfiles;
@@ -179,10 +210,10 @@ let
   #
   # This module provides type-safe configuration for Recyclarr instances with three levels of control:
   #
-  # 1. **Templates** (Recommended for most users):
-  #    - Use TRaSH guide presets for quality definitions, profiles, and custom formats
-  #    - Simple, maintainable, automatically updated with TRaSH guide changes
-  #    - Example: [ "sonarr-quality-definition-series" "sonarr-v4-quality-profile-web-1080p" ]
+  # 1. **Guide-backed profiles** (Recommended for most users):
+  #    - qualityProfiles = [ { trash_id = "..."; } ] + qualityDefinition = "series";
+  #    - Qualities, custom formats and scores come straight from TRaSH Guides
+  #    - (recyclarr v8 removed the official include templates used previously)
   #
   # 2. **Custom Formats** (Advanced):
   #    - Fine-grained control over individual custom format scores
@@ -193,7 +224,7 @@ let
   #    - Full control over upgrade rules and scoring thresholds
   #    - Maximum flexibility but requires deep understanding of *arr quality management
   #
-  # These options can be combined: templates for baseline + custom formats for tweaks
+  # These options can be combined: guide-backed profiles for baseline + custom formats for tweaks
   instanceSubmodule = lib.types.submodule {
     options = {
       baseUrl = lib.mkOption {
@@ -212,24 +243,91 @@ let
         type = lib.types.listOf lib.types.str;
         default = [ ];
         description = ''
-          List of TRaSH guide template names to include.
+          Include templates rendered as `include: - template: <name>`.
 
-          Common Sonarr templates:
-          - sonarr-quality-definition-series
-          - sonarr-v4-quality-profile-web-1080p
-          - sonarr-v4-quality-profile-web-2160p
-          - sonarr-v4-custom-formats-web-1080p
-
-          Common Radarr templates:
-          - radarr-quality-definition-movie
-          - radarr-quality-profile-hd-bluray-web
-          - radarr-quality-profile-uhd-bluray-web
-          - radarr-custom-formats-hd-bluray-web
+          NOTE: recyclarr v8 removed all *official* include templates
+          (radarr-quality-profile-*, sonarr-v4-custom-formats-*, ...). They no
+          longer resolve. Use guide-backed `qualityProfiles` (`trash_id`),
+          `customFormatGroups` and `qualityDefinition` instead. This option only
+          remains for include templates from custom resource providers.
+          See https://recyclarr.dev/guide/upgrade-guide/v8.0/#official-include-templates-removed
         '';
-        example = [
-          "sonarr-quality-definition-series"
-          "sonarr-v4-quality-profile-web-1080p"
-        ];
+        example = [ "my-provider-include" ];
+      };
+
+      qualityDefinition = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          TRaSH quality definition (file size limits) to sync, rendered as
+          `quality_definition.type`. Examples: "series" (Sonarr), "movie" or
+          "sqp-streaming" (Radarr). List them with `recyclarr list qualities`.
+        '';
+        example = "series";
+      };
+
+      customFormatGroups = lib.mkOption {
+        type = lib.types.submodule {
+          options = {
+            add = lib.mkOption {
+              type = lib.types.listOf (lib.types.submodule {
+                options = {
+                  trash_id = lib.mkOption {
+                    type = lib.types.str;
+                    description = "trash_id of a TRaSH custom format group";
+                  };
+                  select = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [ ];
+                    description = "Non-default custom format trash_ids in the group to additionally include";
+                  };
+                  exclude = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [ ];
+                    description = "Default custom format trash_ids in the group to leave out";
+                  };
+                  select_all = lib.mkOption {
+                    type = lib.types.bool;
+                    default = false;
+                    description = "Include every custom format in the group (mutually exclusive with select)";
+                  };
+                  assign_scores_to = lib.mkOption {
+                    type = lib.types.listOf (lib.types.submodule {
+                      options = {
+                        name = lib.mkOption {
+                          type = lib.types.nullOr lib.types.str;
+                          default = null;
+                          description = "Quality profile name";
+                        };
+                        trash_id = lib.mkOption {
+                          type = lib.types.nullOr lib.types.str;
+                          default = null;
+                          description = "Guide-backed quality profile trash_id";
+                        };
+                      };
+                    });
+                    default = [ ];
+                    description = "Profiles to assign the group's scores to (default: all compatible guide-backed profiles)";
+                  };
+                };
+              });
+              default = [ ];
+              description = "Custom format groups to add or customise";
+            };
+            skip = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = "trash_ids of default custom format groups to skip";
+            };
+          };
+        };
+        default = { };
+        description = ''
+          recyclarr v8 `custom_format_groups`. Guide-backed quality profiles
+          already sync their default groups; use `add` to opt into optional
+          groups or tweak a group's members, and `skip` to opt out.
+          See https://recyclarr.dev/guide/cf-groups/
+        '';
       };
 
       customFormats = lib.mkOption {
@@ -245,9 +343,17 @@ let
               type = lib.types.listOf (lib.types.submodule {
                 options = {
                   name = lib.mkOption {
-                    type = lib.types.str;
-                    description = "Name of the quality profile to assign scores to";
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "Name of the quality profile to assign scores to (set this or trash_id)";
                     example = "WEB-1080p";
+                  };
+
+                  trash_id = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "trash_id of a guide-backed quality profile to assign scores to (set this or name)";
+                    example = "72dae194fc92bf828f32cde7744e51a1";
                   };
 
                   score = lib.mkOption {
@@ -284,9 +390,26 @@ let
         type = lib.types.listOf (lib.types.submodule {
           options = {
             name = lib.mkOption {
-              type = lib.types.str;
-              description = "Name of the quality profile to configure";
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Name of the quality profile. Required unless trash_id is set. With
+                trash_id it overrides the guide name; keep it equal to the existing
+                profile name to adopt (update) that profile instead of creating a
+                duplicate.
+              '';
               example = "WEB-1080p";
+            };
+
+            trash_id = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                trash_id of a TRaSH guide quality profile (recyclarr v8+). Qualities,
+                score set, custom formats and their scores come from the guide.
+                List them with `recyclarr list quality-profiles <service>`.
+              '';
+              example = "72dae194fc92bf828f32cde7744e51a1";
             };
 
             reset_unmatched_scores = lib.mkOption {
@@ -478,11 +601,11 @@ in
         Full container image name including tag or digest.
 
         Best practices:
-        - Pin to specific version tags (e.g., "7.4.1")
-        - Use digest pinning for immutability (e.g., "7.4.1@sha256:...")
+        - Pin to specific version tags (e.g., "8.8.0")
+        - Use digest pinning for immutability (e.g., "8.8.0@sha256:...")
         - Avoid 'latest' tag for production systems
       '';
-      example = "ghcr.io/recyclarr/recyclarr:7.4.1@sha256:f3ad4f59e6e5e4a...";
+      example = "ghcr.io/recyclarr/recyclarr:8.8.0@sha256:b1fbb929ba71...";
     };
 
     podmanNetwork = lib.mkOption {
@@ -515,9 +638,12 @@ in
     dryRun = lib.mkEnableOption "preview mode (--preview)";
 
     logLevel = lib.mkOption {
-      type = with lib.types; nullOr (enum [ "debug" "trace" ]);
+      type = with lib.types; nullOr (enum [ "debug" "info" "warn" ]);
       default = null;
-      description = "Set the log level for Recyclarr CLI";
+      description = ''
+        Log level for the Recyclarr CLI, passed as `--log <level>`. recyclarr v8
+        removed `--debug`; `--log` also switches the console to log output.
+      '';
     };
 
     # Sonarr instances configuration
@@ -530,9 +656,9 @@ in
           main = {
             baseUrl = "http://sonarr:8989";
             apiKeyFile = config.sops.secrets."sonarr/api-key".path;
-            templates = [
-              "sonarr-quality-definition-series"
-              "sonarr-v4-quality-profile-web-1080p"
+            qualityDefinition = "series";
+            qualityProfiles = [
+              { trash_id = "72dae194fc92bf828f32cde7744e51a1"; } # WEB-1080p
             ];
           };
         }
@@ -549,9 +675,9 @@ in
           main = {
             baseUrl = "http://radarr:7878";
             apiKeyFile = config.sops.secrets."radarr/api-key".path;
-            templates = [
-              "radarr-quality-definition-movie"
-              "radarr-quality-profile-hd-bluray-web"
+            qualityDefinition = "movie";
+            qualityProfiles = [
+              { trash_id = "d1d67249d3890e49bc12e275d989a7e9"; } # HD Bluray + WEB
             ];
           };
         }
@@ -629,6 +755,20 @@ in
           message = "Recyclarr requires at least one Sonarr or Radarr instance to be configured";
         }
         {
+          assertion = lib.all
+            (inst: lib.all (qp: qp.name != null || qp.trash_id != null) inst.qualityProfiles)
+            (lib.attrValues cfg.sonarr ++ lib.attrValues cfg.radarr);
+          message = "Recyclarr: every qualityProfiles entry needs a name or a trash_id";
+        }
+        {
+          assertion = lib.all
+            (inst: lib.all
+              (cf: lib.all (ref: ref.name != null || ref.trash_id != null) cf.assign_scores_to)
+              inst.customFormats)
+            (lib.attrValues cfg.sonarr ++ lib.attrValues cfg.radarr);
+          message = "Recyclarr: every customFormats assign_scores_to entry needs a name or a trash_id";
+        }
+        {
           assertion = cfg.backup != null -> cfg.backup.enable;
           message = "Recyclarr backup must be explicitly enabled when configured";
         }
@@ -698,7 +838,7 @@ in
         let
           # Build command flags
           previewFlag = lib.optionalString cfg.dryRun "--preview";
-          logLevelFlag = lib.optionalString (cfg.logLevel != null) "--${cfg.logLevel}";
+          logLevelFlag = lib.optionalString (cfg.logLevel != null) "--log ${cfg.logLevel}";
         in
         lib.mkMerge [
           # Base service configuration
