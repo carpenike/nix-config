@@ -66,7 +66,10 @@ in
       port = 9093;
     };
 
-    # Pocket ID via caddy-security authorization
+    # Pocket ID via caddy-security authorization.
+    # Cluster Prometheus on 10.20.10.20-23 posts alerts with no API key.
+    # The bypass matcher is one AND set: exact path, POST, and those peers.
+    # The UI and every other path still use `authorize with admins`.
     caddySecurity = {
       enable = true;
       portal = "pocketid";
@@ -77,6 +80,14 @@ in
           value = "admins";
           role = "admins";
         }
+      ];
+      bypassResources = [ "^/api/v2/alerts$" ];
+      bypassMethods = [ "POST" ];
+      allowedNetworks = [
+        "10.20.10.20/32"
+        "10.20.10.21/32"
+        "10.20.10.22/32"
+        "10.20.10.23/32"
       ];
     };
 
