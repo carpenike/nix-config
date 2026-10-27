@@ -55,7 +55,12 @@ hostPkgs.testers.runNixOSTest {
     import shlex
 
     machine.start()
-    machine.wait_for_unit("postgresql")
+    # initialScript runs in postgresql-setup.service, ordered after
+    # postgresql.service. The setup unit becomes active only after that
+    # script finishes, including CREATE ROLE. Waiting on "postgresql" alone
+    # races the first peer login against role creation.
+    machine.wait_for_unit("postgresql.service")
+    machine.wait_for_unit("postgresql-setup.service")
     dsn = "${configuration.services.homelab-mcp.settings.HOMELAB_MCP_MONEY_PG_DSN}"
     reader = "runuser -u homelab-mcp -- psql -X -qAt -v ON_ERROR_STOP=1 " + shlex.quote(dsn)
     admin = "runuser -u postgres -- psql -X -qAt -v ON_ERROR_STOP=1 -d homelab_finance"
@@ -95,8 +100,10 @@ hostPkgs.testers.runNixOSTest {
     groups.append("same-reader-cannot-write-or-read-unrelated-tables")
 
     machine.succeed(admin + " -c " + shlex.quote('SET ROLE "${owner}";') + " -f ${ddl}")
-    machine.succeed("systemctl restart postgresql")
-    machine.wait_for_unit("postgresql")
+    machine.succeed("systemctl restart postgresql.service")
+    # Setup is RemainAfterExit and does not reapply initialScript. The roles
+    # already exist; wait for the server, which is down across the restart.
+    machine.wait_for_unit("postgresql.service")
     assert select("SELECT payload FROM household_finance.money_overview") == original
     assert select("SELECT cashflow_payload FROM household_finance.money_overview") == original_cashflow
     assert "balance-history" in select("SELECT balance_payload FROM household_finance.money_overview")
