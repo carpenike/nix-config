@@ -145,6 +145,7 @@ let
     gnumake
     curl
     wget
+    openssl # the CLI; GitHub-hosted Ubuntu has it and test suites shell out to it
   ];
 
   # Settings for the nix client inside jobs. A file (not NIX_CONFIG) so a
@@ -152,11 +153,15 @@ let
   # cores are forwarded to the daemon even for untrusted users, which keeps
   # CI builds (they run in nix-daemon's cgroup, outside the runner's limits)
   # small.
-  nixClientConf = pkgs.writeText "github-runner-nix.conf" ''
-    accept-flake-config = true
-    max-jobs = ${toString cfg.nixBuild.maxJobs}
-    cores = ${toString cfg.nixBuild.cores}
-  '';
+  #
+  # experimental-features is repeated from the host because jobs never see
+  # /etc/nix/nix.conf: it ends in `!include /run/secrets/nix/access-tokens`,
+  # /run/secrets.d is in InaccessiblePaths, and Nix drops the whole system
+  # file when that include fails with EACCES (it only skips a missing one).
+  # Keeping the access tokens out of jobs is intended; losing the rest of
+  # the system file only matters for client-side settings like this one.
+  nixClientConf = pkgs.writeText "github-runner-nix.conf"
+    (lib.concatStrings (lib.mapAttrsToList (k: v: "${k} = ${v}\n") cfg.nixClientSettings));
 
   # Interpreter path that unpatched glibc binaries ask for, e.g.
   # /lib64/ld-linux-x86-64.so.2 on x86_64-linux.
@@ -387,6 +392,19 @@ in
       };
     };
 
+    nixClientSettings = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      internal = true;
+      readOnly = true;
+      default = {
+        experimental-features = lib.concatStringsSep " " config.nix.settings.experimental-features;
+        accept-flake-config = "true";
+        max-jobs = toString cfg.nixBuild.maxJobs;
+        cores = toString cfg.nixBuild.cores;
+      };
+      description = "Rendered into every job's NIX_USER_CONF_FILES. Exposed for the contract check.";
+    };
+
     runners = lib.mkOption {
       type = lib.types.attrsOf runnerSubmodule;
       default = { };
@@ -428,6 +446,10 @@ in
 
           extraEnvironment = {
             NIX_USER_CONF_FILES = "${nixClientConf}";
+            # Prebuilt toolchains (setup-python, uv's standalone CPython) look
+            # for CAs at Debian/RHEL paths that NixOS does not have, so TLS
+            # verification fails. NixOS's bundle, which follows CA updates.
+            SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
           }
           // lib.optionalAttrs r.nixLd.enable {
             NIX_LD = "${nixLdLibraries}/share/nix-ld/lib/ld.so";

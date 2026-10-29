@@ -55,6 +55,15 @@ let
         && lib.elem "-/run/secrets/github/runner-token" (sc n).InaccessiblePaths)
       expected;
     onDiskWorkDirs = lib.all (n: runners.${n}.workDir == "/var/lib/github-runner-work/${n}") expected;
+    # Jobs cannot read /etc/nix/nix.conf (its access-tokens !include is
+    # inaccessible), so the client conf must carry the host's features.
+    nixClientFeatures =
+      let settings = c.modules.services.github-runner.nixClientSettings; in
+      lib.splitString " " settings.experimental-features == c.nix.settings.experimental-features
+      && lib.elem "flakes" c.nix.settings.experimental-features
+      && lib.all (n: lib.hasSuffix "-github-runner-nix.conf" runners.${n}.extraEnvironment.NIX_USER_CONF_FILES) expected;
+    caBundle = lib.all (n: runners.${n}.extraEnvironment.SSL_CERT_FILE == "/etc/ssl/certs/ca-certificates.crt") expected;
+    opensslCli = lib.all (n: lib.elem "openssl" (map lib.getName runners.${n}.extraPackages)) expected;
     networkConfigHasNoRouterTooling = !(lib.any (p: lib.elem (lib.getName p) [ "openssh" "sshpass" "routeros" ])
       runners.network-config.extraPackages);
   };
