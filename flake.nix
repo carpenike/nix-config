@@ -203,9 +203,10 @@
       # HA read tools: bounded history/logbook windows, entity-scoped reads,
       # statistics/logbook/registry tools, optional read token, and the
       # house-sensors view (mcp#107, v0.35.0), and explicit start/end windows
-      # plus mean_type for ha_get_statistics (mcp#108, v0.35.1).
+      # plus mean_type for ha_get_statistics (mcp#108, v0.35.1), and the HELOC
+      # obligation end month (2026-10) in finances_config.json.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/5228fcfe19c78ba02c08241dce4f6af824d2b864";
+      url = "github:carpenike/mcp/20e24ca8f98bb57f66c0d7d0168e7dceb92f1b56";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
