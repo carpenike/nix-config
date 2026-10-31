@@ -100,10 +100,13 @@ in
           "id.${domain}" = "10.89.0.1";
         };
 
-        # Resource limits - 7d peak (12M) × 2.5 = 128M minimum
+        # Resource limits. RSS cross-seed (every 120 min) sits around
+        # 108-123Mi and peaked near 92% of the old 128M cap, which flaps
+        # ContainerHighMemory (high at 80%, critical at 95%).
+        # Hard cap 256M; reservation stays half the cap.
         resources = {
-          memory = "128M";
-          memoryReservation = "64M";
+          memory = "256M";
+          memoryReservation = "128M";
           cpus = "0.5";
         };
 
