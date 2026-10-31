@@ -204,9 +204,10 @@
       # statistics/logbook/registry tools, optional read token, and the
       # house-sensors view (mcp#107, v0.35.0), and explicit start/end windows
       # plus mean_type for ha_get_statistics (mcp#108, v0.35.1), and the HELOC
-      # obligation end month (2026-10) in finances_config.json.
+      # obligation end month (2026-10) in finances_config.json, and the USAA
+      # P&C ($224.62) and Starlink ($20) amounts (mcp#111).
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/20e24ca8f98bb57f66c0d7d0168e7dceb92f1b56";
+      url = "github:carpenike/mcp/5f983deffa090e7f4fe7c44420eddcd5036470d3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
