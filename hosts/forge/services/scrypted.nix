@@ -97,7 +97,13 @@ in
         };
 
         reverseProxy = {
-          enable = true;
+          # Scrypted's UI moved to the Talos cluster on 2026-10-31: HTTPRoute
+          # scrypted.holthome.net on envoy-internal (10.45.10.50, DNS from
+          # mikrotik-dns). Forge's podman-scrypted is stopped and
+          # runtime-masked, kept here only as a fallback, so stop publishing
+          # the Caddy vhost (it returned 502). hostName stays so re-enabling
+          # the fallback is a one-line revert.
+          enable = false;
           hostName = serviceDomain;
           # No external auth: Scrypted manages its own user database and MFA.
         };
