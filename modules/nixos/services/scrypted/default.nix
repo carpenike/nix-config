@@ -622,6 +622,26 @@ in
           })
         ];
 
+        modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          "scrypted-failure" = {
+            enable = lib.mkDefault true;
+            priority = lib.mkDefault "high";
+            title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Scrypted</font></b>'';
+            body = lib.mkDefault ''
+              <b>Host:</b> ''${hostname}
+              <b>Service:</b> <code>''${serviceName}</code>
+
+              The Scrypted NVR service has entered a failed state.
+
+              <b>Quick Actions:</b>
+              1. Check logs:
+                 <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+              2. Restart service:
+                 <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+            '';
+          };
+        };
+
         modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           enable = true;
           hostName = reverseProxyHost;
