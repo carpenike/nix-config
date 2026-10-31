@@ -118,7 +118,6 @@ let
       "podman-netvisor-server"
       "podman-peanut"
       "podman-plex"
-      "podman-scrypted"
       "podman-tracearr"
       "podman-valhalla"
     ];

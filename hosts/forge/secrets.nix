@@ -865,8 +865,9 @@ in
             group = "zwave-js-ui";
           };
         }
-        // optionalAttrs scryptedEnabled {
+        // optionalAttrs (scryptedEnabled || emqxEnabled) {
           # Scrypted MQTT password for Home Assistant integration
+          # Kept while EMQX runs on Forge: the k8s Scrypted authenticates with it.
           # Scrypted runs as root in the container, so root ownership is appropriate
           "scrypted/mqtt_password" = {
             mode = "0400";

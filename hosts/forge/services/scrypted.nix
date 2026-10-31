@@ -36,7 +36,12 @@ in
       '';
 
       modules.services.scrypted = {
-        enable = true;
+        # Scrypted moved to the Talos cluster on 2026-10-31. Forge's container
+        # kept coming back (OpenVINO at ~100% CPU tripped CpuTemperatureCritical),
+        # so the module is disabled here. Data at ${dataDir} and the
+        # tank/services/scrypted dataset stay put as a fallback; flip this back
+        # to true to restore it.
+        enable = false;
         hostname = serviceDomain;
         dataDir = dataDir;
 
@@ -171,6 +176,32 @@ in
         };
       };
     }
+
+    # The k8s Scrypted still uses Forge's EMQX (via its mqtt-forward sidecar),
+    # so keep its EMQX user and ACL while the Forge module is disabled.
+    (lib.mkIf (!serviceEnabled) {
+      modules.services.emqx.integrations.scrypted = {
+        users = [
+          {
+            username = "scrypted";
+            passwordFile = config.sops.secrets."scrypted/mqtt_password".path;
+            tags = [ "scrypted" "nvr" "cameras" ];
+          }
+        ];
+        acls = [
+          {
+            permission = "allow";
+            action = "pubsub";
+            subject = {
+              kind = "user";
+              value = "scrypted";
+            };
+            topics = [ "scrypted/#" "homeassistant/#" ];
+            comment = "Scrypted (k8s) publishes camera events and subscribes for HA discovery";
+          }
+        ];
+      };
+    })
 
     (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "scrypted";
