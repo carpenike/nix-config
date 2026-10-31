@@ -38,6 +38,8 @@ let
   # NFS mount configuration lookup (for container mode media access)
   nfsMountName = cfg.nfsMountDependency;
   nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
+
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
 in
 {
   options.modules.services.plex = {
@@ -799,10 +801,31 @@ in
           after = [ "preseed-plex.service" ];
         })
         # Failure notifications
-        (lib.mkIf (config.modules.notifications.enable or false) {
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           unitConfig.OnFailure = [ "notify@plex-failure:%n.service" ];
         })
       ];
+
+      # Register notification template
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "plex-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Plex</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            The Plex media server has entered a failed state.
+
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
+      };
 
       # Healthcheck service for container mode (Prometheus textfile metrics)
       systemd.services.plex-healthcheck = lib.mkIf cfg.monitoring.enable {
