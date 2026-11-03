@@ -1074,7 +1074,7 @@
                   in
                   repo.pruneSchedule != ""
                     && service.serviceConfig.Slice == "restic-backups.slice"
-                    && service.serviceConfig.MemoryMax == "2G"
+                    && service.serviceConfig.MemoryMax == "4G"
                     && indexLockHeld service.script repoName;
               in
               assert lib.all jobIsProtected affectedJobs;
