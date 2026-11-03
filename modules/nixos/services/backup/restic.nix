@@ -484,8 +484,12 @@ in
               ];
               EnvironmentFile = lib.mkIf (repoConfig.environmentFile != null) repoConfig.environmentFile;
 
-              # Resource limits (pruning can be intensive)
-              MemoryMax = "2G";
+              # Resource limits (pruning can be intensive). Prune holds the
+              # whole index plus the pack-rewrite plan: 2G was OOM-killed on
+              # 2026-11-02 after 6,208 snapshots were forgotten. Backups stay
+              # at 2G; the 4G slice is still the aggregate ceiling and prune
+              # runs under the host-wide index lock, so nothing overlaps it.
+              MemoryMax = "4G";
               CPUQuota = "200%";
               IOSchedulingClass = "idle";
               IOSchedulingPriority = 7;

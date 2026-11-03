@@ -1074,7 +1074,7 @@
                   in
                   repo.pruneSchedule != ""
                     && service.serviceConfig.Slice == "restic-backups.slice"
-                    && service.serviceConfig.MemoryMax == "2G"
+                    && service.serviceConfig.MemoryMax == "4G"
                     && indexLockHeld service.script repoName;
               in
               assert lib.all jobIsProtected affectedJobs;
@@ -1610,8 +1610,17 @@
                 # Turning it on adds restic-backup-service-obsidian-vault and
                 # syncoid-tank-services-obsidian-vault, one snapshot dataset,
                 # and one NAS restic job. It does not add an r2-offsite job.
+                # 2026-10-31, 153 -> 151 timers, 66 -> 65 snapshot datasets and
+                # 75 -> 74 restic jobs: Scrypted left Forge (enable = false;
+                # the container now runs on the cluster). Discovery only backs
+                # up enabled services, and the sanoid dataset is gated on that
+                # flag, so the guard set loses:
+                #   restic-backup-service-scrypted.timer
+                #   syncoid-tank-services-scrypted.timer
+                # The on-disk dataset stays as a fallback. It is not
+                # snapshotted or replicated while the module is off.
               assert builtins.length expectedTimers
-                == 153 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
+                == 151 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
@@ -1623,13 +1632,13 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 66 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
+                == 65 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 75 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
+                == 74 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
