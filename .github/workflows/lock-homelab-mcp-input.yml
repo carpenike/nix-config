@@ -1,0 +1,166 @@
+name: Lock homelab-mcp input
+
+# One-shot helper. homelab-mcp is a private input, and the agent checkout
+# cannot read it. This job fetches one rev with the existing
+# NIX_FLAKE_INPUTS_PAT and uploads the lock file. It does not push and it
+# does not update any other input. Delete this workflow once the lock
+# commit is on the branch.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lock-homelab-mcp-${{ github.event.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+
+      - name: Lock homelab-mcp to 849c3b64
+        env:
+          GH_TOKEN: ${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+        run: |
+          set -euo pipefail
+          mkdir -p lock-out
+          cp flake.lock lock-out/flake.lock.before
+          set +e
+          gh api repos/carpenike/mcp/commits/849c3b64200498d694666e5b5503bb44bfc2313e \
+            --jq '{message:.commit.message,date:.commit.committer.date}' \
+            > lock-out/commit.json
+          gh api repos/carpenike/mcp/pulls/112 \
+            --jq '{title:.title,state:.state,merged_at:.merged_at,merge_commit_sha:.merge_commit_sha}' \
+            > lock-out/pr112.json
+          set -e
+          cat lock-out/commit.json 2>/dev/null || true
+          cat lock-out/pr112.json 2>/dev/null || true
+          set +e
+          nix flake update homelab-mcp > lock-out/nix-update.txt 2>&1
+          status=$?
+          set -e
+          cat lock-out/nix-update.txt
+          if [[ "$status" -ne 0 ]]; then
+            echo "nix flake update failed: $status" | tee lock-out/report.txt
+            exit "$status"
+          fi
+          cp flake.lock lock-out/flake.lock
+          nix eval --json --impure --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              vendor = builtins.fromJSON (builtins.readFile (
+                flake.inputs.homelab-mcp.outPath + "/vendor/atrium-artifacts.lock.json"
+              ));
+            in {
+              revision = vendor.revision;
+              repository = vendor.repository;
+            }
+          ' > lock-out/vendor.json
+          cat lock-out/vendor.json
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          before = json.loads(Path("lock-out/flake.lock.before").read_text())
+          after = json.loads(Path("flake.lock").read_text())
+          target = "849c3b64200498d694666e5b5503bb44bfc2313e"
+          schoolhouse = "547404887cc046ed23dacfb5759d21ec018374b4"
+          lines = []
+
+          def log(message):
+              lines.append(message)
+              print(message)
+
+          bnodes = before["nodes"]
+          anodes = after["nodes"]
+          changed = sorted(
+              key for key in set(bnodes) | set(anodes) if bnodes.get(key) != anodes.get(key)
+          )
+          log("changed nodes: " + (", ".join(changed) if changed else "(none)"))
+          mcp_before = bnodes["homelab-mcp"]
+          mcp_after = anodes["homelab-mcp"]
+          log("homelab-mcp rev: %s -> %s" % (mcp_before["locked"]["rev"], mcp_after["locked"]["rev"]))
+          log("homelab-mcp narHash: %s" % mcp_after["locked"]["narHash"])
+          log(
+              "homelab-mcp lastModified: %s -> %s"
+              % (mcp_before["locked"]["lastModified"], mcp_after["locked"]["lastModified"])
+          )
+          log("homelab-mcp original: %s" % json.dumps(mcp_after["original"], sort_keys=True))
+          log("schoolhouse rev: %s" % anodes["schoolhouse"]["locked"]["rev"])
+          vendor = json.loads(Path("lock-out/vendor.json").read_text())
+          log("vendor revision: %s" % vendor.get("revision"))
+          log("vendor repository: %s" % vendor.get("repository"))
+
+          errors = []
+          if mcp_after["locked"]["rev"] != target:
+              errors.append("homelab-mcp rev is not %s" % target)
+          if mcp_after["original"].get("rev") != target:
+              errors.append("homelab-mcp original.rev is not %s" % target)
+          if anodes["schoolhouse"]["locked"]["rev"] != schoolhouse:
+              errors.append("schoolhouse rev moved")
+          if anodes["schoolhouse"] != bnodes["schoolhouse"]:
+              errors.append("schoolhouse node changed")
+          if mcp_after.get("inputs") != mcp_before.get("inputs"):
+              errors.append("homelab-mcp inputs changed: %s -> %s" % (mcp_before.get("inputs"), mcp_after.get("inputs")))
+          if set(mcp_after["locked"]) != set(mcp_before["locked"]):
+              errors.append("homelab-mcp locked keys changed")
+          for key, value in mcp_after["locked"].items():
+              if key in ("rev", "narHash", "lastModified"):
+                  continue
+              if mcp_before["locked"].get(key) != value:
+                  errors.append("homelab-mcp locked.%s changed" % key)
+          for key, value in mcp_after["original"].items():
+              if key == "rev":
+                  continue
+              if mcp_before["original"].get(key) != value:
+                  errors.append("homelab-mcp original.%s changed" % key)
+          others = [key for key in changed if key != "homelab-mcp"]
+          if others:
+              errors.append("other nodes changed: %s" % ", ".join(others))
+          added = sorted(set(anodes) - set(bnodes))
+          removed = sorted(set(bnodes) - set(anodes))
+          if added:
+              errors.append("nodes added: %s" % ", ".join(added))
+          if removed:
+              errors.append("nodes removed: %s" % ", ".join(removed))
+          for key in set(before) | set(after):
+              if key == "nodes":
+                  continue
+              if before.get(key) != after.get(key):
+                  errors.append("top-level %s changed" % key)
+          if vendor.get("revision") != "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc":
+              errors.append("vendor revision moved to %s" % vendor.get("revision"))
+          if vendor.get("repository") != "https://github.com/carpenike/atrium":
+              errors.append("vendor repository changed")
+          if errors:
+              log("ERRORS:")
+              for error in errors:
+                  log("- " + error)
+          else:
+              log("OK")
+          Path("lock-out/report.txt").write_text("\n".join(lines) + "\n")
+          if errors:
+              sys.exit(1)
+          PY
+
+      - name: Upload lock output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: homelab-mcp-lock
+          path: lock-out/
+          if-no-files-found: warn
