@@ -1,0 +1,131 @@
+name: Lock schoolhouse input
+
+# One-shot helper. schoolhouse is a private input, and the agent checkout
+# cannot read it. This job fetches one rev with the existing
+# NIX_FLAKE_INPUTS_PAT and uploads the lock file. It does not push and it
+# does not update any other input. Delete this workflow once the lock
+# commit is on the branch.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lock-schoolhouse-${{ github.event.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+
+      - name: Lock schoolhouse to 54740488
+        run: |
+          set -euo pipefail
+          mkdir -p lock-out
+          cp flake.lock lock-out/flake.lock.before
+          set +e
+          nix flake update schoolhouse \
+            --override-input schoolhouse \
+            github:carpenike/schoolhouse/547404887cc046ed23dacfb5759d21ec018374b4 \
+            > lock-out/nix-update.txt 2>&1
+          status=$?
+          set -e
+          cat lock-out/nix-update.txt
+          if [[ "$status" -ne 0 ]]; then
+            echo "nix flake update failed: $status" | tee lock-out/report.txt
+            exit "$status"
+          fi
+          cp flake.lock lock-out/flake.lock.nix
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          before = json.loads(Path("lock-out/flake.lock.before").read_text())
+          after = json.loads(Path("flake.lock").read_text())
+          target = "547404887cc046ed23dacfb5759d21ec018374b4"
+          mcp = "5f983deffa090e7f4fe7c44420eddcd5036470d3"
+          lines = []
+
+          def log(message):
+              lines.append(message)
+              print(message)
+
+          bnodes = before["nodes"]
+          anodes = after["nodes"]
+          changed = sorted(
+              key for key in set(bnodes) | set(anodes) if bnodes.get(key) != anodes.get(key)
+          )
+          log("changed nodes: " + (", ".join(changed) if changed else "(none)"))
+          school_before = bnodes["schoolhouse"]
+          school_after = anodes["schoolhouse"]
+          log(
+              "schoolhouse rev: %s -> %s"
+              % (school_before["locked"]["rev"], school_after["locked"]["rev"])
+          )
+          log("schoolhouse narHash: %s" % school_after["locked"]["narHash"])
+          log(
+              "schoolhouse lastModified: %s -> %s"
+              % (
+                  school_before["locked"]["lastModified"],
+                  school_after["locked"]["lastModified"],
+              )
+          )
+          log("schoolhouse original: %s" % json.dumps(school_after["original"], sort_keys=True))
+          log("homelab-mcp rev: %s" % anodes["homelab-mcp"]["locked"]["rev"])
+
+          errors = []
+          if school_after["locked"]["rev"] != target:
+              errors.append("schoolhouse rev is not %s" % target)
+          if anodes["homelab-mcp"]["locked"]["rev"] != mcp:
+              errors.append("homelab-mcp rev moved")
+          if school_after["original"] != school_before["original"]:
+              errors.append("schoolhouse original changed")
+          if school_after.get("inputs") != school_before.get("inputs"):
+              errors.append("schoolhouse inputs changed")
+          if set(school_after["locked"]) != set(school_before["locked"]):
+              errors.append("schoolhouse locked keys changed")
+          for key, value in school_after["locked"].items():
+              if key in ("rev", "narHash", "lastModified"):
+                  continue
+              if school_before["locked"].get(key) != value:
+                  errors.append("schoolhouse locked.%s changed" % key)
+          others = [key for key in changed if key != "schoolhouse"]
+          if others:
+              errors.append("other nodes changed: %s" % ", ".join(others))
+          for key in set(before) | set(after):
+              if key == "nodes":
+                  continue
+              if before.get(key) != after.get(key):
+                  errors.append("top-level %s changed" % key)
+          if errors:
+              log("ERRORS:")
+              for error in errors:
+                  log("- " + error)
+          else:
+              log("OK")
+          Path("lock-out/report.txt").write_text("\n".join(lines) + "\n")
+          if errors:
+              sys.exit(1)
+          PY
+
+      - name: Upload lock output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: schoolhouse-lock
+          path: lock-out/
+          if-no-files-found: warn
