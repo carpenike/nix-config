@@ -8,13 +8,13 @@
 {
   cooklang-cli = {
     pname = "cooklang-cli";
-    version = "v0.38.1";
+    version = "v0.40.0";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.38.1";
+      rev = "v0.40.0";
       fetchSubmodules = false;
-      sha256 = "sha256-XvEUpPrkgWxtBoInx6jM0gHF3igZcyf5ykR9Z3wQScc=";
+      sha256 = "sha256-jlXLBADpvEjIaqolA+1sZ3xjuL9r3kDLbwLCqVEdqGU=";
     };
   };
   cooklang-federation = {
@@ -66,13 +66,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v7.1.1";
+    version = "v7.3.0";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v7.1.1";
+      rev = "v7.3.0";
       fetchSubmodules = false;
-      sha256 = "sha256-6Ita8bVsBotKQFXXXoXx07GziUlq5hEqU5xF6mshNGM=";
+      sha256 = "sha256-Ldtv/Nb8YA9ov4vFCZm4dFWjp4rKvxPbM2lCk/qPU2A=";
     };
   };
 }
