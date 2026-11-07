@@ -5,8 +5,7 @@
 # Services use different database indexes (0-15):
 #   - tracearr: 0
 #   - dispatcharr: 1
-#   - openproject: 2 (Rails cache only; safe to evict under allkeys-lru)
-#   - (future services can use 1, 2, etc.)
+#   - (future services can use 2-15)
 #
 # Connection from containers: redis://host.containers.internal:6379/<db>
 # Connection from host: redis://127.0.0.1:6379/<db>
