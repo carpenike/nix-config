@@ -14,7 +14,6 @@
     ../miniflux # RSS reader
     ../n8n # Workflow automation
     ../obsidian-vault # Obsidian Sync client and vault MCP (off unless a host enables it)
-    ../openproject # Project management / bot task queue
     ../paperless # Document management
     ../paperless-ai # Document tagging AI
     ../searxng # Meta search engine

@@ -537,62 +537,6 @@
                   python3 ${./tests/renovate/test_extraction.py}
                   touch "$out"
                 '';
-            openproject-runtime =
-              let
-                lib = pkgs.lib;
-                forgeConfig = inputs.self.nixosConfigurations.forge.config;
-                containers = forgeConfig.virtualisation.oci-containers.containers;
-                database = forgeConfig.modules.services.postgresql.databases.openproject;
-                databaseConfig = pkgs.writeText "openproject-database.json" (builtins.toJSON {
-                  inherit (database) owner extensions;
-                });
-                containerConfig = pkgs.writeText "openproject-containers.json" (builtins.toJSON
-                  (builtins.mapAttrs
-                    (_: container: { inherit (container) user environment extraOptions; })
-                    (builtins.intersectAttrs
-                      {
-                        openproject-seeder = null;
-                        openproject-web = null;
-                        openproject-worker = null;
-                      }
-                      containers)));
-                # litellm/copilot-api Require+After the dataset anchor. The sync
-                # unit is Wants+After only, so a later dataset edit does not
-                # restart OpenProject. The mount guard is the shared helper.
-                openprojectOrdersOnDataset =
-                  let
-                    units = forgeConfig.systemd.services;
-                    anchor = "zfs-service-datasets.service";
-                    sync = "zfs-service-datasets-sync.service";
-                    ordered = name:
-                      let unit = units.${name}; in
-                      lib.elem anchor unit.requires
-                        && lib.elem anchor unit.after
-                        && lib.elem sync (unit.wants or [ ])
-                        && lib.elem sync unit.after
-                        && !(lib.elem sync unit.requires)
-                        && lib.hasInfix "findmnt" unit.preStart;
-                  in
-                  lib.all ordered [
-                    "podman-openproject-seeder"
-                    "podman-openproject-web"
-                    "podman-openproject-worker"
-                  ]
-                  && lib.elem sync (units.preseed-openproject.wants or [ ])
-                  && lib.elem sync units.preseed-openproject.after
-                  && !(lib.elem sync (units.preseed-openproject.requires or [ ]));
-              in
-              assert openprojectOrdersOnDataset;
-              pkgs.runCommand "openproject-runtime-tests"
-                { nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.python3 ]; }
-                ''
-                  export PYTHONDONTWRITEBYTECODE=1
-                  export OPENPROJECT_TOKEN_SCRIPT=${./hosts/forge/services/openproject/mint-api-tokens.sh}
-                  export OPENPROJECT_CONTAINERS=${containerConfig}
-                  export OPENPROJECT_DATABASE=${databaseConfig}
-                  python3 ${./tests/openproject/test_runtime.py}
-                  touch "$out"
-                '';
             finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
               (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
             finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {
@@ -1234,7 +1178,6 @@
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
                 lading = manifest.datasets."tank/services/lading";
                 musicAssistant = manifest.datasets."tank/services/music-assistant";
-                openproject = manifest.datasets."tank/services/openproject";
                 legacyDirectPreseed = forge.systemd.services.preseed-mealie;
                 legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
                 legacyFactoryPreseed = forge.systemd.services.preseed-qbittorrent;
@@ -1341,7 +1284,7 @@
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 56 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames
+                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames
                 + builtins.length obsidianVaultStates;
               assert manifest.summary.byClass == {
                 critical = 15 + builtins.length atriumAdapterStateNames;
@@ -1354,9 +1297,11 @@
                 # (re-enabled) both declare `standard`.
                 # 18 since 2026-10-20: openproject (new) declares `standard`
                 # with an offsite tier for its attachments dataset.
+                # 17 since 2026-11-07: openproject removed from Forge (it will
+                # be installed fresh on the Kubernetes cluster).
                 # obsidian-vault (2026-10-25) adds one more standard dataset
                 # only while that service is enabled.
-                standard = 18 + builtins.length agentHostStateNames + builtins.length obsidianVaultStates;
+                standard = 17 + builtins.length agentHostStateNames + builtins.length obsidianVaultStates;
                 system = 2;
               };
               assert builtins.all
@@ -1406,14 +1351,6 @@
               assert lading.policy.allowEmptyBootstrap;
               assert !(builtins.hasAttr "lading" failClosedUnits);
               assert musicAssistant.coverage.automatedRestore;
-              # OpenProject attachments: every tier including R2 offsite. The
-              # records themselves live in PostgreSQL (pgBackRest). Empty
-              # bootstrap is allowed for the first deploy only - when that is
-              # flipped, move openproject into standardServicePaths and
-              # failClosedUnits (main unit podman-openproject-seeder).
-              assert openproject.classification == "standard";
-              assert openproject.missingRequiredTiers == [ ];
-              assert openproject.coverage.offsiteBackup;
               # Not in standardServicePaths: that list forbids allowEmptyBootstrap,
               # and the vault is empty until the interactive ob sync-setup.
               # No offsite restic tier; Obsidian Sync is the remote replica.
@@ -1619,8 +1556,13 @@
                 #   syncoid-tank-services-scrypted.timer
                 # The on-disk dataset stays as a fallback. It is not
                 # snapshotted or replicated while the module is off.
+                # 2026-11-07, 151 -> 148 timers, 65 -> 64 snapshot datasets and
+                # 74 -> 72 restic jobs: OpenProject removed from Forge. The guard
+                # set loses restic-backup-service-openproject,
+                # restic-backup-openproject-offsite and
+                # syncoid-tank-services-openproject.
               assert builtins.length expectedTimers
-                == 151 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
+                == 148 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
@@ -1632,13 +1574,13 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 65 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
+                == 64 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 74 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
+                == 72 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots

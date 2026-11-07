@@ -47,10 +47,12 @@
 { ... }:
 
 {
+  # Retired 2026-11: OpenProject left Forge. Kept so 1069 is never reused;
+  # do not reuse it (files on old snapshots/backups may still be owned by it).
   openproject = {
     uid = 1069;
     gid = 1069;
-    description = "OpenProject Community Edition (bot task queue); container processes run as this UID";
+    description = "Retired (OpenProject removed from Forge); reserved, do not reuse";
     extraGroups = [ ];
   };
 
