@@ -728,10 +728,10 @@
                 forge = builtins.elemAt routes 1;
                 ok = cluster.matchers == [ "alertname=\"Watchdog\"" "cluster=\"k8s-holthome\"" ]
                   && builtins.elem cluster.receiver [ "watchdog-discard" "healthchecks-io-cluster" ]
-                  && cluster.continue == false
+                  && !cluster.continue
                   && forge.matchers == [ "alertname=\"Watchdog\"" "cluster=\"\"" ]
                   && forge.receiver == "healthchecks-io"
-                  && forge.continue == false;
+                  && !forge.continue;
               in
               pkgs.lib.throwIf (!ok)
                 "alertmanager watchdog routing check failed: ${builtins.toJSON [ cluster forge ]}"
