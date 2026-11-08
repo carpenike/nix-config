@@ -6,6 +6,7 @@
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  clusterNodes = import ../lib/cluster-nodes.nix;
 in
 {
   # Expose Prometheus UI on subdomain with Pocket ID + caddy-security protection
@@ -37,6 +38,16 @@ in
       staticApiKeys = [
         (forgeDefaults.mkStaticApiKey "backup-taskfile" "PROMETHEUS_BACKUP_API_KEY")
       ];
+
+      # The cluster Grafana's Prometheus datasource (carpenike/k8s-gitops
+      # docs/grafana.md): GET on the query and metadata API only, and only
+      # from the sleds. The UI, the admin and write APIs (admin/tsdb,
+      # remote write) and every other peer still need Pocket ID.
+      bypassResources = [
+        "^/api/v1/(query|query_range|query_exemplars|series|labels|label/[^/]+/values|metadata|status/buildinfo|format_query|rules|alerts)$"
+      ];
+      bypassMethods = [ "GET" ];
+      allowedNetworks = clusterNodes;
     };
 
     # Security headers for web interface
@@ -83,12 +94,7 @@ in
       ];
       bypassResources = [ "^/api/v2/alerts$" ];
       bypassMethods = [ "POST" ];
-      allowedNetworks = [
-        "10.20.10.20/32"
-        "10.20.10.21/32"
-        "10.20.10.22/32"
-        "10.20.10.23/32"
-      ];
+      allowedNetworks = clusterNodes;
     };
 
     # Security headers for web interface

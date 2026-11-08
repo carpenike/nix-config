@@ -799,6 +799,43 @@ in
             description = "Basic authentication configuration";
           };
 
+          # Skip basic auth for one narrow request shape, for machine readers
+          # that cannot hold the password (for example the cluster Grafana).
+          basicAuthBypass = mkOption {
+            type = types.nullOr (types.submodule {
+              options = {
+                pathRegexp = mkOption {
+                  type = types.str;
+                  description = ''
+                    One RE2 pattern for the request path, emitted as a quoted
+                    `path_regexp` matcher. Anchor it (`^...$`).
+                  '';
+                  example = "^/loki/api/v1/(query|query_range)$";
+                };
+                methods = mkOption {
+                  type = types.nonEmptyListOf types.str;
+                  default = [ "GET" ];
+                  description = "Uppercase HTTP methods the bypass requires.";
+                };
+                allowedNetworks = mkOption {
+                  type = types.nonEmptyListOf types.str;
+                  description = ''
+                    CIDRs of immediate TCP peers (`remote_ip`, never the
+                    X-Forwarded-For `client_ip`) allowed to use the bypass.
+                  '';
+                  example = [ "10.20.10.20/32" ];
+                };
+              };
+            });
+            default = null;
+            description = ''
+              Requests whose peer, method AND path all match skip `basic_auth`;
+              every other request still needs the password. Rendered as
+              `basic_auth @basic_auth_required`, where the matcher is
+              `not { remote_ip ...; method ...; path_regexp ... }`. Requires `auth`.
+            '';
+          };
+
           # New structured security configuration
           security = mkOption {
             type = types.submodule {
@@ -1125,6 +1162,18 @@ in
         cfg.virtualHosts) ++
       (mapAttrsToList
         (name: vhost: {
+          assertion = !vhost.enable || vhost.basicAuthBypass == null || (
+            vhost.auth != null
+            && lib.all (m: builtins.match "[A-Z]+" m != null) vhost.basicAuthBypass.methods
+            && lib.hasPrefix "^" vhost.basicAuthBypass.pathRegexp
+            && lib.hasSuffix "$" vhost.basicAuthBypass.pathRegexp
+            && !lib.hasInfix "\"" vhost.basicAuthBypass.pathRegexp
+          );
+          message = "Virtual host '${name}' basicAuthBypass requires auth, uppercase methods, and an anchored (^...$) pathRegexp without double quotes.";
+        })
+        cfg.virtualHosts) ++
+      (mapAttrsToList
+        (name: vhost: {
           assertion = !vhost.enable || vhost.caddySecurity == null || cfg.security.enable;
           message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
         })
@@ -1302,9 +1351,22 @@ in
 
                     # Security headers (includes HSTS by default)
                     ${generateSecurityHeaders vhost}
-                    ${optionalString useBasicAuth ''
+                    ${optionalString (useBasicAuth && vhost.basicAuthBypass == null) ''
                     # Basic authentication
                     basic_auth {
+                      ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
+                    }
+                    ''}${optionalString (useBasicAuth && vhost.basicAuthBypass != null) ''
+                    # Basic authentication, except for the basicAuthBypass shape:
+                    # the named peers, methods and path, all three together.
+                    @basic_auth_required {
+                      not {
+                        remote_ip ${concatStringsSep " " vhost.basicAuthBypass.allowedNetworks}
+                        method ${concatStringsSep " " vhost.basicAuthBypass.methods}
+                        path_regexp "${vhost.basicAuthBypass.pathRegexp}"
+                      }
+                    }
+                    basic_auth @basic_auth_required {
                       ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
                     }
                     ''}
