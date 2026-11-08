@@ -3,6 +3,7 @@
 let
   domain = config.networking.domain;
   forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
+  clusterNodes = import ../../lib/cluster-nodes.nix;
   # Use the new unified backup system (modules.services.backup)
   resticEnabled =
     (config.modules.services.backup.enable or false)
@@ -10,6 +11,16 @@ let
 in
 {
   config = {
+    # The cluster Grafana's Loki datasource (carpenike/k8s-gitops
+    # docs/grafana.md): GET on the read API only, from the sleds only. Push
+    # (/loki/api/v1/push), tail, the ruler and admin endpoints, and every
+    # other peer still need the basic auth password.
+    modules.services.caddy.virtualHosts.loki.basicAuthBypass = {
+      pathRegexp = "^/loki/api/v1/(query|query_range|labels|label/[^/]+/values|series|index/(stats|volume|volume_range)|patterns|detected_fields|detected_field/[^/]+/values|detected_labels|status/buildinfo|format_query)$";
+      methods = [ "GET" ];
+      allowedNetworks = clusterNodes;
+    };
+
     # Loki centralized log aggregation and storage
     # Configured directly on the individual module (not through observability meta-module)
     modules.services.loki = {
