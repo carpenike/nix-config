@@ -12,6 +12,7 @@ pkgs.runCommand "homelab-mcp-deployment-settings"
   ''
     python - <<'PY' > "$out"
     import json
+    import os
     import secrets
     from pydantic import ValidationError
     from homelab_mcp.config import Settings
@@ -36,10 +37,19 @@ pkgs.runCommand "homelab-mcp-deployment-settings"
 
     assert settings.oauth_access_token_lifetime_seconds == lifetime == 900
     assert settings.oauth_required
-    assert settings.atrium_native is None
-    assert settings.atrium_issuance is None
-    assert settings.atrium_deny is None
-    assert settings.atrium_policy is None
+    # homelab-mcp 0.38.0 removed the Atrium native integration: its settings
+    # are gone, and a leftover native-mode variable refuses the start.
+    for retired in ("atrium_native", "atrium_issuance", "atrium_deny", "atrium_policy"):
+        assert retired not in Settings.model_fields, retired
+    os.environ["HOMELAB_MCP_ATRIUM_NATIVE"] = "/run/credentials/native.json"
+    try:
+        Settings(**arguments, oauth_access_token_lifetime_seconds=lifetime)
+    except ValueError as error:
+        assert "Retired Atrium native-mode settings" in str(error), error
+    else:
+        raise AssertionError("a leftover Atrium native-mode variable was accepted")
+    finally:
+        del os.environ["HOMELAB_MCP_ATRIUM_NATIVE"]
 
     try:
         Settings(**arguments, oauth_access_token_lifetime_seconds=4 * 60 * 60)
@@ -56,7 +66,7 @@ pkgs.runCommand "homelab-mcp-deployment-settings"
         "status": "passed",
         "configured_access_token_seconds": lifetime,
         "previous_four_hour_configuration_rejected": True,
-        "atrium_native_adoption_enabled": False,
+        "retired_atrium_native_settings_refused": True,
         "native_services_started": False,
     }))
     PY
