@@ -274,14 +274,6 @@ in
           # Refresh-token rotation remains unchanged; this does not enable
           # Atrium native-profile adoption or migrate stored grants.
           HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 15 * 60;
-          # Atrium C12 (mcp#96): renew native group evidence through a Pocket ID
-          # refresh, so group-only views (Home Services /mcp, Personal Finance)
-          # stay signed in for days instead of ~1h. Pocket ID re-checks the
-          # `mcp` client's allowedUserGroups (["family"]) and user disablement
-          # on every refresh, so removal still ends access within ~1h. The
-          # stored Pocket ID refresh token is sealed with the
-          # pocketid_token_key credential below; startup fails without it.
-          HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE = "true";
           # Server-side dispatch boundary for Hermes. Its local include list
           # mirrors this for UX, but this middleware allowlist is authoritative.
           # Before adoption both aliases explicitly request legacy hermes.
@@ -466,13 +458,6 @@ in
       ] ++ lib.optional haReadTokenProvisioned
         config.sops.templates."homelab-mcp-ha-read-env".path);
 
-      # Key that seals the stored Pocket ID refresh token (see
-      # HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE above). systemd copies it into
-      # the unit's private $CREDENTIALS_DIRECTORY, where homelab-mcp reads
-      # `pocketid_token_key`; it never lands in the environment or the store.
-      systemd.services.homelab-mcp.serviceConfig.LoadCredential = [
-        "pocketid_token_key:${config.sops.secrets."homelab-mcp/pocketid_token_key".path}"
-      ];
 
 
       # Caddy vhost — pure pass-through. Auth is enforced by the MCP
@@ -498,6 +483,20 @@ in
         };
       };
     }
+
+    # Atrium C12 (mcp#96), only while Atrium's native profile is adopted:
+    # renew native group evidence through a Pocket ID refresh, so group-only
+    # views stay signed in for days instead of ~1h. The stored Pocket ID
+    # refresh token is sealed with the pocketid_token_key credential, which
+    # systemd copies into the unit's private $CREDENTIALS_DIRECTORY. Atrium is
+    # retired on Forge (atrium/retired.nix), so neither is set there; homelab-mcp
+    # from carpenike/mcp#118 on refuses this setting at startup.
+    (lib.mkIf (config.services.atriumForge.adoption.native or false) {
+      services.homelab-mcp.settings.HOMELAB_MCP_POCKETID_REFRESH_EVIDENCE = "true";
+      systemd.services.homelab-mcp.serviceConfig.LoadCredential = [
+        "pocketid_token_key:${config.sops.secrets."homelab-mcp/pocketid_token_key".path}"
+      ];
+    })
 
     # Keep rollback pins that predate the Actual sidecar option evaluable.
     (lib.optionalAttrs actualSidecarSupported {

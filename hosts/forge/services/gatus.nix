@@ -55,8 +55,15 @@ in
             host = "127.0.0.1";
             port = 8090;
           };
-          # Internal access only - use admin authentication via PocketID
-          caddySecurity = forgeDefaults.caddySecurity.admin;
+          # Internal access only - use admin authentication via PocketID.
+          # /api/v1/endpoints is exempt: homelab-mcp's gatus_* tools read
+          # endpoint status there from the k8s cluster, which cannot complete
+          # the Pocket ID login (Ryan's decision, 2026-11-08). It is read-only
+          # status data, on an internal-only vhost; the UI and every other
+          # path keep the admin gate.
+          caddySecurity = forgeDefaults.caddySecurity.admin // {
+            bypassPaths = [ "/api/v1/endpoints" ];
+          };
         };
 
         # Prometheus metrics (Gatus has native /metrics endpoint)
