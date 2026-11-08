@@ -1572,9 +1572,9 @@
                 # set loses restic-backup-service-openproject,
                 # restic-backup-openproject-offsite and
                 # syncoid-tank-services-openproject.
-              # 2026-11-08: Atrium's 15 foundation timers (five stores, each
-              # with replication and two encrypted backups) are counted through
-              # atriumTimers, which is empty while Atrium is retired.
+                # 2026-11-08: Atrium's 15 foundation timers (five stores, each
+                # with replication and two encrypted backups) are counted through
+                # atriumTimers, which is empty while Atrium is retired.
               assert builtins.length expectedTimers
                 == 133 + builtins.length atriumTimers + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
