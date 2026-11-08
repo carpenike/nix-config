@@ -23,6 +23,20 @@
     # Dead man's switch - Healthchecks.io receiver for Watchdog alert
     receivers.healthchecks = {
       urlSecret = "monitoring/healthchecks-url";
+      # The cluster's Prometheus (carpenike/k8s-gitops kube-prometheus-stack,
+      # externalLabels cluster=k8s-holthome) sends its own always-firing
+      # Watchdog here too. Without this it fed Forge's switch, which then
+      # stayed green while either Prometheus was down. Forge's switch now
+      # counts only Forge's Watchdog; the cluster's is discarded until it has
+      # its own Healthchecks.io check:
+      #   1. Create a check (period 1 minute, grace ~5 minutes) and copy its
+      #      ping URL.
+      #   2. `sops hosts/forge/secrets.sops.yaml`: add it as
+      #      `monitoring/healthchecks-cluster-url`, and declare that secret
+      #      next to `monitoring/healthchecks-url` in secrets.nix.
+      #   3. Uncomment the line below.
+      clusterLabel = "k8s-holthome";
+      # clusterUrlSecret = "monitoring/healthchecks-cluster-url";
     };
 
     # Grafana OnCall receiver: primary notification channel

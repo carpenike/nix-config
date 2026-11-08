@@ -302,6 +302,31 @@ in
       description = "SOPS secret name that contains the Healthchecks.io (or similar) webhook URL for dead man's switch.";
     };
 
+    receivers.healthchecks.clusterLabel = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "k8s-holthome";
+      description = ''
+        Value of the `cluster` external label that a remote Prometheus (a
+        Kubernetes cluster) puts on the alerts it sends here. When set, that
+        cluster's own always-firing Watchdog is kept apart from this host's:
+        it no longer feeds `urlSecret`'s dead man's switch, where it would keep
+        the switch green while this host's Prometheus is down (and the other
+        way round). It goes to `clusterUrlSecret` instead, or is discarded
+        when that is null.
+      '';
+    };
+
+    receivers.healthchecks.clusterUrlSecret = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        SOPS secret name with a second Healthchecks.io ping URL: the dead man's
+        switch for the cluster named by `clusterLabel`. Null discards that
+        cluster's Watchdog (no false heartbeat, but no cluster switch either).
+      '';
+    };
+
     receivers.oncall = {
       enable = mkOption {
         type = types.bool;
@@ -730,8 +755,19 @@ in
             repeat_interval = "6h";
             routes =
               # Prepend a route for the Dead Man's Switch to ensure it's handled first
-              (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
-                matchers = [ "alertname=\"Watchdog\"" ];
+              # A remote cluster's Watchdog first, so it never reaches this
+              # host's switch below.
+              (lib.optional (cfg.receivers.healthchecks.urlSecret != null && cfg.receivers.healthchecks.clusterLabel != null) {
+                matchers = [ "alertname=\"Watchdog\"" "cluster=\"${cfg.receivers.healthchecks.clusterLabel}\"" ];
+                receiver = if cfg.receivers.healthchecks.clusterUrlSecret != null then "healthchecks-io-cluster" else "watchdog-discard";
+                continue = false;
+                group_interval = "1m";
+                repeat_interval = "1m";
+              })
+              ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
+                # cluster="" also matches an absent label: only this host's
+                # own Watchdog keeps this switch green.
+                matchers = [ "alertname=\"Watchdog\"" ] ++ lib.optional (cfg.receivers.healthchecks.clusterLabel != null) "cluster=\"\"";
                 receiver = "healthchecks-io";
                 # Do not continue to other routes
                 continue = false;
@@ -951,6 +987,17 @@ in
               # infer this from the absence of alerts.
               send_resolved = true;
             }];
+          })
+          ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null && cfg.receivers.healthchecks.clusterLabel != null && cfg.receivers.healthchecks.clusterUrlSecret != null) {
+            name = "healthchecks-io-cluster";
+            webhook_configs = [{
+              url_file = config.sops.secrets.${cfg.receivers.healthchecks.clusterUrlSecret}.path;
+              send_resolved = true;
+            }];
+          })
+          # A receiver with no configs drops what it is sent.
+          ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null && cfg.receivers.healthchecks.clusterLabel != null && cfg.receivers.healthchecks.clusterUrlSecret == null) {
+            name = "watchdog-discard";
           })
           # Append the Grafana OnCall receiver if configured
           # OnCall provides escalation policies, on-call schedules, and incident management
