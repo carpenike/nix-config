@@ -1186,7 +1186,11 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                # Atrium's foundation stores exist only while Atrium is enabled
+                # (hosts/forge/services/atrium.nix); retired on Forge since
+                # 2026-11-08 (hosts/forge/atrium/retired.nix).
+                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
+                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
                 atriumAdapterStateNames =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
@@ -1284,10 +1288,13 @@
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames
+                == 50 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames
+                + builtins.length agentHostStateNames
                 + builtins.length obsidianVaultStates;
               assert manifest.summary.byClass == {
-                critical = 15 + builtins.length atriumAdapterStateNames;
+                # 2026-11-08: Atrium's five foundation stores are counted
+                # through atriumStateNames (empty while Atrium is retired).
+                critical = 10 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
@@ -1459,7 +1466,11 @@
                   forge.modules.services.backup._internal.allJobs;
                 snapshotMetricsScript = builtins.readFile ./scripts/zfs-snapshot-metrics.sh;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                # Atrium's foundation stores exist only while Atrium is enabled
+                # (hosts/forge/services/atrium.nix); retired on Forge since
+                # 2026-11-08 (hosts/forge/atrium/retired.nix).
+                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
+                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
                 atriumAdapterJobs =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "atrium-native-security-offsite"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "atrium-whiskey-security-offsite";
@@ -1561,8 +1572,11 @@
                 # set loses restic-backup-service-openproject,
                 # restic-backup-openproject-offsite and
                 # syncoid-tank-services-openproject.
+              # 2026-11-08: Atrium's 15 foundation timers (five stores, each
+              # with replication and two encrypted backups) are counted through
+              # atriumTimers, which is empty while Atrium is retired.
               assert builtins.length expectedTimers
-                == 148 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
+                == 133 + builtins.length atriumTimers + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
@@ -1574,13 +1588,15 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 64 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
+                == 59 + builtins.length atriumStateNames + builtins.length agentHostStates
+                + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 72 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
+                == 62 + 2 * builtins.length atriumStateNames + builtins.length atriumAdapterJobs
+                + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
