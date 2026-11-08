@@ -1,7 +1,7 @@
 { inputs }:
 let
   inherit (inputs.nixpkgs) lib;
-  c = inputs.self.nixosConfigurations.forge.config;
+  c = (import ./adopted.nix { inherit inputs; }).config;
   plan = builtins.fromJSON (builtins.unsafeDiscardStringContext
     c.environment.etc."atrium/bootstrap/whiskey-cutover.json".text);
   selected = c.systemd.services.whiskey-whiskey-whiskey;

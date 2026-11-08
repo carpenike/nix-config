@@ -609,7 +609,7 @@
                 whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
                 whiskeySource = inputs.whiskey-whiskey-whiskey;
                 egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
-                  inputs.self.nixosConfigurations.forge.config.systemd.services.atrium-whiskey-egress;
+                  (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.systemd.services.atrium-whiskey-egress;
               };
             atrium-native-cutover =
               let
@@ -632,7 +632,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
               };
             atrium-money-reporting =
               let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
@@ -640,7 +640,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
                 nativeSource = inputs.homelab-mcp;
               };
             atrium-activation-switch =
@@ -649,7 +649,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
               };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
@@ -687,7 +687,7 @@
               };
             atrium-forge-adopted-caddy =
               let
-                adopted = (inputs.self.nixosConfigurations.forge.extendModules {
+                adopted = ((import ./tests/atrium_n03/adopted.nix { inherit inputs; }).extendModules {
                   modules = [{ services.atriumForge.adoption.native = true; }];
                 }).config;
                 native = adopted.modules.services.caddy.virtualHosts.homelab-mcp;
@@ -803,7 +803,7 @@
                         ${whiskey.reverseProxyBlock}
                       }
                     }
-                    ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
+                    ${(import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.modules.services.caddy.extraConfig}
                   '');
                 in
                 ''
@@ -1652,7 +1652,7 @@
         in
         {
           lib.atriumSetupConfigs.forge = builtins.fromJSON
-            inputs.self.nixosConfigurations.forge.config.environment.etc."atrium/bootstrap/setup.json".text;
+            (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.environment.etc."atrium/bootstrap/setup.json".text;
 
           #################### NixOS Configurations ####################
           #

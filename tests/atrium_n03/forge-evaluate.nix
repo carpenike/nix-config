@@ -116,7 +116,7 @@ let
         == builtins.replaceStrings [ "@" ] [ ":${gateway.native_version}@" ] gateway.image
         && configuration.virtualisation.oci-containers.containers.litellm.image
         == configuration.modules.services.litellm.image)
-      [ c disabled modelAdopted nonForgeModel nativeAdopted inputs.self.nixosConfigurations.forge.config ];
+      [ c disabled modelAdopted nonForgeModel nativeAdopted (import ./adopted.nix { inherit inputs; }).config ];
     adopted-model-authority-resolves-locally =
       let controller = builtins.fromJSON modelAdopted.environment.etc."atrium/runtime/model-controller.json".text;
       in

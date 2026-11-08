@@ -1,7 +1,7 @@
 { inputs, pkgs }:
 let
   inherit (pkgs) lib;
-  c = inputs.self.nixosConfigurations.forge.config;
+  c = (import ./adopted.nix { inherit inputs; }).config;
   native = inputs.homelab-mcp;
   package = native.packages.${pkgs.stdenv.hostPlatform.system}.default;
   python = pkgs.python313.withPackages (ps: [ (ps.toPythonModule package) ]);

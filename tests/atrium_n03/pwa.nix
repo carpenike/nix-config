@@ -1,7 +1,7 @@
 { inputs }:
 let
   inherit (inputs.nixpkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge;
+  forge = import ./adopted.nix { inherit inputs; };
   enabled = forge.config;
   disabled = (forge.extendModules {
     modules = [{ services.atriumPwa.enable = lib.mkForce false; }];
