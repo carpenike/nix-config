@@ -120,6 +120,7 @@ in
     inputs.atrium.nixosModules.atrium
     inputs.atrium.nixosModules.pwa
     ../atrium/adoption.nix
+    ../atrium/retired.nix
     ../atrium/setup-admission.nix
     ./atrium-models.nix
     ./atrium-adapters.nix

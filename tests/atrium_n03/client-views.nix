@@ -3,7 +3,7 @@ let
   inherit (inputs.nixpkgs) lib;
   forge = import ./pre-adoption.nix { inherit inputs; };
   baseline = forge.config;
-  selected = inputs.self.nixosConfigurations.forge.config;
+  selected = (import ./adopted.nix { inherit inputs; }).config;
   native = (forge.extendModules {
     modules = [{
       services.atriumForge.adoption.native = true;

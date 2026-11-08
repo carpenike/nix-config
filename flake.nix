@@ -609,7 +609,7 @@
                 whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
                 whiskeySource = inputs.whiskey-whiskey-whiskey;
                 egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
-                  inputs.self.nixosConfigurations.forge.config.systemd.services.atrium-whiskey-egress;
+                  (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.systemd.services.atrium-whiskey-egress;
               };
             atrium-native-cutover =
               let
@@ -632,7 +632,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
               };
             atrium-money-reporting =
               let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
@@ -640,7 +640,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
                 nativeSource = inputs.homelab-mcp;
               };
             atrium-activation-switch =
@@ -649,7 +649,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = inputs.self.nixosConfigurations.forge.config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
               };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
@@ -687,7 +687,7 @@
               };
             atrium-forge-adopted-caddy =
               let
-                adopted = (inputs.self.nixosConfigurations.forge.extendModules {
+                adopted = ((import ./tests/atrium_n03/adopted.nix { inherit inputs; }).extendModules {
                   modules = [{ services.atriumForge.adoption.native = true; }];
                 }).config;
                 native = adopted.modules.services.caddy.virtualHosts.homelab-mcp;
@@ -767,7 +767,7 @@
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
                 let
-                  forge = inputs.self.nixosConfigurations.forge.config;
+                  forge = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
                   hosts = forge.modules.services.caddy.virtualHosts;
                   entry = hosts.atrium;
                   entryConfig =
@@ -803,7 +803,7 @@
                         ${whiskey.reverseProxyBlock}
                       }
                     }
-                    ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
+                    ${(import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.modules.services.caddy.extraConfig}
                   '');
                 in
                 ''
@@ -1186,7 +1186,11 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                # Atrium's foundation stores exist only while Atrium is enabled
+                # (hosts/forge/services/atrium.nix); retired on Forge since
+                # 2026-11-08 (hosts/forge/atrium/retired.nix).
+                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
+                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
                 atriumAdapterStateNames =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
@@ -1284,10 +1288,13 @@
               # Atrium's identity/TLS/policy and model ownership/admission stores
               # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 55 + builtins.length atriumAdapterStateNames + builtins.length agentHostStateNames
+                == 50 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames
+                + builtins.length agentHostStateNames
                 + builtins.length obsidianVaultStates;
               assert manifest.summary.byClass == {
-                critical = 15 + builtins.length atriumAdapterStateNames;
+                # 2026-11-08: Atrium's five foundation stores are counted
+                # through atriumStateNames (empty while Atrium is retired).
+                critical = 10 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
@@ -1459,7 +1466,11 @@
                   forge.modules.services.backup._internal.allJobs;
                 snapshotMetricsScript = builtins.readFile ./scripts/zfs-snapshot-metrics.sh;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                # Atrium's foundation stores exist only while Atrium is enabled
+                # (hosts/forge/services/atrium.nix); retired on Forge since
+                # 2026-11-08 (hosts/forge/atrium/retired.nix).
+                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
+                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
                 atriumAdapterJobs =
                   pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "atrium-native-security-offsite"
                     ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "atrium-whiskey-security-offsite";
@@ -1561,8 +1572,11 @@
                 # set loses restic-backup-service-openproject,
                 # restic-backup-openproject-offsite and
                 # syncoid-tank-services-openproject.
+                # 2026-11-08: Atrium's 15 foundation timers (five stores, each
+                # with replication and two encrypted backups) are counted through
+                # atriumTimers, which is empty while Atrium is retired.
               assert builtins.length expectedTimers
-                == 148 + builtins.length atriumAdapterJobs + builtins.length agentHostTimers
+                == 133 + builtins.length atriumTimers + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
@@ -1574,13 +1588,15 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 64 + builtins.length agentHostStates + builtins.length obsidianVaultStates;
+                == 59 + builtins.length atriumStateNames + builtins.length agentHostStates
+                + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 72 + builtins.length atriumAdapterJobs + 2 * builtins.length agentHostStates
+                == 62 + 2 * builtins.length atriumStateNames + builtins.length atriumAdapterJobs
+                + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
@@ -1652,7 +1668,7 @@
         in
         {
           lib.atriumSetupConfigs.forge = builtins.fromJSON
-            inputs.self.nixosConfigurations.forge.config.environment.etc."atrium/bootstrap/setup.json".text;
+            (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.environment.etc."atrium/bootstrap/setup.json".text;
 
           #################### NixOS Configurations ####################
           #
