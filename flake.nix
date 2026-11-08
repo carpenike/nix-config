@@ -206,7 +206,18 @@
       # plus mean_type for ha_get_statistics (mcp#108, v0.35.1), and the HELOC
       # obligation end month (2026-10) in finances_config.json, and the USAA
       # P&C ($224.62) and Starlink ($20) amounts (mcp#111), and mcp#112.
-      # Vendored Atrium content is checked against the selected app input.
+      # mcp#117-#120 (v0.38.0): views as resource-bound scopes, the MFP tools,
+      # Atrium integration removed, and the finances context store on Postgres.
+      url = "github:carpenike/mcp/0f27fd4c75710d40f09cc8ec7ae57ff7be15b328";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # The last homelab-mcp revision that still ships the Atrium fixtures
+    # (tests/atrium_*.nix, the generated catalogs, vendor/atrium-*). Atrium is
+    # retired on Forge (hosts/forge/atrium/retired.nix); the atrium_n03 checks
+    # keep testing the adopted configuration against this frozen revision
+    # through `atriumInputs`, while Forge itself runs `homelab-mcp` above.
+    homelab-mcp-atrium = {
       url = "github:carpenike/mcp/849c3b64200498d694666e5b5503bb44bfc2313e";
       inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -258,6 +269,9 @@
     let
       overlays = import ./overlays { inherit inputs; };
       mkSystemLib = import ./lib/mkSystem.nix { inherit inputs; inherit overlays; };
+      # Inputs for the retired-Atrium checks: homelab-mcp resolves to the
+      # frozen revision that still carries the Atrium fixtures.
+      atriumInputs = inputs // { homelab-mcp = inputs.homelab-mcp-atrium; };
 
       # Aggregate DNS records from all hosts for centralized zone management
       aggregateDnsRecords = import ./lib/dns-aggregate.nix {
@@ -571,35 +585,35 @@
             };
             atrium-forge-preparation = pkgs.writeText "atrium-forge-preparation.json"
               (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
-                inherit inputs;
+                inputs = atriumInputs;
               }));
             atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
-              inherit inputs pkgs;
+              inherit pkgs; inputs = atriumInputs;
             };
             atrium-forge-native-policy-compatibility = import ./tests/atrium_n03/native-policy-compatibility.nix {
-              inherit inputs pkgs;
+              inherit pkgs; inputs = atriumInputs;
             };
             atrium-forge-c10-settings =
-              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
+              (import ./tests/atrium_n03/c10-settings.nix { inherit pkgs; inputs = atriumInputs; }).evaluation;
             atrium-forge-c10-schema =
-              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
+              (import ./tests/atrium_n03/c10-settings.nix { inherit pkgs; inputs = atriumInputs; }).schema;
             atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit pkgs; inputs = atriumInputs; }));
             atrium-pwa-wiring = pkgs.writeText "atrium-pwa-wiring-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n03/pwa.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/pwa.nix { inputs = atriumInputs; }));
             atrium-forge-model-secrets = pkgs.writeText "atrium-forge-model-secrets.json"
-              (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inputs = atriumInputs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inputs = atriumInputs; }));
             atrium-forge-client-views = pkgs.writeText "atrium-forge-client-views.json"
-              (builtins.toJSON (import ./tests/atrium_n03/client-views.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/client-views.nix { inputs = atriumInputs; }));
             atrium-hermes-config-transition = import ./tests/atrium_n03/hermes-transition.nix {
-              inherit inputs pkgs;
+              inherit pkgs; inputs = atriumInputs;
             };
             atrium-native-cutover-wiring = pkgs.writeText "atrium-native-cutover-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inputs = atriumInputs; }));
             atrium-whiskey-cutover-wiring = pkgs.writeText "atrium-whiskey-cutover-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/whiskey-cutover-evaluate.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/whiskey-cutover-evaluate.nix { inputs = atriumInputs; }));
             atrium-whiskey-cutover =
               let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
               import ./tests/atrium_n03/whiskey-cutover.nix {
@@ -609,7 +623,7 @@
                 whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
                 whiskeySource = inputs.whiskey-whiskey-whiskey;
                 egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
-                  (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.systemd.services.atrium-whiskey-egress;
+                  (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config.systemd.services.atrium-whiskey-egress;
               };
             atrium-native-cutover =
               let
@@ -620,8 +634,8 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
-                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
-                nativeCatalog = (import (inputs.homelab-mcp + "/tests/atrium_fixture.nix") {
+                nativePackage = inputs.homelab-mcp-atrium.packages.${guestSystem}.default;
+                nativeCatalog = (import (inputs.homelab-mcp-atrium + "/tests/atrium_fixture.nix") {
                   atriumSrc = inputs.atrium;
                 }).catalogs.native.source;
                 atrium = inputs.atrium;
@@ -632,7 +646,7 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config;
               };
             atrium-money-reporting =
               let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
@@ -640,8 +654,8 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
-                nativeSource = inputs.homelab-mcp;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config;
+                nativeSource = inputs.homelab-mcp-atrium;
               };
             atrium-activation-switch =
               let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
@@ -649,10 +663,10 @@
                 hostPkgs = pkgs;
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
+                configuration = (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config;
               };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
-              (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
+              (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inputs = atriumInputs; }));
             atrium-forge-credential-systemd =
               let
                 guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
@@ -673,7 +687,7 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
-                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
+                nativePackage = inputs.homelab-mcp-atrium.packages.${guestSystem}.default;
               };
             atrium-forge-controller-publication =
               let
@@ -687,7 +701,7 @@
               };
             atrium-forge-adopted-caddy =
               let
-                adopted = ((import ./tests/atrium_n03/adopted.nix { inherit inputs; }).extendModules {
+                adopted = ((import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).extendModules {
                   modules = [{ services.atriumForge.adoption.native = true; }];
                 }).config;
                 native = adopted.modules.services.caddy.virtualHosts.homelab-mcp;
@@ -767,7 +781,7 @@
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
                 let
-                  forge = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
+                  forge = (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config;
                   hosts = forge.modules.services.caddy.virtualHosts;
                   entry = hosts.atrium;
                   entryConfig =
@@ -803,7 +817,7 @@
                         ${whiskey.reverseProxyBlock}
                       }
                     }
-                    ${(import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.modules.services.caddy.extraConfig}
+                    ${(import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config.modules.services.caddy.extraConfig}
                   '');
                 in
                 ''
@@ -812,26 +826,26 @@
               );
             atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
               (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
-                inherit inputs;
+                inputs = atriumInputs;
                 system = "x86_64-linux";
               }));
             atrium-n03-caddy = pkgs.runCommand "atrium-n03-caddy-syntax"
               { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
               caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-Caddyfile"
                 (import ./tests/atrium_n03/caddy.nix {
-                  fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
+                  fixture = import ./tests/atrium_n03/fixture.nix { inputs = atriumInputs; };
                 })} > "$out"
             '';
             atrium-n03-model-preparation = pkgs.writeText "atrium-n03-model-preparation.json"
               (builtins.toJSON (import ./tests/atrium_n03/model-evaluate.nix {
-                inherit inputs;
+                inputs = atriumInputs;
                 system = "x86_64-linux";
               }));
             atrium-n03-model-caddy-preview = pkgs.runCommand "atrium-n03-model-caddy-preview"
               { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
               caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-model-Caddyfile"
                 (import ./tests/atrium_n03/caddy.nix {
-                  fixture = (import ./tests/atrium_n03/fixture.nix { inherit inputs; }) // {
+                  fixture = (import ./tests/atrium_n03/fixture.nix { inputs = atriumInputs; }) // {
                     modelPlaneReady = true;
                   };
                 })} > "$out"
@@ -1668,7 +1682,7 @@
         in
         {
           lib.atriumSetupConfigs.forge = builtins.fromJSON
-            (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.environment.etc."atrium/bootstrap/setup.json".text;
+            (import ./tests/atrium_n03/adopted.nix { inputs = atriumInputs; }).config.environment.etc."atrium/bootstrap/setup.json".text;
 
           #################### NixOS Configurations ####################
           #
