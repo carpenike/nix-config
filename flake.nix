@@ -718,6 +718,24 @@
                   fi
                   grep -Fq 'upstream address scheme is HTTP but transport is configured for HTTP+TLS' invalid.log
                 '';
+            # Forge's dead man's switch must count only Forge's Watchdog. The
+            # cluster's Watchdog (cluster=k8s-holthome) is routed first, away
+            # from it (hosts/forge/infrastructure/observability/alertmanager.nix).
+            alertmanager-watchdog-routing =
+              let
+                routes = inputs.self.nixosConfigurations.forge.config.services.prometheus.alertmanager.configuration.route.routes;
+                cluster = builtins.elemAt routes 0;
+                forge = builtins.elemAt routes 1;
+                ok = cluster.matchers == [ "alertname=\"Watchdog\"" "cluster=\"k8s-holthome\"" ]
+                  && builtins.elem cluster.receiver [ "watchdog-discard" "healthchecks-io-cluster" ]
+                  && cluster.continue == false
+                  && forge.matchers == [ "alertname=\"Watchdog\"" "cluster=\"\"" ]
+                  && forge.receiver == "healthchecks-io"
+                  && forge.continue == false;
+              in
+              pkgs.lib.throwIf (!ok)
+                "alertmanager watchdog routing check failed: ${builtins.toJSON [ cluster forge ]}"
+                (pkgs.writeText "alertmanager-watchdog-routing" "ok");
             alertmanager-caddy-bypass =
               let
                 lib = pkgs.lib;
