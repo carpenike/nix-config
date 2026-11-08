@@ -767,7 +767,7 @@
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
                 let
-                  forge = inputs.self.nixosConfigurations.forge.config;
+                  forge = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
                   hosts = forge.modules.services.caddy.virtualHosts;
                   entry = hosts.atrium;
                   entryConfig =
