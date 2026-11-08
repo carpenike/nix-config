@@ -116,6 +116,88 @@ in
         siteMonitor = "http://localhost:8090";
       };
 
+      # ── Services that moved to the k8s cluster (2026-11-08) ─────────────
+      # homelab-mcp, Grafana and Grafana OnCall used to contribute these checks
+      # from their own Forge modules. They now run on the cluster
+      # (carpenike/k8s-gitops#5765, #5781), so Forge's Gatus checks them over
+      # their public names instead: an outside view that also covers the
+      # cluster's ingress and tunnel. Same keys, names and groups as before so
+      # the status history carries over. Each is gated on the service NOT
+      # running on Forge, so a rollback falls back to the original check.
+      #
+      # The OnCall check matters beyond OnCall itself: Alertmanager routes
+      # every alert to OnCall (infrastructure/observability/alertmanager.nix),
+      # so if OnCall is unreachable nothing pages. Gatus alerts through its
+      # own Pushover provider above, not through Alertmanager, so this check
+      # still pages when OnCall is the thing that is down.
+      #
+      # Deliberately not replaced: signal-api, schoolhouse and lading had
+      # loopback-only checks (127.0.0.1) of processes that no longer exist on
+      # Forge, and none of them has a public endpoint to probe. Their health is
+      # the cluster's to monitor.
+      modules.services.gatus.contributions = lib.mkMerge [
+        (lib.mkIf (!(config.services.homelab-mcp.enable or false)) {
+          # /healthz is the one route homelab-mcp serves without a bearer
+          # token, and it touches no upstream, so this answers "is the public
+          # path to the process open". Do not point it at /mcp (needs a JWT).
+          homelab-mcp = {
+            name = "Homelab MCP";
+            group = "applications";
+            url = "https://mcp.${config.networking.domain}/healthz";
+            interval = "60s";
+            conditions = [
+              "[STATUS] == 200"
+              "[BODY].status == ok"
+              "[RESPONSE_TIME] < 5000"
+            ];
+            alerts = [{
+              type = "pushover";
+              sendOnResolved = true;
+              failureThreshold = 3;
+              successThreshold = 1;
+            }];
+          };
+        })
+        (lib.mkIf (!(config.modules.services.grafana.enable or false)) {
+          # /api/health is unauthenticated and reports Grafana's own database.
+          grafana = {
+            name = "Grafana";
+            group = "Monitoring";
+            url = "https://grafana.${config.networking.domain}/api/health";
+            interval = "60s";
+            conditions = [
+              "[STATUS] == 200"
+              "[BODY].database == ok"
+              "[RESPONSE_TIME] < 2000"
+            ];
+            alerts = [{
+              type = "pushover";
+              sendOnResolved = true;
+              failureThreshold = 3;
+              successThreshold = 1;
+            }];
+          };
+        })
+        (lib.mkIf (!(config.modules.services.grafana-oncall.enable or false)) {
+          grafana-oncall = {
+            name = "Grafana OnCall";
+            group = "Monitoring";
+            url = "https://oncall.${config.networking.domain}/health/";
+            interval = "60s";
+            conditions = [
+              "[STATUS] == 200"
+              "[RESPONSE_TIME] < 2000"
+            ];
+            alerts = [{
+              type = "pushover";
+              sendOnResolved = true;
+              failureThreshold = 3;
+              successThreshold = 2;
+            }];
+          };
+        })
+      ];
+
       # Custom metrics staleness alert for blackbox monitoring reliability
       modules.alerting.rules."gatus-metrics-stale" = mylib.monitoring-helpers.mkThresholdAlert {
         name = "gatus";

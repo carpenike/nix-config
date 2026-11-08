@@ -277,8 +277,10 @@ in
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
   services.prometheus = {
-    # Disable config check at build time because we use runtime secrets
-    # (credentials_file for OnCall metrics auth can't be accessed during nix build)
+    # Disable config check at build time because scrape configs may read runtime
+    # secrets that do not exist in the build sandbox. (The original reason, the
+    # OnCall metrics credentials_file, left with OnCall on 2026-11-08; turning
+    # the check back on is a separate change.)
     checkConfig = false;
 
     # Wire Prometheus to Alertmanager for alert delivery
@@ -374,19 +376,8 @@ in
         ];
       }
 
-      # Grafana OnCall metrics
-      # OnCall exposes metrics on its main port with Bearer token auth
-      {
-        job_name = "grafana-oncall";
-        metrics_path = "/metrics/";
-        static_configs = [
-          { targets = [ "127.0.0.1:8094" ]; labels = { instance = "forge.holthome.net"; host = "forge"; service = "grafana-oncall"; }; }
-        ];
-        authorization = {
-          type = "Bearer";
-          credentials_file = config.sops.secrets."grafana-oncall/metrics_secret".path;
-        };
-      }
+      # Grafana OnCall moved to the k8s cluster on 2026-11-08; its metrics are
+      # scraped there, so the local `grafana-oncall` job is gone.
     ];
   };
 

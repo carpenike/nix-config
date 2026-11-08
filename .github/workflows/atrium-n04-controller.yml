@@ -8,7 +8,8 @@ name: Atrium controller deployment
       - hosts/forge/services/atrium.nix
       - hosts/forge/services/atrium-pwa.nix
       - hosts/forge/services/hermes-agent.nix
-      - hosts/forge/services/homelab-mcp.nix
+      - hosts/forge/services/retired-to-cluster.nix
+      - tests/atrium_n03/forge-retired/*.nix
       - hosts/forge/services/litellm.nix
       - hosts/forge/atrium/identity.nix
       - hosts/forge/atrium/registry.nix

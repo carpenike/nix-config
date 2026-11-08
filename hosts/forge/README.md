@@ -2,6 +2,16 @@
 
 This directory contains the NixOS configuration for the `forge` host, organized following a three-tier architectural pattern with strict separation of concerns.
 
+## Services moved to the k8s cluster (2026-11-08)
+
+homelab-mcp (with its Actual sidecar, finance ingest/export/snapshots and
+finance-signal capture/reports), signal-api, schoolhouse, lading, Grafana and
+Grafana OnCall run on the k8s cluster now (carpenike/k8s-gitops). Forge keeps
+their datasets, snapshots, replication and Restic jobs until 2026-11-15 as the
+rollback copy (`services/retired-to-cluster.nix`); their Postgres databases
+stay in Forge's cluster untouched. Alertmanager on Forge still pages through
+OnCall, now the cluster's, and Gatus checks the cluster's public endpoints.
+
 ## Household agent transition
 
 The rebuild configuration disables Hermes's unused Telegram gateway and its
@@ -49,7 +59,7 @@ hosts/forge/
 - `notifications.nix` - Notification system (Pushover, system events)
 - `reverse-proxy.nix` - Caddy reverse proxy configuration
 - `monitoring-ui.nix` - Monitoring dashboards and UI
-- `observability/` - Observability stack (Prometheus, Alertmanager, Grafana, Loki, Promtail)
+- `observability/` - Observability stack (Prometheus, Alertmanager, Loki, Promtail; Grafana moved to the k8s cluster)
 
 **Key Principle**: Infrastructure provides services and platforms that applications consume.
 
@@ -78,18 +88,10 @@ tests, SSH forwarding, provider authentication, acceptance and recovery.
 
 ## Deterministic finance ingestion
 
-`services/finance-ingestion.nix` co-locates the quota-aware eligibility timer,
-read-only local-state collector, and severity-specific alerts. Activation must
-pair the new CLI pin with the dedicated token-only SOPS file; existing durable
-quota state and the 05:30 GET-only export are preserved. See the
-[finance ingestion runbook](../../docs/finance-ingestion.md) for prerequisites,
-skip behavior, monitoring limits, and focused offline validation.
-
-`services/finance-snapshots.nix` adds bounded five-minute post-ingestion exports
-using the existing export identity/environment and read-only bank state. The
-nightly export and bank quota remain unchanged. See the
-[snapshot runbook](../../docs/finance-snapshots.md) for the paired-release gate,
-checkpoint alerts and the remaining manual/nightly source-consistency limit.
+Moved to the k8s cluster with homelab-mcp on 2026-11-08 (see above). The
+[finance ingestion](../../docs/finance-ingestion.md) and
+[snapshot](../../docs/finance-snapshots.md) runbooks describe the Forge
+deployment that was retired.
 
 ## TeslaMate health probe
 

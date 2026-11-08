@@ -6,7 +6,6 @@ let
   containers = c.virtualisation.oci-containers.containers;
   beszel = c.modules.services.beszel.hub;
   tracearr = c.modules.services.tracearr;
-  signal = c.modules.services.signal-api;
   embedded = (forge.extendModules {
     modules = [{
       modules.services.tracearr.deploymentMode = lib.mkForce "embedded";
@@ -20,14 +19,6 @@ let
           version = "0.19.0";
           __intentionallyOverridingVersion = true;
         }));
-    }];
-  }).config;
-  alternateSignal = (forge.extendModules {
-    modules = [{
-      modules.services.signal-api = {
-        uid = signal.uid + 10000;
-        gid = signal.gid + 10000;
-      };
     }];
   }).config;
   checks = {
@@ -59,23 +50,14 @@ let
       && !(embedded.environment ? BACKUP_DIR);
     tracearr-migration-lock-capacity =
       c.services.postgresql.settings.max_locks_per_transaction >= 512;
-    signal-runtime-matches-service-identity =
-      builtins.elem "--user=${toString signal.uid}:${toString signal.gid}"
-        containers.signal-api.extraOptions
-      && c.users.users.signal-api.uid == signal.uid
-      && c.users.groups.${signal.group}.gid == signal.gid;
-    signal-custom-identity-remains-supported =
-      builtins.elem "--user=${toString (signal.uid + 10000)}:${toString (signal.gid + 10000)}"
-        alternateSignal.virtualisation.oci-containers.containers.signal-api.extraOptions
-      && alternateSignal.users.users.signal-api.uid == signal.uid + 10000
-      && alternateSignal.users.groups.${signal.group}.gid == signal.gid + 10000;
-    signal-no-obsolete-identity-environment =
-      lib.all (name: !(builtins.hasAttr name containers.signal-api.environment))
-        [ "SIGNAL_CLI_UID" "SIGNAL_CLI_GID" "PUID" "PGID" ];
-    signal-preserves-private-state-and-network =
-      c.modules.storage.datasets.services.signal-api.mode == "0700"
-      && containers.signal-api.ports == [ "127.0.0.1:${toString signal.port}:8080" ]
-      && signal.localAccess.enable;
+    # The four signal-* checks (container identity, no obsolete identity
+    # environment, private state and loopback-only port) were removed on
+    # 2026-11-08: signal-api runs on the k8s cluster (carpenike/k8s-gitops#5765)
+    # and Forge has no signal-api container left to check. Its retained
+    # dataset keeps mode 0700 (hosts/forge/services/retired-to-cluster.nix).
+    retired-signal-api-state-stays-private =
+      !(containers ? signal-api)
+      && c.modules.storage.datasets.services.signal-api.mode == "0700";
   };
   failed = builtins.attrNames (lib.filterAttrs (_: passed: !passed) checks);
 in

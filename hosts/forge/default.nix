@@ -92,13 +92,10 @@ in
     ./services/tdarr.nix # Tdarr transcoding automation
     ./services/cooklang.nix # Cooklang recipe management
     ./services/cooklang-federation.nix # Cooklang federation search service
-    ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
-    ./services/finance-ingestion.nix # Quota-guarded ingestion and independent local-state monitoring
-    ./services/finance-snapshots.nix # Bounded post-ingestion export and aggregate checkpoint monitoring
-    ./services/finance-signal.nix # Off-by-default manual report preparation and Ops-only capture staging
-    ./services/finance-signal-production.nix # Explicitly gated canonical capture, scheduled reports and local monitoring
-    ./services/schoolhouse.nix # Schoology ingest + read-only MCP (loopback only)
-    ./services/lading.nix # Amazon order ingest for the ledger (loopback only)
+    # homelab-mcp (+ finance jobs), signal-api, schoolhouse, lading, Grafana and
+    # Grafana OnCall moved to the k8s cluster on 2026-11-08. This keeps their
+    # data protected for the rollback week; see the file header.
+    ./services/retired-to-cluster.nix
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
     ./services/grocy.nix # Grocy household & groceries management
@@ -117,10 +114,8 @@ in
     ./services/apprise.nix # Apprise notification gateway
     ./services/frigate.nix # Frigate NVR service
     ./services/go2rtc.nix # go2rtc camera streaming relay (Scrypted → WebRTC → HA)
-    ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
     ./services/searxng.nix # SearXNG meta search engine
-    ./services/signal-api.nix # Signal bot transport for the household advisor pulse
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/music-assistant.nix # Music Assistant media library + player server
     ./services/homepage.nix # Homepage dashboard (LAN only)
@@ -137,16 +132,6 @@ in
   ];
 
   config = {
-    # Expose only manual acceptance units; no Signal receiver/sender starts here.
-    services.financeSignalStaging = {
-      reportReader.enable = true;
-      capture.enable = true;
-    };
-    services.financeSignalProduction = {
-      enable = true;
-      reportsNotBefore = "2026-10-01T00:00:00-04:00";
-    };
-
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
 
@@ -203,6 +188,13 @@ in
       # applied from a Claude session or a phone rather than waiting for
       # 04:00 or a laptop. The requester only gets to create a file in one
       # watched directory; see modules/nixos/on-demand-upgrade.nix.
+      #
+      # Since 2026-11-08 homelab-mcp runs on the k8s cluster and cannot write
+      # to that directory, so nothing on Forge requests an upgrade any more.
+      # Left enabled (and the homelab-mcp user kept, in
+      # services/retired-to-cluster.nix) only so a rollback of the retirement
+      # gets the tool back unchanged; disable it in the follow-up that deletes
+      # the retained data.
       onDemandUpgrade = {
         enable = true;
         requestUser = "homelab-mcp";

@@ -1,4 +1,4 @@
-{ config, ... }:
+{ ... }:
 
 {
   # Enable unified Alertmanager-based alerting system
@@ -28,8 +28,16 @@
     # Grafana OnCall receiver: primary notification channel
     # OnCall handles on-call schedules, escalation policies, and incident management
     # Pushover is kept as a fallback for critical alerts and meta-monitoring
+    #
+    # OnCall runs on the k8s cluster since 2026-11-08 (carpenike/k8s-gitops#5781),
+    # so this no longer follows a local module: the receiver stays on, and the
+    # secret holds the cluster integration URL
+    # (https://oncall.<domain>/integrations/v1/alertmanager/<token>/). The
+    # secret is declared in ../../secrets.nix whenever this receiver is enabled.
+    # OnCall's own availability is watched by Gatus (services/gatus.nix), which
+    # pages through Pushover directly rather than through this Alertmanager.
     receivers.oncall = {
-      enable = config.modules.services.grafana-oncall.enable;
+      enable = true;
       webhookUrlSecret = "grafana-oncall/alertmanager-webhook-url";
     };
 

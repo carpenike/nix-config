@@ -1,3 +1,9 @@
+# FROZEN FIXTURE, NOT FORGE CONFIGURATION. schoolhouse left Forge for the k8s
+# cluster on 2026-11-08 (carpenike/k8s-gitops#5780). Formerly
+# hosts/forge/services/schoolhouse.nix; kept only because the retired
+# homelab-mcp fixture next to it needs the sops templates this service gates on
+# (see ./default.nix). Do not import it from hosts/forge.
+#
 # schoolhouse — Schoology parent-account ingest + store (+ a health probe).
 # Upstream: https://github.com/carpenike/schoolhouse
 #
@@ -45,7 +51,7 @@
 { config, inputs, lib, pkgs, ... }:
 
 let
-  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  forgeDefaults = import ../../../hosts/forge/lib/defaults.nix { inherit config lib; };
 
   serviceName = "schoolhouse";
   listenAddr = "127.0.0.1";
