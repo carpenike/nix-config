@@ -232,7 +232,7 @@ in
           # token to named users (matched against PocketID's `email`
           # claim). Empty upstream default = any PocketID user. Parsed as
           # JSON by pydantic, so this must be a JSON array literal.
-          HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
+          HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net"]'';
           # DCR redirect_uri prefix allowlist. Setting it REPLACES the upstream
           # default, so the first eight entries copy that default verbatim
           # (homelab-mcp 70f96a3, config.py oauth_redirect_uri_allowlist).
