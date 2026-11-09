@@ -1,3 +1,9 @@
+# FROZEN FIXTURE, NOT FORGE CONFIGURATION. lading left Forge for the k8s
+# cluster on 2026-11-08 (carpenike/k8s-gitops#5780). Formerly
+# hosts/forge/services/lading.nix; kept only because the retired homelab-mcp
+# fixture next to it needs the sops templates this service gates on (see
+# ./default.nix). Do not import it from hosts/forge.
+#
 # lading — Amazon order + transaction ingest for the household ledger.
 # Upstream: https://github.com/carpenike/lading  (PRIVATE)
 #
@@ -149,7 +155,7 @@
 { config, inputs, lib, pkgs, ... }:
 
 let
-  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  forgeDefaults = import ../../../hosts/forge/lib/defaults.nix { inherit config lib; };
 
   serviceName = "lading";
   # Both units' StateDirectory lands here: the health unit takes

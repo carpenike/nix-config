@@ -13,6 +13,12 @@ let
   dataset = "tank/services/${serviceName}";
   serviceIds = mylib.serviceUids.hermes;
   serviceEnabled = config.services.hermes-agent.enable or false;
+  # Hermes's runtime has been off since the September 2026 finance-signal
+  # cutover. That used to be keyed on services.financeSignalProduction.enable,
+  # but finance-signal moved to the k8s cluster on 2026-11-08 and took that
+  # option with it; keying on its absence would have switched Hermes back on.
+  # Retired unconditionally now. History, ownership and backups are kept.
+  runtimeRetired = true;
   homelabMcpEnabled = config.services.homelab-mcp.enable or false;
   homelabMcpPort = config.services.homelab-mcp.port or 9200;
   nativeAdopted = config.services.atriumForge.adoption.native or false;
@@ -875,7 +881,7 @@ in
   ];
 
   config = lib.mkMerge [
-    (lib.mkIf (config.services.financeSignalProduction.enable or false) {
+    (lib.mkIf runtimeRetired {
       # Keep private history, ownership and backups for rollback, but remove
       # every runtime/recovery entrypoint once the replacement owns Signal.
       systemd.services = lib.genAttrs [
@@ -1134,7 +1140,7 @@ in
       # (widen the start-limit window per-service, or alert on restart churn)
       # is tracked separately and would repair them all at once.
       modules.alerting.rules."${serviceName}-service-down" =
-        lib.mkIf (!(config.services.financeSignalProduction.enable or false))
+        lib.mkIf (!runtimeRetired)
           (forgeDefaults.mkSystemdServiceDownAlert
             serviceName
             "Hermes Agent"

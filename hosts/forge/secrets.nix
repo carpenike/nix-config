@@ -17,10 +17,15 @@ let
   cloudflaredEnabled = config.modules.services.cloudflared.enable or false;
   cooklangEnabled = config.modules.services.cooklang.enable or false;
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
+  # homelab-mcp, schoolhouse and lading moved to the k8s cluster on 2026-11-08,
+  # so their gates (here and below) are false on Forge and the secrets behind
+  # them are no longer installed there. The declarations stay because the
+  # Atrium checks' frozen fixture (tests/atrium_n03/forge-retired) turns those
+  # services back on. Grafana's and OnCall's declarations were removed: nothing
+  # else reads them. The OnCall webhook URL follows the Alertmanager receiver.
   homelabMcpEnabled = config.services.homelab-mcp.enable or false;
   hermesAgentEnabled = config.services.hermes-agent.enable or false;
-  grafanaEnabled = config.modules.services.grafana.enable or false;
-  grafanaOncallEnabled = config.modules.services.grafana-oncall.enable or false;
+  oncallReceiverEnabled = config.modules.alerting.receivers.oncall.enable or false;
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
   esphomeEnabled = config.modules.services.esphome.enable or false;
   sonarrEnabled = config.modules.services.sonarr.enable or false;
@@ -277,6 +282,18 @@ in
             group = "alertmanager";
           };
         }
+        // optionalAttrs (alertingEnabled && oncallReceiverEnabled) {
+          # Grafana OnCall Alertmanager integration webhook URL, read by
+          # Alertmanager's `grafana-oncall` receiver. Follows the receiver, not
+          # a local OnCall module: OnCall runs on the k8s cluster since
+          # 2026-11-08, and the value is the cluster integration URL
+          # (https://oncall.<domain>/integrations/v1/alertmanager/<token>/).
+          "grafana-oncall/alertmanager-webhook-url" = {
+            mode = "0400";
+            owner = "alertmanager";
+            group = "alertmanager";
+          };
+        }
         // optionalAttrs beszelAgentEnabled {
           # Beszel agent SSH key (generated in hub UI)
           # Used by agent to authenticate with hub for metrics push
@@ -501,45 +518,6 @@ in
             mode = "0400";
             owner = config.modules.services.cooklangFederation.user;
             group = config.modules.services.cooklangFederation.group;
-          };
-        }
-        // optionalAttrs grafanaEnabled {
-          # Grafana admin password
-          "grafana/admin-password" = {
-            mode = "0400";
-            owner = "grafana";
-            group = "grafana";
-          };
-
-          # Grafana OIDC client secret (must match identity provider)
-          "grafana/oidc_client_secret" = {
-            mode = "0400";
-            owner = "grafana";
-            group = "grafana";
-          };
-        }
-        // optionalAttrs grafanaOncallEnabled {
-          # Grafana OnCall Django secret key (32+ characters for encryption)
-          "grafana-oncall/secret_key" = {
-            mode = "0400";
-            owner = "grafana-oncall";
-            group = "grafana-oncall";
-          };
-
-          # Grafana OnCall Prometheus metrics exporter secret
-          # Owned by prometheus so Prometheus can scrape OnCall metrics
-          "grafana-oncall/metrics_secret" = {
-            mode = "0400";
-            owner = "prometheus";
-            group = "prometheus";
-          };
-
-          # Grafana OnCall Alertmanager integration webhook URL
-          # Used by Alertmanager to send alerts to OnCall
-          "grafana-oncall/alertmanager-webhook-url" = {
-            mode = "0400";
-            owner = "alertmanager";
-            group = "alertmanager";
           };
         }
         // optionalAttrs pocketIdEnabled {

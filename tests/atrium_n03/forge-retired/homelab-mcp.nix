@@ -1,4 +1,12 @@
-# hosts/forge/services/homelab-mcp.nix
+# tests/atrium_n03/forge-retired/homelab-mcp.nix
+#
+# FROZEN FIXTURE, NOT FORGE CONFIGURATION. homelab-mcp left Forge for the k8s
+# cluster on 2026-11-08 (carpenike/k8s-gitops#5765); this is the host module as
+# it was on the day it was removed (formerly hosts/forge/services/homelab-mcp.nix),
+# kept only because the Atrium checks evaluate the adopted Forge, which wrapped
+# this service. Imported by ../adopted.nix and ../pre-adoption.nix via
+# ./default.nix. Do not import it from hosts/forge. Delete it together with the
+# Atrium checks.
 #
 # Homelab MCP server — bridge that exposes selected homelab APIs
 # (cooklang, gatus, future categories) as MCP tools Claude can call.
@@ -110,10 +118,10 @@ let
         (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);
 in
 {
-  imports = [
-    inputs.homelab-mcp.nixosModules.default
-  ];
-
+  # No `imports = [ inputs.homelab-mcp.nixosModules.default ]` here any more:
+  # live Forge imports the upstream module itself (options only, disabled) in
+  # hosts/forge/services/retired-to-cluster.nix, and importing that function
+  # module a second time would declare every option twice.
   config = lib.mkMerge [
     {
       services.homelab-mcp = {
@@ -700,7 +708,7 @@ in
     # Service-down alert (native systemd service, not a container).
     (lib.mkIf (config.services.homelab-mcp.enable or false) (
       let
-        forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+        forgeDefaults = import ../../../hosts/forge/lib/defaults.nix { inherit config lib; };
       in
       {
         systemd.services.homelab-mcp = {

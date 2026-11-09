@@ -191,6 +191,14 @@
     # See README in upstream repo for the full architecture / tool
     # registry pattern.
     # https://github.com/carpenike/mcp
+    #
+    # FROZEN since 2026-11-08: homelab-mcp runs on the k8s cluster (deployed
+    # from carpenike/k8s-gitops), not on Forge. This pin stays only for
+    # (1) the option declarations Forge imports with the service disabled
+    # (hosts/forge/services/retired-to-cluster.nix) and (2) the Atrium checks,
+    # whose fixtures need this revision's Atrium artifacts (tests/atrium_n03:
+    # pins.json, native-vendor-compatibility.json). Do not bump it to deploy
+    # homelab-mcp; that no longer deploys anything.
     homelab-mcp = {
       # Pocket ID refresh group evidence (C12, sealed token), transient refresh retry,
       # Family School browser preflight, school_parent_today, the ambit policy schema,
@@ -217,6 +225,11 @@
     # Loopback-only and intentionally unpublished — it serves three minors'
     # education records and has no authorization layer of its own.
     # https://github.com/carpenike/schoolhouse
+    #
+    # Since 2026-11-08 schoolhouse and lading (below) run on the k8s cluster.
+    # Neither input is used by Forge any more; both remain only for the Atrium
+    # checks' frozen fixture (tests/atrium_n03/forge-retired). Dropping them
+    # needs a regenerated flake.lock and goes with the Atrium-check cleanup.
     schoolhouse = {
       url = "github:carpenike/schoolhouse";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -537,24 +550,10 @@
                   python3 ${./tests/renovate/test_extraction.py}
                   touch "$out"
                 '';
-            finance-signal-production-contract = pkgs.writeText "finance-signal-production-contract.json"
-              (builtins.toJSON (import ./tests/finance-signal-production/evaluate.nix { inherit inputs; }));
-            finance-signal-production-runtime = import ./tests/finance-signal-production/check.nix {
-              inherit pkgs;
-              package = inputs.homelab-mcp.packages.${system}.default;
-              source = inputs.homelab-mcp;
-              systemdFailureExpr = inputs.self.nixosConfigurations.forge.config.modules.alerting.rules.systemd-unit-failed.expr;
-              productionEnabled = inputs.self.nixosConfigurations.forge.config.services.financeSignalProduction.enable;
-            };
-            finance-signal-staging-contract = pkgs.writeText "finance-signal-staging-contract.json"
-              (builtins.toJSON (import ./tests/finance-signal/evaluate.nix { inherit inputs; }));
-            finance-signal-staging-runtime = import ./tests/finance-signal/runtime.nix { inherit pkgs; };
-            finance-snapshot-contract = pkgs.writeText "finance-snapshot-contract.json"
-              (builtins.toJSON (import ./tests/finance-snapshots/evaluate.nix { inherit inputs; }));
-            finance-snapshot-monitoring = import ./tests/finance-snapshots/monitoring.nix { inherit pkgs; };
-            finance-ingestion-contract = pkgs.writeText "finance-ingestion-contract.json"
-              (builtins.toJSON (import ./tests/finance-ingestion/evaluate.nix { inherit inputs; }));
-            finance-ingestion-monitoring = import ./tests/finance-ingestion/monitoring.nix { inherit pkgs; };
+            # finance-signal-*, finance-snapshot-* and finance-ingestion-* were
+            # removed on 2026-11-08 with the units they tested: finance ingest,
+            # export/snapshots and Signal capture/reports (and their alert rules)
+            # run on the k8s cluster now (carpenike/k8s-gitops#5765).
             vscode-agent-host-foundation = pkgs.writeText "vscode-agent-host-foundation.json"
               (builtins.toJSON (import ./tests/vscode-agent-host/evaluate.nix { inherit inputs; }));
             vscode-agent-host-unit = pkgs.runCommand "vscode-agent-host-unit-tests"
@@ -854,11 +853,9 @@
                   };
                 })} > "$out"
             '';
-            homelab-mcp-deployment = import ./tests/homelab-mcp-deployment.nix {
-              inherit pkgs;
-              package = inputs.homelab-mcp.packages.${system}.default;
-              lifetimeSeconds = inputs.self.nixosConfigurations.forge.config.services.homelab-mcp.settings.HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS;
-            };
+            # homelab-mcp-deployment (Forge's homelab-mcp settings against the
+            # pinned package) was removed on 2026-11-08: Forge no longer runs
+            # homelab-mcp; its deployment is checked in carpenike/k8s-gitops.
             atrium-n04-package-smoke = deploymentPackageSmoke
               "atrium-litellm-controller"
               availablePackages.atrium-litellm-controller;
@@ -969,6 +966,8 @@
                   "service-cooklang"
                   "service-cooklangFederation"
                   "service-esphome"
+                  # Since 2026-11-08 a retained-data job for the rollback week
+                  # (hosts/forge/services/retired-to-cluster.nix), same name.
                   "service-grafana-oncall"
                   "service-home-assistant"
                   "service-netvisor"
@@ -1163,11 +1162,9 @@
                   "netvisor-" # env/oidc config regenerated from sops each boot
                 ];
                 allowedExact = [
-                  "grafana-oncall-plugin-setup"
                   "notify-boot"
                   "paperless-env"
                   "peanut-config"
-                  "podman-grafana-oncall-migration"
                   "policy-routing-main"
                   "searx-init"
                   "ups-inject-secrets"
@@ -1199,8 +1196,6 @@
                 legacyDirectPreseed = forge.systemd.services.preseed-mealie;
                 legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
                 legacyFactoryPreseed = forge.systemd.services.preseed-qbittorrent;
-                onCallEngine = forge.systemd.services.podman-grafana-oncall-engine;
-                onCallMigration = forge.systemd.services.podman-grafana-oncall-migration;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
@@ -1218,6 +1213,10 @@
                 # baseline counts below stay put until enable is flipped.
                 obsidianVaultStates = pkgs.lib.optional
                   forge.modules.services."obsidian-vault".enable "obsidian-vault";
+                # grafana-oncall left this map on 2026-11-08: OnCall runs on the
+                # k8s cluster, so there is no podman-grafana-oncall-redis unit
+                # left to fail closed. Its retained dataset is still asserted
+                # through standardServicePaths below.
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -1226,7 +1225,6 @@
                   bichon = "podman-bichon";
                   cooklang = "cooklang";
                   esphome = "podman-esphome";
-                  "grafana-oncall" = "podman-grafana-oncall-redis";
                   "home-assistant" = "home-assistant";
                   "music-assistant" = "music-assistant";
                   netvisor = "podman-netvisor-server";
@@ -1326,6 +1324,9 @@
                 # be installed fresh on the Kubernetes cluster).
                 # obsidian-vault (2026-10-25) adds one more standard dataset
                 # only while that service is enabled.
+                # 2026-11-08: unchanged by the move to the k8s cluster; lading
+                # and grafana-oncall (standard) and signal-api (critical) keep
+                # their declared, protected datasets for the rollback week.
                 standard = 17 + builtins.length agentHostStateNames + builtins.length obsidianVaultStates;
                 system = 2;
               };
@@ -1414,9 +1415,6 @@
                     && serviceConfig.CapabilityBoundingSet == [ "CAP_DAC_READ_SEARCH" ]
                     && serviceConfig.ReadOnlyPaths == [ "/var/lib/backup-snapshots/service-${name}" ])
                 snapshotBackupServices;
-              assert builtins.elem "podman-grafana-oncall-migration.service" onCallEngine.requires;
-              assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.requires;
-              assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.after;
               assert !(pkgs.lib.hasInfix "Refusing to start mealie with an empty data directory" legacyDirectPreseed.script);
               assert builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.wants;
               assert !(builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.requires);
@@ -1430,9 +1428,12 @@
               # Restic job to r2-offsite and is the only critical service with
               # every tier satisfied - hence its absence from
               # criticalServicePaths below, which asserts a missing offsite
-              # tier. allowEmptyBootstrap is true so a fresh deployment can
-              # come up account-less for the registration runbook; the
-              # /v1/accounts Gatus check covers what that concedes.
+              # tier.
+              # 2026-11-08: signal-api runs on the k8s cluster; Forge keeps the
+              # dataset (hosts/forge/services/retired-to-cluster.nix) with every
+              # tier except `automated-restore`, which a preseed unit provides
+              # and which has no container left to precede. Still critical,
+              # still fully covered for what it declares.
               assert signalApi.classification == "critical";
               assert signalApi.missingRequiredTiers == [ ];
               assert signalApi.policy.allowEmptyBootstrap;
@@ -1593,6 +1594,12 @@
                 # 2026-11-08: Atrium's 15 foundation timers (five stores, each
                 # with replication and two encrypted backups) are counted through
                 # atriumTimers, which is empty while Atrium is retired.
+                # 2026-11-08: homelab-mcp, signal-api, lading, Grafana and Grafana
+                # OnCall moved to the k8s cluster, and NONE of these counts move:
+                # hosts/forge/services/retired-to-cluster.nix keeps all five of
+                # their datasets snapshotted and replicated and all seven of their
+                # Restic jobs under the same names for the rollback week. The
+                # follow-up that deletes that data is what changes these numbers.
               assert builtins.length expectedTimers
                 == 133 + builtins.length atriumTimers + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;

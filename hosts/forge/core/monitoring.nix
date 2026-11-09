@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ lib, pkgs, ... }:
 
 let
   bootStatusState = "/var/lib/boot-status/state";
@@ -276,14 +276,11 @@ in
     "systemd-unit-failed" = {
       type = "promql";
       alertname = "SystemdUnitFailed";
-      # These two bounded jobs own preparation retries and an explicit
-      # completion deadline. Their outcome/deadline alerts remain authoritative.
-      expr =
-        if config.services.financeSignalProduction.enable or false then ''
-          node_systemd_unit_state{state="failed",name!~"finance-signal-report@(daily|weekly)\\.service"} == 1
-        '' else ''
-          node_systemd_unit_state{state="failed"} == 1
-        '';
+      # The finance-signal-report@ exclusion left with those jobs (k8s cluster,
+      # 2026-11-08); every failed unit on Forge counts again.
+      expr = ''
+        node_systemd_unit_state{state="failed"} == 1
+      '';
       for = "5m";
       severity = "high";
       labels = { service = "system"; category = "systemd"; };

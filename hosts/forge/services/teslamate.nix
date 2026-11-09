@@ -85,7 +85,11 @@ in
 
         # Grafana integration with dedicated read-only user for security
         grafanaIntegration = {
-          enable = true;
+          # Off since 2026-11-08: Grafana runs on the k8s cluster, and this
+          # only wires a datasource and dashboards into a LOCAL Grafana (the
+          # module asserts one exists). The read-only `teslamate_grafana`
+          # role is still provisioned: that follows `user` below, not enable.
+          enable = false;
           user = "teslamate_grafana";
           passwordFile = config.sops.secrets."teslamate/grafana_password".path;
           host = "127.0.0.1"; # Grafana connects directly to PostgreSQL on localhost

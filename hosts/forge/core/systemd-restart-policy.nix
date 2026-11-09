@@ -48,7 +48,6 @@ let
       "alertmanager"
       "gatus"
       "glances-web"
-      "grafana"
       "home-assistant"
       "homepage-dashboard"
       "loki"
@@ -71,7 +70,6 @@ let
       "ambit"
       "cooklang-federation"
       "filebrowser-quantum"
-      "homelab-mcp"
       "marginalia"
       "miniflux"
       "replog"
@@ -82,14 +80,13 @@ let
       ((config.modules.services."obsidian-vault".enable or false)
         && (config.modules.services."obsidian-vault".mcp.tokenProvisioned or false))
       [ "obsidian-vault-mcp" ];
+    # lading, schoolhouse, homelab-mcp, Grafana and Grafana OnCall left these
+    # lists on 2026-11-08 (moved to the k8s cluster).
     "10" = [
       "cooklang"
-      "lading"
-      "schoolhouse"
     ];
     "30" = [
       "beszel-hub"
-      "grafana-oncall-plugin-setup"
       "pgweb"
       "syncoid-post-fixup-nas1"
     ] ++ lib.optionals (config.modules.services."obsidian-vault".enable or false) [
@@ -111,9 +108,6 @@ let
       "podman-dispatcharr"
       "podman-dispatcharr-celery"
       "podman-emqx"
-      "podman-grafana-oncall-celery"
-      "podman-grafana-oncall-engine"
-      "podman-grafana-oncall-redis"
       "podman-netvisor-daemon"
       "podman-netvisor-server"
       "podman-peanut"
