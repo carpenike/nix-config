@@ -31,14 +31,17 @@
     , hostname
     , extraModules ? [ ]        # extra modules (e.g. sd-image builder)
     , extraHomeModules ? [ ]    # feature modules shared with Home Manager
+      # nixpkgs for this host. Defaults to the shared pin; a host that should
+      # track a newer revision than the rest (mx-edge) passes its own input.
+    , nixpkgs ? inputs.nixpkgs
     }:
     let
       # Import custom library helpers for injection into modules
-      mylib = import ./default.nix { lib = inputs.nixpkgs.lib; };
+      mylib = import ./default.nix { inherit (nixpkgs) lib; };
     in
-    inputs.nixpkgs.lib.nixosSystem {
+    nixpkgs.lib.nixosSystem {
       inherit system;
-      pkgs = import inputs.nixpkgs {
+      pkgs = import nixpkgs {
         inherit system;
         overlays = builtins.attrValues overlays;
         config = {

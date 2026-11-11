@@ -18,6 +18,9 @@
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
+    # mx-edge, the internet-facing mail relay, runs the newest NixOS release
+    # on its own instead of the release the rest of the fleet shares.
+    nixpkgs-mx-edge.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     # Actual Budget 26.7 compatibility pin. Keep independent from the moving
     # unstable input until nixos-25.11 provides Actual >= 26.7.0.
@@ -1727,6 +1730,12 @@
             nas-1 = mkNixosSystem {
               system = "x86_64-linux";
               hostname = "nas-1";
+            };
+            # Inbound mail edge relay on Vultr (k8s-gitops ADR 0014)
+            mx-edge = mkNixosSystem {
+              system = "x86_64-linux";
+              hostname = "mx-edge";
+              nixpkgs = inputs.nixpkgs-mx-edge;
             };
             # Raspberry Pi RV system
             nixpi = mkNixosSystem {
