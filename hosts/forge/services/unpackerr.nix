@@ -28,10 +28,11 @@ in
         group = 65537; # media group GID
         timezone = config.time.timeZone;
 
-        # Infrastructure
+        # Infrastructure. Leave mediaDir unset so the module mounts
+        # nfsMounts.media.localPath (/mnt/data) at /data, the same share
+        # Sonarr, Radarr, and qBittorrent use.
         podmanNetwork = forgeDefaults.podmanNetwork;
         nfsMountDependency = "media";
-        mediaDir = "/mnt/media";
 
         # Environment file with API keys (defined in secrets.nix)
         environmentFile = config.sops.templates."unpackerr/env".path;
