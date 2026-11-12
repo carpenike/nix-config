@@ -13,6 +13,7 @@
   imports = [
     ./hardware-configuration.nix
     (import ./disko-config.nix { disks = [ "/dev/vda" ]; })
+    ./dns.nix
     ./secrets.nix
     ./stalwart.nix
     ./tailscale.nix

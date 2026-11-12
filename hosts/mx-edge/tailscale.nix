@@ -2,6 +2,10 @@
 # The tailnet policy grants that tag only tcp:2525 on the cluster's mail
 # address, reached through the Connector's subnet route, so the route has to
 # be accepted here.
+#
+# Tailnet DNS stays off: MagicDNS splits holthome.net to the MikroTik, which
+# this tag may not reach, so every lookup under it hung until timeout. A
+# mail edge also needs the public view of the zone. dns.nix resolves instead.
 { config, ... }:
 {
   services.tailscale = {
@@ -12,6 +16,9 @@
       "--advertise-tags=tag:mx-edge"
       "--accept-routes"
     ];
+    # Applied on every start, unlike extraUpFlags, which only the first
+    # login uses.
+    extraSetFlags = [ "--accept-dns=false" ];
   };
 
   networking.firewall = {
