@@ -648,9 +648,12 @@ in
           PAPERLESS_OCR_ROTATE_PAGES_THRESHOLD = toString cfg.ocr.rotateThreshold;
           PAPERLESS_OCR_OUTPUT_TYPE = cfg.ocr.outputType;
 
-          # Gotenberg endpoint - must match our custom port to avoid Grafana conflict
-          PAPERLESS_TIKA_GOTENBERG_ENDPOINT = lib.mkIf cfg.gotenberg.enable
-            "http://localhost:${toString cfg.gotenberg.port}";
+          # Gotenberg endpoint - must match our custom port to avoid Grafana conflict.
+          # mkDefault: since NixOS 26.05 the upstream module derives this from
+          # services.gotenberg.{bindIP,port} whenever configureTika is set (which
+          # already carries our custom port), so only fall back to ours otherwise.
+          PAPERLESS_TIKA_GOTENBERG_ENDPOINT = lib.mkIf cfg.gotenberg.enable (lib.mkDefault
+            "http://localhost:${toString cfg.gotenberg.port}");
 
           # Consumer settings
           PAPERLESS_CONSUMER_RECURSIVE = if cfg.consumer.recursive then "true" else "false";

@@ -360,7 +360,8 @@ in
 
       # Environment file for secrets (only set if configured)
     } // lib.optionalAttrs (cfg.environmentFile != null) {
-      environmentFile = cfg.environmentFile;
+      # NixOS 26.05 renamed environmentFile -> environmentFiles (list).
+      environmentFiles = [ cfg.environmentFile ];
     };
 
     # -------------------------------------------------------------------------

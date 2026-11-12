@@ -516,6 +516,13 @@ in
             };
             security = {
               admin_user = cfg.secrets.adminUser;
+              # NixOS 26.05 removed the implicit default for secret_key and now
+              # asserts it is set. Existing Grafana databases encrypt data-source
+              # secrets with the historical upstream default, so pin it
+              # explicitly to keep current state readable. Rotating to a SOPS
+              # managed key ($__file{...}) requires re-encrypting the DB first;
+              # see the 26.05 release notes and docs/workarounds.md.
+              secret_key = lib.mkDefault "SW2YcwTIb9zpOOhoPsMm";
             } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {
               admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
             });

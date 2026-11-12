@@ -11,8 +11,8 @@ in
     home.packages = (with pkgs; [
       cue
       nixd
-      nixfmt-rfc-style
-      nodePackages.prettier
+      nixfmt
+      prettier
       pre-commit
       shellcheck
       shfmt

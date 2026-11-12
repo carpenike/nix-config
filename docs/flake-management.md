@@ -6,11 +6,11 @@ This document describes how flake inputs are managed, updated, and pinned in thi
 
 | Input | Branch/Version | Purpose | Follows nixpkgs? |
 |-------|---------------|---------|------------------|
-| `nixpkgs` | nixos-25.11 | Stable packages for hosts | - |
+| `nixpkgs` | nixos-26.05 | Stable packages for hosts | - |
 | `nixpkgs-unstable` | nixos-unstable | Bleeding-edge packages via overlay | No |
 | `actual-nixpkgs` | `e2587cae` | Immutable Actual Budget 26.7.0 package pin | No |
-| `home-manager` | release-25.11 | User environment management | Yes |
-| `nix-darwin` | nix-darwin-25.11 | macOS system configuration | Yes |
+| `home-manager` | release-26.05 | User environment management | Yes |
+| `nix-darwin` | nix-darwin-26.05 | macOS system configuration | Yes |
 | `hardware` | latest | NixOS hardware profiles | No (pure module) |
 | `flake-parts` | latest | Flake structure | Yes (nixpkgs-lib) |
 | `disko` | latest | Declarative partitioning | Yes |
@@ -26,7 +26,7 @@ This document describes how flake inputs are managed, updated, and pinned in thi
 ### Input Categories
 
 **Stable Branch Inputs**: `nixpkgs`, `home-manager`, `nix-darwin`
-- Pinned to NixOS release branches (currently 25.11)
+- Pinned to NixOS release branches (currently 26.05)
 - Provides stable, tested packages
 - Updated when new NixOS release occurs
 
@@ -99,7 +99,7 @@ task nix:build-darwin host=macbook
 
 | Category | Strategy | Example |
 |----------|----------|---------|
-| Core (nixpkgs, HM) | Release branch | `nixos-25.11` |
+| Core (nixpkgs, HM) | Release branch | `nixos-26.05` |
 | Theme/style | Exact version | `catppuccin` at `v1.0.2` |
 | Utilities | Latest + follows | `sops-nix` follows nixpkgs |
 | Hardware | Latest | No nixpkgs dependency |

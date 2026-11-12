@@ -31,5 +31,11 @@
     grafana.enable = false;
     # Enable default stack alerts (Loki/Promtail health)
     alerts.enable = true;
+    # TODO(nixos-26.05): BLOCKER - NEEDS DECISION. nixpkgs 26.05 removed both
+    # services.promtail and pkgs.promtail (EOL upstream). Disabled here only so
+    # the rest of the 26.05 upgrade can be evaluated. Merging this as-is stops
+    # journal + Omada relay log shipping to Loki (see ./promtail.nix). Migrate
+    # that pipeline to Grafana Alloy (already running here for Faro) first.
+    promtail.enable = false;
   };
 }

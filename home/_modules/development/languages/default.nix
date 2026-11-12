@@ -29,16 +29,16 @@ in
   config = {
     home.packages = with pkgs; [ ]
       ++ lib.optionals cfg.python.enable [
-      python311
-      python311Packages.pip
-      python311Packages.black
-      python311Packages.flake8
-      python311Packages.ipython
+      python3
+      python3Packages.pip
+      python3Packages.black
+      python3Packages.flake8
+      python3Packages.ipython
       uv # Fast Python package manager (includes uvx)
     ]
       ++ lib.optionals cfg.nodejs.enable [
       nodejs # includes npm and npx
-      nodePackages.yarn
+      yarn
     ]
       ++ lib.optionals cfg.go.enable [
       go
