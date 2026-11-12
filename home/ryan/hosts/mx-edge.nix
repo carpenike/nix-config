@@ -6,6 +6,9 @@
 { lib, ... }:
 {
   modules.utilities.backupTools.enable = false;
+  # Cloud and cluster CLIs (azure-cli, terraform, talosctl, lima). Terraform
+  # is unfree, so cache.nixos.org has no build of it.
+  modules.infrastructure.enable = false;
   modules.development = {
     enable = lib.mkForce false;
     languages = {
