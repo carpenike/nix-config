@@ -16,8 +16,17 @@ keys:
   - &nixpi age1vujahzx8dvdj94fprg4pwuwnel85ayemhgplfzh8zr8l8kwwkpxq9y3xuw
   - &forge age1awlyc9d8y3f3w35pq0a4pt95uy3u0f2wrp29e0f5wa74feq9wusqpgtdzz
   - &nas-1 age1lhex9rrgvnwf4eeprkjjmnl6kufdj8rgruxz7236mzscxvfs2emsd8nadk
+  - &mx-edge age18yvpe7wr702w46y49p9u5f699u7s05n2wq8833mfy7h5jas4talsa234qm
 
 creation_rules:
+  # mx-edge is internet-facing: its secrets are readable by it and Ryan
+  # only, and it gets no other host's.
+  - path_regex: hosts/mx-edge/.*\.sops\.yaml$
+    key_groups:
+      - pgp:
+          - *ryan
+        age:
+          - *mx-edge
   - path_regex: .*\.sops\.yaml$
     key_groups:
       - pgp:
