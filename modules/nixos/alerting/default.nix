@@ -389,6 +389,46 @@ in
       };
     };
 
+    # Webhook receiver for Hank, the homelab engineer bot on the k8s cluster
+    # (carpenike/k8s-gitops docs/apps/hermes.md, "Alerts"). It posts to
+    # openproject-mcp's Alertmanager relay, which drops repeats per alert
+    # group and wakes the bot. Additive like grokbot: `continue = true`.
+    receivers.hank = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Forward alerts to Hank's Alertmanager relay in addition to the normal receivers.";
+      };
+
+      urlSecret = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "SOPS secret name that contains the relay URL (https://<host>/hooks/alertmanager).";
+      };
+
+      authSecret = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "SOPS secret name that contains the relay's bearer token (the part after \"Bearer \").";
+      };
+
+      matchers = mkOption {
+        type = types.listOf types.str;
+        # The cluster's alerts use warning/critical, Forge's medium/high/critical.
+        default = [ "severity=~\"warning|medium|high|critical\"" ];
+        description = ''
+          Alertmanager matchers selecting which alerts are forwarded to Hank.
+          The Watchdog heartbeat is always excluded.
+        '';
+      };
+
+      maxAlerts = mkOption {
+        type = types.int;
+        default = 20;
+        description = "Maximum number of alerts included in a single webhook payload (0 = unlimited).";
+      };
+    };
+
     rules = mkOption {
       type = types.attrsOf ruleSubmodule;
       default = { };
@@ -586,6 +626,16 @@ in
           {
             assertion = cfg.receivers.grokbot.authSecret == null || builtins.hasAttr cfg.receivers.grokbot.authSecret config.sops.secrets;
             message = "modules.alerting: Grok Bot webhook auth secret '${toString cfg.receivers.grokbot.authSecret}' not found in sops.secrets. Either define the secret, set authSecret = null, or disable receivers.grokbot.";
+          }
+        ])
+        ++ (lib.optionals cfg.receivers.hank.enable [
+          {
+            assertion = cfg.receivers.hank.urlSecret != null && builtins.hasAttr cfg.receivers.hank.urlSecret config.sops.secrets;
+            message = "modules.alerting: Hank relay URL secret '${toString cfg.receivers.hank.urlSecret}' not found in sops.secrets. Either define the secret or disable receivers.hank.";
+          }
+          {
+            assertion = cfg.receivers.hank.authSecret != null && builtins.hasAttr cfg.receivers.hank.authSecret config.sops.secrets;
+            message = "modules.alerting: Hank relay token secret '${toString cfg.receivers.hank.authSecret}' not found in sops.secrets. The relay refuses unauthenticated posts; define the secret or disable receivers.hank.";
           }
         ])
         ++
@@ -788,6 +838,17 @@ in
                 # than one per unit. The child inherits receiver and
                 # repeat_interval, and the parent's `continue = true` still lets
                 # the alert reach the OnCall/Pushover routes below.
+                routes = [ ({ matchers = [ incidentGroupedMatcher ]; } // incidentGrouping) ];
+              })
+              # Forward a copy of alerts to Hank's relay, the same way: `continue
+              # = true`, Watchdog excluded. The relay drops repeats per group, so
+              # repeat_interval only decides how often an unchanged group is
+              # re-sent to a relay that ignores it.
+              ++ (lib.optional cfg.receivers.hank.enable {
+                matchers = cfg.receivers.hank.matchers ++ [ "alertname!=\"Watchdog\"" ];
+                receiver = "hank";
+                continue = true;
+                repeat_interval = "12h";
                 routes = [ ({ matchers = [ incidentGroupedMatcher ]; } // incidentGrouping) ];
               })
               # Meta-monitoring alerts go directly to Pushover (bypass OnCall to avoid circular dependency)
@@ -1031,6 +1092,19 @@ in
                 };
               })
             ];
+          })
+          # Hank's Alertmanager relay (receivers.hank): bearer token required.
+          ++ (lib.optional cfg.receivers.hank.enable {
+            name = "hank";
+            webhook_configs = [{
+              url_file = config.sops.secrets.${cfg.receivers.hank.urlSecret}.path;
+              send_resolved = true;
+              max_alerts = cfg.receivers.hank.maxAlerts;
+              http_config.authorization = {
+                type = "Bearer";
+                credentials_file = config.sops.secrets.${cfg.receivers.hank.authSecret}.path;
+              };
+            }];
           });
         };
       } // {
