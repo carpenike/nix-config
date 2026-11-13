@@ -63,6 +63,19 @@
       authSecret = "alerting/grokbot-webhook-auth";
     };
 
+    # Hank, the homelab engineer bot on the k8s cluster: warning+ alerts to
+    # openproject-mcp's Alertmanager relay (carpenike/k8s-gitops
+    # docs/apps/hermes.md, "Alerts"), which drops repeats per alert group and
+    # wakes Hank. Additive (`continue = true`). Before deploying, add both
+    # secrets with `sops hosts/forge/secrets.sops.yaml`:
+    #   alerting/hank-webhook-url:  https://<relay host>/hooks/alertmanager
+    #   alerting/hank-webhook-auth: the token in 1Password openproject/alertmanager_hook_token
+    receivers.hank = {
+      enable = true;
+      urlSecret = "alerting/hank-webhook-url";
+      authSecret = "alerting/hank-webhook-auth";
+    };
+
     # Alert rules are defined co-located with services via modules.alerting.rules
     # This keeps them modular and DRY
     # Example: modules.alerting.rules."sonarr-failure" = { type = "event"; ... };

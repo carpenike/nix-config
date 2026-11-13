@@ -281,6 +281,19 @@ in
             owner = "root";
             group = "alertmanager";
           };
+          # Hank's Alertmanager relay (receivers.hank): the relay URL
+          # (https://<host>/hooks/alertmanager) and its bearer token, the same
+          # value as 1Password openproject/alertmanager_hook_token.
+          "alerting/hank-webhook-url" = {
+            mode = "0440";
+            owner = "root";
+            group = "alertmanager";
+          };
+          "alerting/hank-webhook-auth" = {
+            mode = "0440";
+            owner = "root";
+            group = "alertmanager";
+          };
         }
         // optionalAttrs (alertingEnabled && oncallReceiverEnabled) {
           # Grafana OnCall Alertmanager integration webhook URL, read by
