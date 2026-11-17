@@ -348,10 +348,7 @@ in
         job_name = "whiskeywhiskeywhiskey";
         static_configs = [
           {
-            targets = [
-              (if config.services.atriumForge.adoption.whiskey || config.services.atriumForge.adoption.whiskeyText
-              then "127.0.0.1:13417" else "127.0.0.1:3417")
-            ];
+            targets = [ "127.0.0.1:3417" ];
             labels = { instance = "forge.holthome.net"; host = "forge"; service = "whiskeywhiskeywhiskey"; };
           }
         ];

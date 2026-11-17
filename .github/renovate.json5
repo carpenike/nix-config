@@ -37,8 +37,8 @@
       allowedVersions: '>=6 <7',
     },
     {
-      // Atrium gateway images require source-bound native qualification (#1267).
-      // Keep proposals visible, but never inherit generic minor/digest promotion.
+      // Forge's LiteLLM image is promoted by hand (#1267). Keep proposals
+      // visible, but never inherit generic minor/digest promotion.
       matchDatasources: ['docker'],
       matchPackageNames: ['ghcr.io/berriai/litellm'],
       automerge: false,
@@ -48,7 +48,6 @@
       matchDatasources: ['docker'],
       matchPackageNames: ['ghcr.io/berriai/litellm'],
       matchFileNames: [
-        'hosts/forge/atrium/runtime.nix',
         'hosts/forge/services/litellm.nix',
       ],
       enabled: false,

@@ -130,13 +130,6 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05/R06 admission, the Family School today client, and the C11 Outings overview.
-    # Host service activation and the Family view grants are configured separately.
-    atrium = {
-      url = "github:carpenike/atrium/0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Hermes Agent — persistent AI agent and messaging gateway
     # https://github.com/NousResearch/hermes-agent
     # WORKAROUND (2026-07-30, rebased 2026-08-16 onto v0.20.2): Pin Signal
@@ -196,62 +189,13 @@
     # https://github.com/carpenike/mcp
     #
     # FROZEN since 2026-11-08: homelab-mcp runs on the k8s cluster (deployed
-    # from carpenike/k8s-gitops), not on Forge. This pin stays only for
-    # (1) the option declarations Forge imports with the service disabled
-    # (hosts/forge/services/retired-to-cluster.nix) and (2) the Atrium checks,
-    # whose fixtures need this revision's Atrium artifacts (tests/atrium_n03:
-    # pins.json, native-vendor-compatibility.json). Do not bump it to deploy
+    # from carpenike/k8s-gitops), not on Forge. This pin stays only for the
+    # option declarations Forge imports with the service disabled
+    # (hosts/forge/services/retired-to-cluster.nix). Do not bump it to deploy
     # homelab-mcp; that no longer deploys anything.
     homelab-mcp = {
-      # Pocket ID refresh group evidence (C12, sealed token), transient refresh retry,
-      # Family School browser preflight, school_parent_today, the ambit policy schema,
-      # the Ryan-only atrium-personal-deploy scope (mcp#99), OpenProject bot task
-      # tools and scope (mcp#93), statement-backed HELOC interest adjustments
-      # (mcp#100), school_get_grades flat-grade carry-forward (mcp#101), the
-      # finance-signal preparation failure reason in the journal (mcp#103), one
-      # bank-balance fetch per native report run (mcp#105), the anchored
-      # ingestion reservation with financesIngest.anchorUtc (mcp#106), and the
-      # HA read tools: bounded history/logbook windows, entity-scoped reads,
-      # statistics/logbook/registry tools, optional read token, and the
-      # house-sensors view (mcp#107, v0.35.0), and explicit start/end windows
-      # plus mean_type for ha_get_statistics (mcp#108, v0.35.1), and the HELOC
-      # obligation end month (2026-10) in finances_config.json, and the USAA
-      # P&C ($224.62) and Starlink ($20) amounts (mcp#111), and mcp#112.
-      # Vendored Atrium content is checked against the selected app input.
+      # mcp#112, the last revision Forge ran.
       url = "github:carpenike/mcp/849c3b64200498d694666e5b5503bb44bfc2313e";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # schoolhouse — Schoology parent-account ingest + read-only MCP server
-    # for the household's children. Two units over one Postgres schema:
-    # a twice-daily scraper and a thin MCP reader that never fetches.
-    # Loopback-only and intentionally unpublished — it serves three minors'
-    # education records and has no authorization layer of its own.
-    # https://github.com/carpenike/schoolhouse
-    #
-    # Since 2026-11-08 schoolhouse and lading (below) run on the k8s cluster.
-    # Neither input is used by Forge any more; both remain only for the Atrium
-    # checks' frozen fixture (tests/atrium_n03/forge-retired). Dropping them
-    # needs a regenerated flake.lock and goes with the Atrium-check cleanup.
-    schoolhouse = {
-      url = "github:carpenike/schoolhouse";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # lading — Amazon order + transaction ingest for the household ledger.
-    # A daily scraper and a thin /healthz probe over one Postgres schema; the
-    # amazon_* MCP tools live in homelab-mcp and read this store through a
-    # readonly role. Split out of homelab-mcp deliberately: the credential it
-    # holds can place orders and change shipping addresses, and a model that
-    # retries a failing tool is how an Amazon account gets challenge-locked.
-    #
-    # PRIVATE repo. forge fetches it via the GitHub PAT in the
-    # `nix/access-tokens` SOPS secret (already wired for Whiskey and
-    # Marginalia). Add `carpenike/lading` to that fine-grained token's
-    # repository access or the build will 404 on this input.
-    # https://github.com/carpenike/lading
-    lading = {
-      url = "github:carpenike/lading";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -322,12 +266,6 @@
               isAvailable
             )
             allPackages;
-          deploymentPackageSmoke = executable: package:
-            assert package == inputs.atrium.packages.${system}.${executable};
-            pkgs.runCommand "${executable}-deployment-smoke" { } ''
-              test -x ${package}/bin/${executable}
-              ${package}/bin/${executable} --help > "$out"
-            '';
         in
         {
           # Pre-commit hooks configuration (git-hooks.nix)
@@ -567,159 +505,6 @@
                 python3 ${./tests/vscode-agent-host/unit.py}
                 touch "$out"
               '';
-            atrium-identity-bootstrap = import ./tests/atrium_n03/identity-bootstrap.nix {
-              inherit pkgs;
-              resolverPackage = inputs.atrium.packages.${system}.resolver;
-            };
-            atrium-forge-preparation = pkgs.writeText "atrium-forge-preparation.json"
-              (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
-                inherit inputs;
-              }));
-            atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
-              inherit inputs pkgs;
-            };
-            atrium-forge-native-policy-compatibility = import ./tests/atrium_n03/native-policy-compatibility.nix {
-              inherit inputs pkgs;
-            };
-            atrium-forge-c10-settings =
-              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
-            atrium-forge-c10-schema =
-              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
-            atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
-            atrium-pwa-wiring = pkgs.writeText "atrium-pwa-wiring-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n03/pwa.nix { inherit inputs; }));
-            atrium-forge-model-secrets = pkgs.writeText "atrium-forge-model-secrets.json"
-              (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inherit inputs; }));
-            atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
-            atrium-forge-client-views = pkgs.writeText "atrium-forge-client-views.json"
-              (builtins.toJSON (import ./tests/atrium_n03/client-views.nix { inherit inputs; }));
-            atrium-hermes-config-transition = import ./tests/atrium_n03/hermes-transition.nix {
-              inherit inputs pkgs;
-            };
-            atrium-native-cutover-wiring = pkgs.writeText "atrium-native-cutover-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inherit inputs; }));
-            atrium-whiskey-cutover-wiring = pkgs.writeText "atrium-whiskey-cutover-wiring.json"
-              (builtins.toJSON (import ./tests/atrium_n03/whiskey-cutover-evaluate.nix { inherit inputs; }));
-            atrium-whiskey-cutover =
-              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
-              import ./tests/atrium_n03/whiskey-cutover.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
-                whiskeySource = inputs.whiskey-whiskey-whiskey;
-                egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
-                  (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.systemd.services.atrium-whiskey-egress;
-              };
-            atrium-native-cutover =
-              let
-                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
-              in
-              import ./tests/atrium_n03/native-cutover.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
-                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
-                nativeCatalog = (import (inputs.homelab-mcp + "/tests/atrium_fixture.nix") {
-                  atriumSrc = inputs.atrium;
-                }).catalogs.native.source;
-                atrium = inputs.atrium;
-              };
-            atrium-native-firewall =
-              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
-              import ./tests/atrium_n03/native-firewall.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
-              };
-            atrium-money-reporting =
-              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
-              import ./tests/atrium_n03/money-reporting.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
-                nativeSource = inputs.homelab-mcp;
-              };
-            atrium-activation-switch =
-              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
-              import ./tests/atrium_n03/activation-switch.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                configuration = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
-              };
-            atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
-              (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
-            atrium-forge-credential-systemd =
-              let
-                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
-              in
-              import ./tests/atrium_n03/credential-systemd.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
-                controllerPackage = inputs.atrium.packages.${guestSystem}.atrium-litellm-controller;
-              };
-            atrium-forge-native-credential-systemd =
-              let
-                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
-              in
-              import ./tests/atrium_n03/native-credential-systemd.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
-                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
-              };
-            atrium-forge-controller-publication =
-              let
-                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
-              in
-              import ./tests/atrium_n03/controller-publication.nix {
-                hostPkgs = pkgs;
-                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
-                import inputs.nixpkgs { system = guestSystem; };
-                atrium = inputs.atrium;
-              };
-            atrium-forge-adopted-caddy =
-              let
-                adopted = ((import ./tests/atrium_n03/adopted.nix { inherit inputs; }).extendModules {
-                  modules = [{ services.atriumForge.adoption.native = true; }];
-                }).config;
-                native = adopted.modules.services.caddy.virtualHosts.homelab-mcp;
-                caddyfile = pkgs.writeText "atrium-forge-adopted-Caddyfile" ''
-                  {
-                    admin off
-                    auto_https off
-                  }
-                  http://127.0.0.1:18446 {
-                    ${native.extraConfig}
-                    reverse_proxy ${native.backend.scheme}://${native.backend.host}:${toString native.backend.port} {
-                      ${native.reverseProxyBlock}
-                    }
-                  }
-                '';
-              in
-              assert pkgs.lib.hasInfix
-                "reverse_proxy https://${native.backend.host}:${toString native.backend.port}"
-                adopted.services.caddy.configFile.text;
-              pkgs.runCommand "atrium-forge-adopted-caddy-syntax"
-                { nativeBuildInputs = [ pkgs.caddy ]; }
-                ''
-                  caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
-                  sed 's#reverse_proxy https://#reverse_proxy http://#' ${caddyfile} > invalid.Caddyfile
-                  if caddy adapt --adapter caddyfile --config invalid.Caddyfile > invalid.json 2> invalid.log; then
-                    echo "Caddy accepted an HTTP upstream with TLS transport" >&2
-                    exit 1
-                  fi
-                  grep -Fq 'upstream address scheme is HTTP but transport is configured for HTTP+TLS' invalid.log
-                '';
             # Forge's dead man's switch must count only Forge's Watchdog. The
             # cluster's Watchdog (cluster=k8s-holthome) is routed first, away
             # from it (hosts/forge/infrastructure/observability/alertmanager.nix).
@@ -783,116 +568,9 @@
                   fi
                   cp verdict.json "$out"
                 '');
-            atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
-              { nativeBuildInputs = [ pkgs.caddy ]; }
-              (
-                let
-                  forge = (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config;
-                  hosts = forge.modules.services.caddy.virtualHosts;
-                  entry = hosts.atrium;
-                  entryConfig =
-                    if forge.services.atriumPwa.enable then
-                      pkgs.lib.replaceStrings
-                        [ "import ${forge.services.atriumPwa.generated.caddy}" ]
-                        [ forge.services.atriumPwa.generated.caddy.text ]
-                        entry.extraConfig
-                    else entry.extraConfig;
-                  native = hosts.homelab-mcp;
-                  whiskey = hosts.whiskeywhiskeywhiskey;
-                  # Syntax-only adaptation does not read the target's static files.
-                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" (builtins.unsafeDiscardStringContext ''
-                    {
-                      admin off
-                      auto_https off
-                    }
-                    http://127.0.0.1:18445 {
-                      ${entryConfig}
-                      reverse_proxy ${entry.backend.host}:${toString entry.backend.port} {
-                        ${entry.reverseProxyBlock}
-                      }
-                    }
-                    http://127.0.0.1:18446 {
-                      ${native.extraConfig}
-                      reverse_proxy ${native.backend.scheme}://${native.backend.host}:${toString native.backend.port} {
-                        ${native.reverseProxyBlock}
-                      }
-                    }
-                    http://127.0.0.1:18447 {
-                      ${whiskey.extraConfig}
-                      reverse_proxy ${whiskey.backend.host}:${toString whiskey.backend.port} {
-                        ${whiskey.reverseProxyBlock}
-                      }
-                    }
-                    ${(import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.modules.services.caddy.extraConfig}
-                  '');
-                in
-                ''
-                  caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
-                ''
-              );
-            atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
-              (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
-                inherit inputs;
-                system = "x86_64-linux";
-              }));
-            atrium-n03-caddy = pkgs.runCommand "atrium-n03-caddy-syntax"
-              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
-              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-Caddyfile"
-                (import ./tests/atrium_n03/caddy.nix {
-                  fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
-                })} > "$out"
-            '';
-            atrium-n03-model-preparation = pkgs.writeText "atrium-n03-model-preparation.json"
-              (builtins.toJSON (import ./tests/atrium_n03/model-evaluate.nix {
-                inherit inputs;
-                system = "x86_64-linux";
-              }));
-            atrium-n03-model-caddy-preview = pkgs.runCommand "atrium-n03-model-caddy-preview"
-              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
-              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-model-Caddyfile"
-                (import ./tests/atrium_n03/caddy.nix {
-                  fixture = (import ./tests/atrium_n03/fixture.nix { inherit inputs; }) // {
-                    modelPlaneReady = true;
-                  };
-                })} > "$out"
-            '';
             # homelab-mcp-deployment (Forge's homelab-mcp settings against the
             # pinned package) was removed on 2026-11-08: Forge no longer runs
             # homelab-mcp; its deployment is checked in carpenike/k8s-gitops.
-            atrium-n04-package-smoke = deploymentPackageSmoke
-              "atrium-litellm-controller"
-              availablePackages.atrium-litellm-controller;
-            atrium-n05-package-smoke = deploymentPackageSmoke
-              "atrium-litellm-admission"
-              availablePackages.atrium-litellm-admission;
-            atrium-n05-units = pkgs.writeText "atrium-n05-unit-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n05/evaluate.nix {
-                atrium = inputs.atrium;
-                nixpkgs = inputs.nixpkgs;
-              }));
-            atrium-n04-units = pkgs.writeText "atrium-n04-unit-checks.json"
-              (builtins.toJSON (import ./tests/atrium_n04/evaluate.nix {
-                atrium = inputs.atrium;
-                nixpkgs = inputs.nixpkgs;
-              }));
-            atrium-n06-units =
-              let
-                checks = import ./tests/atrium_n06/evaluate.nix {
-                  atrium = inputs.atrium;
-                  nixpkgs = inputs.nixpkgs;
-                };
-              in
-              assert inputs.nixpkgs.lib.all (passed: passed) (builtins.attrValues checks);
-              pkgs.writeText "atrium-n06-deployment-checks.json" (builtins.toJSON {
-                inherit checks;
-                deployment_only = true;
-                runtime_gate_evidence = false;
-              });
-            atrium-registry-values = pkgs.writeText "atrium-registry-values-v2.json"
-              (builtins.toJSON (import ./tests/atrium/evaluate.nix {
-                atriumInput = inputs.atrium;
-              }).report);
-
             # Statix linter (uses statix.toml for configuration)
             statix = pkgs.runCommand "statix-check" { nativeBuildInputs = [ pkgs.statix ]; } ''
               cd ${./.}
@@ -1202,14 +880,6 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
-                # Atrium's foundation stores exist only while Atrium is enabled
-                # (hosts/forge/services/atrium.nix); retired on Forge since
-                # 2026-11-08 (hosts/forge/atrium/retired.nix).
-                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
-                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
-                atriumAdapterStateNames =
-                  pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
-                    ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
                 agentHostStateNames = pkgs.lib.optional
                   forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
                 # Off by default. A disabled vault adds no dataset, so the
@@ -1304,16 +974,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              # Atrium's identity/TLS/policy and model ownership/admission stores
-              # are all critical, with individually checked protection coverage.
               assert manifest.summary.classified
-                == 50 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames
-                + builtins.length agentHostStateNames
+                == 50 + builtins.length agentHostStateNames
                 + builtins.length obsidianVaultStates;
               assert manifest.summary.byClass == {
-                # 2026-11-08: Atrium's five foundation stores are counted
-                # through atriumStateNames (empty while Atrium is retired).
-                critical = 10 + builtins.length atriumStateNames + builtins.length atriumAdapterStateNames;
+                critical = 10;
                 ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
@@ -1442,14 +1107,6 @@
               assert signalApi.policy.allowEmptyBootstrap;
               assert !(builtins.hasAttr "signal-api" failClosedUnits);
               assert builtins.all
-                (name:
-                  let dataset = manifest.datasets."tank/services/${name}"; in
-                  dataset.classification == "critical"
-                    && dataset.missingRequiredTiers == [ ]
-                    && !dataset.policy.allowEmptyBootstrap
-                    && !dataset.coverage.automatedRestore)
-                (atriumStateNames ++ atriumAdapterStateNames);
-              assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
                     && manifest.datasets.${path}.missingRequiredTiers == [ ])
@@ -1488,22 +1145,6 @@
                   forge.modules.services.backup._internal.allJobs;
                 snapshotMetricsScript = builtins.readFile ./scripts/zfs-snapshot-metrics.sh;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
-                # Atrium's foundation stores exist only while Atrium is enabled
-                # (hosts/forge/services/atrium.nix); retired on Forge since
-                # 2026-11-08 (hosts/forge/atrium/retired.nix).
-                atriumStateNames = pkgs.lib.optionals forge.services.atriumForge.enable
-                  [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
-                atriumAdapterJobs =
-                  pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "atrium-native-security-offsite"
-                    ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "atrium-whiskey-security-offsite";
-                atriumTimers = pkgs.lib.concatMap
-                  (name: [
-                    "restic-backup-${name}.timer"
-                    "restic-backup-${name}-offsite.timer"
-                    "syncoid-tank-services-${name}.timer"
-                  ])
-                  atriumStateNames
-                ++ map (name: "restic-backup-${name}.timer") atriumAdapterJobs;
                 agentHostStates = pkgs.lib.optional
                   forge.modules.services.vscode-agent-host.enable "vscode-agent-host";
                 agentHostTimers = pkgs.lib.concatMap
@@ -1566,10 +1207,6 @@
                 # off since 2026-06-01) each bring a restic job
                 # (restic-backup-service-<name>.timer) and a replicated dataset
                 # (syncoid-tank-services-<name>.timer).
-                # 2026-09-12: each Atrium dataset adds replication and two encrypted backups.
-                # N04 ownership and N05 admission each add a protected dataset,
-                # replication timer and two encrypted backup jobs. Names and
-                # coverage are asserted below, independently of these totals.
                 # The opt-in Agent Host adds one dataset, two backup jobs and
                 # three timers; keep the disabled baseline covered as well.
                 # 2026-10-20, 150 -> 153 timers, 65 -> 66 snapshot datasets and
@@ -1594,9 +1231,8 @@
                 # set loses restic-backup-service-openproject,
                 # restic-backup-openproject-offsite and
                 # syncoid-tank-services-openproject.
-                # 2026-11-08: Atrium's 15 foundation timers (five stores, each
-                # with replication and two encrypted backups) are counted through
-                # atriumTimers, which is empty while Atrium is retired.
+                # 2026-11-17: Atrium's code was removed (it was retired on
+                # 2026-11-08). Its five datasets stay on disk, unprotected.
                 # 2026-11-08: homelab-mcp, signal-api, lading, Grafana and Grafana
                 # OnCall moved to the k8s cluster, and NONE of these counts move:
                 # hosts/forge/services/retired-to-cluster.nix keeps all five of
@@ -1604,9 +1240,8 @@
                 # Restic jobs under the same names for the rollback week. The
                 # follow-up that deletes that data is what changes these numbers.
               assert builtins.length expectedTimers
-                == 133 + builtins.length atriumTimers + builtins.length agentHostTimers
+                == 133 + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
-              assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) obsidianVaultTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
@@ -1616,15 +1251,14 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 59 + builtins.length atriumStateNames + builtins.length agentHostStates
+                == 59 + builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
-                (atriumStateNames ++ agentHostStates ++ obsidianVaultStates);
+                (agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 62 + 2 * builtins.length atriumStateNames + builtins.length atriumAdapterJobs
-                + 2 * builtins.length agentHostStates
+                == 62 + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
@@ -1636,14 +1270,6 @@
                   && enabledResticJobs."${name}-offsite".useSnapshots
                   && enabledResticJobs."${name}-offsite".repository == "r2-offsite")
                 agentHostStates;
-              assert builtins.all
-                (name: enabledResticJobs.${name}.repository == "r2-offsite"
-                  && enabledResticJobs.${name}.useSnapshots)
-                atriumAdapterJobs;
-              assert builtins.all
-                (name: builtins.hasAttr name enabledResticJobs
-                  && builtins.hasAttr "${name}-offsite" enabledResticJobs)
-                atriumStateNames;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
@@ -1695,9 +1321,6 @@
             });
         in
         {
-          lib.atriumSetupConfigs.forge = builtins.fromJSON
-            (import ./tests/atrium_n03/adopted.nix { inherit inputs; }).config.environment.etc."atrium/bootstrap/setup.json".text;
-
           #################### NixOS Configurations ####################
           #
           # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`

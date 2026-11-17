@@ -21,12 +21,9 @@ let
   runtimeRetired = true;
   homelabMcpEnabled = config.services.homelab-mcp.enable or false;
   homelabMcpPort = config.services.homelab-mcp.port or 9200;
-  nativeAdopted = config.services.atriumForge.adoption.native or false;
-  homelabMcpOrigin =
-    if nativeAdopted then "https://mcp.${config.networking.domain}"
-    else "http://127.0.0.1:${toString homelabMcpPort}";
-  financeAlias = if nativeAdopted then "atrium-finance" else "holthome";
-  statusAlias = if nativeAdopted then "atrium-status" else "holthome-telegram";
+  homelabMcpOrigin = "http://127.0.0.1:${toString homelabMcpPort}";
+  financeAlias = "holthome";
+  statusAlias = "holthome-telegram";
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
   inferenceProvider = "anthropic";
   inferenceModel = "claude-sonnet-5";
@@ -928,11 +925,9 @@ in
 
         # Hermes scopes MCP servers per platform by server alias, not by
         # individual tool (verified on v0.19 and v0.20.2). Keep finance and
-        # general-purpose tools on separate aliases. New adopted aliases also
-        # separate target-bound token caches.
+        # general-purpose tools on separate aliases.
         mcpServers.${financeAlias} = {
-          url = "https://mcp.${config.networking.domain}"
-            + (if nativeAdopted then "/cc/views/personal-scribe" else "/mcp");
+          url = "https://mcp.${config.networking.domain}/mcp";
           auth = "oauth";
           connect_timeout = 60;
           timeout = 120;
@@ -962,8 +957,7 @@ in
         # Proof capability for non-finance Homelab access from Telegram. Add
         # future Telegram tools explicitly; never add a finances_* tool here.
         mcpServers.${statusAlias} = {
-          url = "https://mcp.${config.networking.domain}"
-            + (if nativeAdopted then "/cc/views/personal-status" else "/mcp");
+          url = "https://mcp.${config.networking.domain}/mcp";
           auth = "oauth";
           connect_timeout = 60;
           timeout = 120;
@@ -981,7 +975,7 @@ in
             ${financeAlias}.oauth = {
               client_id = "d2vzX8u-_LxxkAJFlKw4TglIWAnvV8zc";
               client_secret = "\${HOMELAB_MCP_OAUTH_CLIENT_SECRET}";
-              scope = if nativeAdopted then "atrium-personal-scribe" else "hermes";
+              scope = "hermes";
               redirect_port = 8765;
               redirect_uri = "http://127.0.0.1:8765/callback";
             };
@@ -991,15 +985,16 @@ in
               oauth = {
                 client_id = "d2vzX8u-_LxxkAJFlKw4TglIWAnvV8zc";
                 client_secret = "\${HOMELAB_MCP_OAUTH_CLIENT_SECRET}";
-                scope = if nativeAdopted then "atrium-personal-status" else "hermes";
+                scope = "hermes";
                 redirect_port = 8765;
                 redirect_uri = "http://127.0.0.1:8765/callback";
               };
             };
           } // lib.genAttrs
-            (if nativeAdopted then [ "holthome" "holthome-telegram" ] else [ "atrium-finance" "atrium-status" ])
+            [ "atrium-finance" "atrium-status" ]
             # Activation deep-merges config, so omission would retain enabled
-            # connections. Disable only our inactive aliases; keep their caches.
+            # connections. Keep disabling the aliases the retired Atrium route
+            # used; their caches stay.
             (_: { enabled = false; });
           model = {
             provider = inferenceProvider;

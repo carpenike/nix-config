@@ -36,27 +36,6 @@
         "type": "github"
       }
     },
-    "atrium": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1792586473,
-        "narHash": "sha256-wGUi0jFVvBfyOv5XccnJTlXziCVzrIq5gbuhYENbUZk=",
-        "owner": "carpenike",
-        "repo": "atrium",
-        "rev": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
-        "type": "github"
-      },
-      "original": {
-        "owner": "carpenike",
-        "repo": "atrium",
-        "rev": "0da7baa39fafa7cc1601bfc27a3b64b13d0c72bc",
-        "type": "github"
-      }
-    },
     "catppuccin": {
       "locked": {
         "lastModified": 1719915848,
@@ -376,26 +355,6 @@
         "type": "github"
       }
     },
-    "lading": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1792099699,
-        "narHash": "sha256-UoOGh+nEozdrG5zPNQaQqLjC8eCWollOSCGnlVFWzZQ=",
-        "owner": "carpenike",
-        "repo": "lading",
-        "rev": "461dcf145895e07db573984edddedf6087af037d",
-        "type": "github"
-      },
-      "original": {
-        "owner": "carpenike",
-        "repo": "lading",
-        "type": "github"
-      }
-    },
     "marginalia": {
       "inputs": {
         "nixpkgs": [
@@ -676,7 +635,6 @@
       "inputs": {
         "actual-nixpkgs": "actual-nixpkgs",
         "ambit": "ambit",
-        "atrium": "atrium",
         "catppuccin": "catppuccin",
         "coachiq": "coachiq",
         "disko": "disko",
@@ -688,7 +646,6 @@
         "home-manager": "home-manager",
         "homelab-mcp": "homelab-mcp",
         "impermanence": "impermanence",
-        "lading": "lading",
         "marginalia": "marginalia",
         "nix-darwin": "nix-darwin",
         "nix-vscode-extensions": "nix-vscode-extensions",
@@ -699,7 +656,6 @@
         "nixvim": "nixvim",
         "replog": "replog",
         "rust-overlay": "rust-overlay",
-        "schoolhouse": "schoolhouse",
         "sops-nix": "sops-nix",
         "systems": "systems_2",
         "whiskey-whiskey-whiskey": "whiskey-whiskey-whiskey"
@@ -722,26 +678,6 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "type": "github"
-      }
-    },
-    "schoolhouse": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1793539846,
-        "narHash": "sha256-KmwiuHnbEevTv+eX0uojB3zxfJuQ0JoUwEpnt0d0A98=",
-        "owner": "carpenike",
-        "repo": "schoolhouse",
-        "rev": "547404887cc046ed23dacfb5759d21ec018374b4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "carpenike",
-        "repo": "schoolhouse",
         "type": "github"
       }
     },
