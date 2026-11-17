@@ -43,9 +43,8 @@
 # the next reboot (see the PR's cutover plan).
 #
 # Each block yields to the real service definition (it is gated on that
-# service being disabled), so re-importing a retired module -- a rollback, or
-# the Atrium fixtures in tests/atrium_n03/forge-retired -- does not declare
-# anything twice.
+# service being disabled), so re-importing a retired module for a rollback
+# does not declare anything twice.
 { config, inputs, lib, mylib, ... }:
 
 let
@@ -69,9 +68,8 @@ let
 in
 {
   # Options only: services.homelab-mcp.enable stays false, so the upstream
-  # module creates nothing. The Atrium modules (services/atrium*.nix) still
-  # define services.homelab-mcp.* under their (off) adoption gates, and a
-  # definition of an undeclared option is an error even inside mkIf false.
+  # module creates nothing. This file reads services.homelab-mcp.enable, and
+  # Hermes reads its port, so the options stay declared.
   imports = [ inputs.homelab-mcp.nixosModules.default ];
 
   config = lib.mkMerge [

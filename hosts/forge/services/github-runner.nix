@@ -78,9 +78,8 @@ in
         tokenFile = "/run/secrets/github/runner-token";
 
         # Forge resolves through a LAN DNS server, which restrictNetwork would
-        # otherwise refuse. Reuse the resolver list Forge already declares for
-        # Atrium's egress policy instead of repeating an address here.
-        allowedAddresses = config.services.atriumForge.whiskeyEgress.dnsAddresses;
+        # otherwise refuse.
+        allowedAddresses = [ "10.20.0.15" ];
 
         slice = {
           memoryMax = "4G";
@@ -95,18 +94,7 @@ in
             extraPackages = with pkgs; [
               python312 # nix job's python3
               uv # creates the 3.12 venv the pip steps use
-              gh # atrium-hermes-check.py fetches pinned sources with gh
-            ];
-            memoryHigh = "1536M";
-            memoryMax = "2G";
-          };
-
-          # Mostly Nix builds/checks (heavy lifting happens in nix-daemon),
-          # plus an npm build/test of the PWA.
-          atrium = {
-            url = "https://github.com/carpenike/atrium";
-            extraPackages = with pkgs; [
-              python3 # packaged-client receipt script
+              gh # the mcp repo's Hermes check fetches pinned sources with gh
             ];
             memoryHigh = "1536M";
             memoryMax = "2G";

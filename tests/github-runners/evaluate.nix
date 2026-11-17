@@ -5,9 +5,8 @@
 let
   inherit (inputs.nixpkgs) lib;
   c = inputs.self.nixosConfigurations.forge.config;
-  expected = [ "atrium" "mcp" "network-config" "schoolhouse" "whiskey" ];
+  expected = [ "mcp" "network-config" "schoolhouse" "whiskey" ];
   privateRepos = {
-    atrium = "https://github.com/carpenike/atrium";
     mcp = "https://github.com/carpenike/mcp";
     network-config = "https://github.com/carpenike/network-config";
     schoolhouse = "https://github.com/carpenike/schoolhouse";

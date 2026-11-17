@@ -82,6 +82,8 @@
     extraGroups = [ ];
   };
 
+  # Atrium (removed 2026-11-17, retired on Forge 2026-11-08). These IDs stay
+  # reserved: its datasets are still on disk and owned by them.
   atrium-resolver = {
     uid = 1060;
     gid = 1060;
@@ -120,30 +122,6 @@
     description = "Explicitly adopted Whiskey live-key reader and acknowledgement publisher";
     extraGroups = [ "atrium-whiskey-delivery" ];
   };
-
-  # Reserved only for the opt-in ATR-N04 isolated host; no live host imports it.
-  atrium-reconciler-fixture = {
-    uid = 65430;
-    gid = 65430;
-    description = "Isolated Atrium controller fixture";
-    extraGroups = [ "atrium-consumer-fixture" ];
-  };
-  atrium-consumer-fixture = {
-    uid = 65431;
-    gid = 65431;
-    description = "Isolated Atrium inference consumer fixture";
-    extraGroups = [ ];
-  };
-  # Reserved only for the unimported ATR-N03 foundation fixture.
-  atrium-resolver-fixture = { uid = 65432; gid = 65432; extraGroups = [ ]; };
-  atrium-caddy-fixture = { uid = 65433; gid = 65433; extraGroups = [ ]; };
-  atrium-mcp-fixture = { uid = 65434; gid = 65434; extraGroups = [ ]; };
-  atrium-identity-fixture = { uid = 65435; gid = 65435; extraGroups = [ ]; };
-  atrium-client-fixture = { uid = 65436; gid = 65436; extraGroups = [ ]; };
-  atrium-model-gateway-fixture = { uid = 65437; gid = 65437; extraGroups = [ "atrium-model-metadata-fixture" ]; };
-  atrium-forwarder-fixture = { uid = 65438; gid = 65438; extraGroups = [ ]; };
-  # Read-only publication group for the unimported N03 model fixture; no user.
-  atrium-model-metadata-fixture = { gid = 65439; };
 
   # ============================================================================
   # SHARED GROUPS (infrastructure groups for cross-service access)

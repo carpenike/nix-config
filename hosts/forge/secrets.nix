@@ -19,10 +19,9 @@ let
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
   # homelab-mcp, schoolhouse and lading moved to the k8s cluster on 2026-11-08,
   # so their gates (here and below) are false on Forge and the secrets behind
-  # them are no longer installed there. The declarations stay because the
-  # Atrium checks' frozen fixture (tests/atrium_n03/forge-retired) turns those
-  # services back on. Grafana's and OnCall's declarations were removed: nothing
-  # else reads them. The OnCall webhook URL follows the Alertmanager receiver.
+  # them are no longer installed there. The declarations stay for a rollback;
+  # nothing turns those services on any more. Grafana's and OnCall's
+  # declarations were removed: nothing else reads them. The OnCall webhook URL follows the Alertmanager receiver.
   homelabMcpEnabled = config.services.homelab-mcp.enable or false;
   hermesAgentEnabled = config.services.hermes-agent.enable or false;
   oncallReceiverEnabled = config.modules.alerting.receivers.oncall.enable or false;
@@ -166,8 +165,6 @@ let
   tracearrEnabled = config.modules.services.tracearr.enable or false;
   tududiEnabled = config.modules.services.tududi.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
-  atriumEnabled = config.services.atriumForge.enable or false;
-  atriumModelsEnabled = atriumEnabled && (config.services.atriumForge.adoption.models or false);
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
   kometaEnabled = config.modules.services.kometa.enable or false;
@@ -926,38 +923,6 @@ in
             mode = "0400";
             owner = "searx";
             group = "searx";
-          };
-        }
-        // optionalAttrs atriumEnabled {
-          # Stage these before model initialization; staging is not adoption.
-          # Empty SOPS fields are deliberately not usable credentials.
-          "atrium-personal-anthropic" = {
-            key = "atrium/personal_anthropic_api_key";
-            mode = "0400";
-            owner = "root";
-            group = "root";
-            restartUnits = lib.optional atriumModelsEnabled "atrium-reconciler.service";
-          };
-          "atrium-family-anthropic" = {
-            key = "atrium/family_anthropic_api_key";
-            mode = "0400";
-            owner = "root";
-            group = "root";
-            restartUnits = lib.optional atriumModelsEnabled "atrium-reconciler.service";
-          };
-          "atrium-litellm-resolver-management" = {
-            key = "atrium/litellm_resolver_management_key";
-            mode = "0400";
-            owner = "root";
-            group = "root";
-            restartUnits = lib.optional atriumModelsEnabled "atrium-resolver.service";
-          };
-          "atrium-litellm-controller-management" = {
-            key = "atrium/litellm_controller_management_key";
-            mode = "0400";
-            owner = "root";
-            group = "root";
-            restartUnits = lib.optional atriumModelsEnabled "atrium-reconciler.service";
           };
         }
         // optionalAttrs litellmEnabled {

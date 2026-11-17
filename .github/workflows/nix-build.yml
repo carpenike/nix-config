@@ -88,8 +88,6 @@ jobs:
       heavy_changed: ${{ steps.set-matrix.outputs.heavy_changed }}
       nix_changed: ${{ steps.filter.outputs.nix }}
       lock_changed: ${{ steps.filter.outputs.lock }}
-      atrium_admission_changed: ${{ steps.filter.outputs.atrium_admission }}
-      atrium_foundation_changed: ${{ steps.filter.outputs.atrium_foundation }}
     steps:
       - uses: actions/checkout@v7
 
@@ -111,29 +109,6 @@ jobs:
             # they trigger pre-merge closure builds of the heavy hosts.
             lock:
               - 'flake.lock'
-            atrium_admission:
-              - 'flake.nix'
-              - 'flake.lock'
-              - 'pkgs/default.nix'
-              - 'tests/atrium_n05/*.nix'
-              - 'tests/atrium/*.nix'
-              - '.github/workflows/nix-build.yml'
-            atrium_foundation:
-              - 'flake.nix'
-              - 'flake.lock'
-              - 'lib/service-uids.nix'
-              - 'lib/host-defaults.nix'
-              - 'hosts/forge/services/atrium.nix'
-              - 'hosts/forge/services/atrium-models.nix'
-              - 'hosts/forge/services/atrium-adapters.nix'
-              - 'hosts/forge/atrium/adoption.nix'
-              - 'hosts/forge/atrium/runtime.nix'
-              - 'hosts/forge/atrium/models.nix'
-              - 'hosts/forge/atrium/model-bootstrap.py'
-              - 'hosts/forge/atrium/credential-projection.*'
-              - 'hosts/forge/atrium/runtime-bindings.py'
-              - 'tests/atrium_n03/**'
-              - '.github/workflows/nix-build.yml'
             global:
               - 'flake.nix'
               - 'flake.lock'
@@ -231,144 +206,6 @@ jobs:
             echo "- Scheduled \`Flake Health\` workflow - full forge + luna closure"
             echo "- \`task nix:apply-nixos host=<host>\` - build on the target"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  atrium-admission-checks:
-    needs: changes
-    if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: DeterminateSystems/determinate-nix-action@v3
-        with:
-          extra-conf: |
-            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Check app admission CLI consumption and isolated deployment
-        run: |
-          nix build --no-link --no-write-lock-file --builders '' \
-            .#checks.x86_64-linux.atrium-n05-package-smoke \
-            .#checks.x86_64-linux.atrium-n05-units
-
-  atrium-foundation-checks:
-    needs: changes
-    if: ${{ needs.changes.outputs.atrium_foundation_changed == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: DeterminateSystems/determinate-nix-action@v3
-        with:
-          extra-conf: |
-            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-            extra-substituters = https://nix-community.cachix.org https://carpenike.cachix.org
-            extra-trusted-public-keys = nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= carpenike.cachix.org-1:96Z6GrfQJkkTr1f6g9z1JCGGG54CjqIRvnrupPlzEPQ=
-      - name: Validate isolated foundation and source-only model preparation
-        run: |
-          nix build --no-link --builders '' \
-            .#checks.x86_64-linux.atrium-n03-units \
-            .#checks.x86_64-linux.atrium-n03-caddy \
-            .#checks.x86_64-linux.atrium-n03-model-preparation \
-            .#checks.x86_64-linux.atrium-n03-model-caddy-preview
-
-      # Give each closure family a bounded cold-build budget, independently of
-      # the VM execution timeouts below. One aggregate preparation can exhaust
-      # its budget before any of the actual tests starts.
-      - name: Prepare private credential validation dependencies
-        timeout-minutes: 30
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-forge-credential-projection \
-            .#checks.x86_64-linux.atrium-forge-c10-settings \
-            .#checks.x86_64-linux.atrium-forge-c10-schema \
-            .#checks.x86_64-linux.atrium-forge-adoption-wiring \
-            .#checks.x86_64-linux.atrium-forge-adopted-caddy \
-            .#checks.x86_64-linux.atrium-forge-caddy \
-            .#checks.x86_64-linux.atrium-forge-cloud-schema \
-            .#checks.x86_64-linux.atrium-forge-native-policy-compatibility \
-            .#checks.x86_64-linux.atrium-native-cutover-wiring \
-            .#checks.x86_64-linux.atrium-whiskey-cutover-wiring
-
-      - name: Prepare private credential VM dependencies
-        timeout-minutes: 30
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
-            .#checks.x86_64-linux.atrium-forge-native-credential-systemd.driver \
-            .#checks.x86_64-linux.atrium-forge-controller-publication.driver
-
-      - name: Prepare native cutover VM dependencies
-        timeout-minutes: 30
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-native-cutover.entries.retention.driver \
-            .#checks.x86_64-linux.atrium-native-cutover.entries.money-upgrade.driver
-
-      - name: Prepare remaining foundation VM dependencies
-        timeout-minutes: 30
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-native-firewall.driver \
-            .#checks.x86_64-linux.atrium-money-reporting.driver \
-            .#checks.x86_64-linux.atrium-activation-switch.driver \
-            .#checks.x86_64-linux.atrium-whiskey-cutover.driver
-
-      - name: Validate private credential projection through actual systemd
-        timeout-minutes: 10
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-forge-credential-systemd
-
-      - name: Validate retained controller publication before model startup
-        timeout-minutes: 10
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-forge-controller-publication
-
-      - name: Validate native credential custody through actual systemd
-        timeout-minutes: 10
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-forge-native-credential-systemd
-
-      - name: Validate native firewall with actual nft-backed packet filters
-        timeout-minutes: 5
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 180 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-native-firewall
-
-      - name: Validate Money reporting peer access and schema upgrade
-        timeout-minutes: 5
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 180 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-money-reporting
-
-      - name: Validate in-place activation and timer-triggered dependencies
-        timeout-minutes: 8
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 300 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-activation-switch
-
-      - name: Validate owner-run native cutover in an isolated guest
-        timeout-minutes: 15
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 900 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-native-cutover
-
-      - name: Validate owner-run Whiskey cutover and network boundary
-        timeout-minutes: 15
-        run: |
-          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 900 \
-            --option allow-import-from-derivation false \
-            .#checks.x86_64-linux.atrium-whiskey-cutover
 
   nix-build:
     needs: changes
@@ -526,8 +363,6 @@ jobs:
       - flake-check
       - nix-build
       - nix-build-heavy
-      - atrium-admission-checks
-      - atrium-foundation-checks
     name: Nix Build Successful
     runs-on: ubuntu-latest
     steps:
@@ -541,21 +376,8 @@ jobs:
         run: |
           echo "❌ Nix files changed but flake-check did not succeed (result: ${{ needs.flake-check.result }})"
           exit 1
-      - name: Check admission checks ran when needed
-        if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' && needs.atrium-admission-checks.result != 'success' }}
-        run: |
-          echo "Admission deployment inputs changed but CLI consumption and wiring checks did not succeed"
-          exit 1
-      - name: Check isolated foundation checks ran when needed
-        if: ${{ needs.changes.outputs.atrium_foundation_changed == 'true' && needs.atrium-foundation-checks.result != 'success' }}
-        run: |
-          echo "Isolated foundation files changed but their checks did not succeed"
-          exit 1
       - name: Report
         run: |
-          if [[ "${{ needs.changes.outputs.atrium_admission_changed }}" == "true" ]]; then
-            echo "✅ App admission CLI consumption and isolated deployment checks passed"
-          fi
           if [[ "${{ needs.changes.outputs.nix_changed }}" != "true" ]]; then
             echo "✅ All requested checks succeeded"
           elif [[ "${{ needs.changes.outputs.matrix }}" == "[]" && "${{ needs.changes.outputs.lock_changed }}" != "true" ]]; then
