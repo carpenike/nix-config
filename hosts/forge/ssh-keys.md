@@ -23,6 +23,21 @@ users.users.zfs-replication.openssh.authorizedKeys.keys = [
 
 ---
 
+## Hank (Hermes) key
+
+**User:** `hank` (on forge: `core/hank.nix`; on rydeck: by hand)
+**Purpose:** Hank's SSH from the k8s cluster for incident response: journal and status reads, and on forge polkit restarts/reloads of non-critical services
+**Key Type:** ed25519, SHA256:I/xHl0CKom8g8xleeG3kt8CdflLBHMplMgQwEOWimxY
+**Created:** 2026-11-16
+**Private key:** 1Password `k8s-secrets/hermes-hank`, field `ssh_key`; mounted only in Hank's screen pod
+**Restrictions:** `from=` the cluster nodes (10.20.10.20-23), no agent/X11/port forwarding
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDetDxQqVN14Ksfsw68nTOjvHEx0wn+1nUpkX73YMUQs hank@hermes
+```
+
+---
+
 ## Key Rotation Policy
 
 - Review keys annually

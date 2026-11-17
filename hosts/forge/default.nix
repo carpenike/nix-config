@@ -26,6 +26,7 @@ in
     ./core/networking.nix
     ./core/boot.nix
     ./core/users.nix
+    ./core/hank.nix # Hank (Hermes) over SSH: journal reads, polkit restarts, no doas
     ./core/packages.nix
     ./core/hardware.nix
     ./core/monitoring.nix # Core system health monitoring (CPU, memory, disk, systemd)
