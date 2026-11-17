@@ -55,6 +55,29 @@ let
     "autovt@.*"
     "notify@.*"
   ];
+
+  # The restart-only key (ssh alias forge-svc in Hank's sandbox). sshd forces
+  # every login with it into this wrapper, which runs exactly
+  # `systemctl restart|reload <unit>` and refuses everything else. No shell
+  # ever parses the command, so Hermes may allowlist
+  # `ssh forge-svc systemctl restart *` without a prompt. polkit (below) still
+  # decides which units.
+  hankSvc = pkgs.writeShellApplication {
+    name = "hank-svc";
+    runtimeInputs = [ pkgs.systemd pkgs.util-linux ];
+    text = ''
+      cmd="''${SSH_ORIGINAL_COMMAND:-}"
+      re='^systemctl (restart|reload) ([A-Za-z0-9][A-Za-z0-9@._:-]*)$'
+      if [[ ! "$cmd" =~ $re ]]; then
+        echo "hank-svc: only 'systemctl restart|reload <unit>' is allowed with this key" >&2
+        exit 2
+      fi
+      verb="''${BASH_REMATCH[1]}"
+      unit="''${BASH_REMATCH[2]}"
+      logger -t hank-svc "$verb $unit"
+      exec systemctl "$verb" -- "$unit"
+    '';
+  };
 in
 {
   users.users.hank = {
@@ -65,6 +88,8 @@ in
     shell = pkgs.bash;
     hashedPassword = "!"; # locked: no password login
     openssh.authorizedKeys.keys = [
+      # Restart-only: forced into hank-svc; `restrict` = no pty, no forwarding.
+      ''command="${hankSvc}/bin/hank-svc",restrict,from="10.20.10.20,10.20.10.21,10.20.10.22,10.20.10.23" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBB/HZJLxBhGtzzeARVrp9v+YgA3ufY/eSV4vfCA8ANu hank-svc@hermes''
       ''from="10.20.10.20,10.20.10.21,10.20.10.22,10.20.10.23",no-agent-forwarding,no-X11-forwarding,no-port-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDetDxQqVN14Ksfsw68nTOjvHEx0wn+1nUpkX73YMUQs hank@hermes''
     ];
   };
