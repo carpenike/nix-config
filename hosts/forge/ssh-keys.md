@@ -38,6 +38,21 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDetDxQqVN14Ksfsw68nTOjvHEx0wn+1nUpkX73YMUQs
 
 ---
 
+## Hank (Hermes) restart-only key
+
+**User:** `hank` on forge (`core/hank.nix`), ssh alias `forge-svc` in Hank's sandbox
+**Purpose:** service restarts/reloads without a Hermes approval prompt: sshd forces this key into `hank-svc`, which runs only `systemctl restart|reload <unit>`
+**Key Type:** ed25519, SHA256:Z1DisuuKhlS6X/RNAksBsM6QztH1myaq8OSWKrXAXI4
+**Created:** 2026-11-16
+**Private key:** 1Password `k8s-secrets/hermes-hank`, field `ssh_key_svc`; mounted only in Hank's screen pod
+**Restrictions:** `command=hank-svc`, `restrict` (no pty, no forwarding), `from=` the cluster nodes
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBB/HZJLxBhGtzzeARVrp9v+YgA3ufY/eSV4vfCA8ANu hank-svc@hermes
+```
+
+---
+
 ## Key Rotation Policy
 
 - Review keys annually
