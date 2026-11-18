@@ -56,9 +56,16 @@
     };
 
     # Grok Bot assistant webhook: receives a copy of medium+ alerts
-    # (continue = true, so OnCall/Pushover routing is unchanged)
+    # (continue = true, so OnCall/Pushover routing is unchanged).
+    #
+    # Off since 2026-11-18: Hank (below) took over alert handling, and Grok
+    # Bot's automation behind this webhook was disabled, so every post got
+    # HTTP 400 "Automation ... is disabled". Alertmanager does not record a
+    # failed send, so each alert group was retried every group_interval
+    # (30s): ~14.7k failed posts a day. The secrets stay declared in
+    # secrets.nix; set this back to true to restore it.
     receivers.grokbot = {
-      enable = true;
+      enable = false;
       urlSecret = "alerting/grokbot-webhook-url";
       authSecret = "alerting/grokbot-webhook-auth";
     };

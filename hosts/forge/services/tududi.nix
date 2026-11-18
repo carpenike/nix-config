@@ -16,8 +16,17 @@ in
       modules.services.tududi = {
         enable = true;
 
-        # Pin container image with digest for immutability
-        image = "chrisvel/tududi:latest@sha256:51797d98d67d67802df3807507252b337822c052af0eed75826b2221fdcdf105";
+        # Pin container image with digest for immutability.
+        #
+        # Held on 1.x by a version tag, not `latest`: tududi 2.0 runs on
+        # PostgreSQL only and refuses to start on the 1.x SQLite database in
+        # /app/backend/db ("A tududi 1.x SQLite database was found"). The
+        # `latest` digest bump in #1442 pulled 2.1.1 and the unit failed on
+        # 2026-11-18. This is the amd64 image of 1.9.7, the digest that ran
+        # before #1442. With a semver tag, Renovate's automerged minor/digest
+        # updates stay on 1.x and 2.x arrives as an unmerged major PR. Moving
+        # to 2.x needs the data migrated to PostgreSQL first.
+        image = "chrisvel/tududi:1.9.7@sha256:6814f4f77a5a45d77fe9c0bad89daaae33759f6fa288e466bc5c084ed5bdfad4";
 
         # Admin credentials
         adminEmail = "ryan@ryanholt.net";
