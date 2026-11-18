@@ -825,6 +825,16 @@ in
                 group_interval = "1m";
                 repeat_interval = "1m";
               })
+              # kube-prometheus-stack's InfoInhibitor (severity "none") exists
+              # only to drive an inhibit rule in that stack's own Alertmanager.
+              # A cluster Prometheus that sends here forwards it too; without
+              # this it fell through to the default receiver (OnCall) and was
+              # delivered there every time it flapped. Dropped.
+              ++ [{
+                matchers = [ "alertname=\"InfoInhibitor\"" ];
+                receiver = "discard";
+                continue = false;
+              }]
               # Forward a copy of alerts to Grok Bot. `continue = true` means this
               # route never terminates matching, so the OnCall/Pushover routes
               # below (and the root default) behave exactly as without it.
@@ -844,10 +854,23 @@ in
               # = true`, Watchdog excluded. The relay drops repeats per group, so
               # repeat_interval only decides how often an unchanged group is
               # re-sent to a relay that ignores it.
+              #
+              # Each notification wakes the bot, so this route does not inherit
+              # the root's OnCall-tuned timings (10s wait, 30s interval). With a
+              # 30s interval every flap of a flapping alert reached Hank as a
+              # firing/resolved pair (~140 posts in 16h on 2026-11-18, mostly
+              # the cluster's Finance* alerts), and a relay timeout was retried
+              # every 30s. A 10m group_interval absorbs a resolve-then-refire
+              # inside the window (the firing set is unchanged, so nothing is
+              # sent) and bounds retries of a failed post; a 1m group_wait
+              # collects alerts that start together. Resolved notifications
+              # are still sent, so Hank can close what recovered.
               ++ (lib.optional cfg.receivers.hank.enable {
                 matchers = cfg.receivers.hank.matchers ++ [ "alertname!=\"Watchdog\"" ];
                 receiver = "hank";
                 continue = true;
+                group_wait = "1m";
+                group_interval = "10m";
                 repeat_interval = "12h";
                 routes = [ ({ matchers = [ incidentGroupedMatcher ]; } // incidentGrouping) ];
               })
@@ -859,8 +882,10 @@ in
               # (This previously matched "OnCallDown", which no rule emits, so those
               # alerts were routed to OnCall itself -- the system that was down.)
               # Where OnCall is remote (Forge since 2026-11-08: the k8s cluster),
-              # no such rule exists; a Gatus check that pages through Pushover
-              # directly covers it instead (hosts/forge/services/gatus.nix).
+              # the cluster's PrometheusRules emit the same alert names and its
+              # Prometheus sends them here, so this route still pages for them;
+              # a Gatus check that pages through Pushover directly covers
+              # OnCall too (hosts/forge/services/gatus.nix).
               ++ [{
                 matchers = [ "alertname=~\"AlertmanagerDown|GrafanaOnCall.*ServiceDown|PrometheusDown\"" ];
                 receiver = "pushover-critical";
@@ -1063,6 +1088,7 @@ in
           ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null && cfg.receivers.healthchecks.clusterLabel != null && cfg.receivers.healthchecks.clusterUrlSecret == null) {
             name = "watchdog-discard";
           })
+          ++ [{ name = "discard"; }]
           # Append the Grafana OnCall receiver if configured
           # OnCall provides escalation policies, on-call schedules, and incident management
           ++ (lib.optional (cfg.receivers.oncall.enable && cfg.receivers.oncall.webhookUrlSecret != null) {
