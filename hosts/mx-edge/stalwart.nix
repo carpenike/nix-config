@@ -29,7 +29,7 @@ in
 
   virtualisation.oci-containers.containers.stalwart = {
     # renovate: depName=docker.io/stalwartlabs/stalwart datasource=docker
-    image = "docker.io/stalwartlabs/stalwart:v1.1.0@sha256:f772aa6ef8cd8018969fa491640f1436b0270eb14e2c219b5f37f1a77020837e";
+    image = "docker.io/stalwartlabs/stalwart:v1.1.1@sha256:5ebdf474b237161742fe4309396af4ae8797c938e8e6eb7e2d4837332c4f9851";
     # Host networking: port 25 on the public address, 8080 on the tailnet
     # (the firewall decides which), and the relay to the cluster leaves
     # through tailscale0's subnet route.
