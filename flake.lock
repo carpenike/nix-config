@@ -635,11 +635,11 @@
         "nixpkgs-go": "nixpkgs-go"
       },
       "locked": {
-        "lastModified": 1795294720,
-        "narHash": "sha256-jL0SGZLay0hASu8OdGi66j4M7I877uMIFdE5rS2KNgo=",
+        "lastModified": 1795296904,
+        "narHash": "sha256-+nsq/wXtdX9e9feT/M3rzWMgzeXbrwW0ih4qZvc76S8=",
         "owner": "carpenike",
         "repo": "replog",
-        "rev": "f448ffd42afa7cd5311602e62c0e08f3e1d90430",
+        "rev": "9e33a7f6492b7f59dad928e9d29e9b855de45dd2",
         "type": "github"
       },
       "original": {
