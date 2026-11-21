@@ -66,13 +66,13 @@ let
       "tautulli"
       "zigbee2mqtt"
     ];
+    # replog left this list with the Forge service (hostname moving to the cluster).
     "5" = [
       "ambit"
       "cooklang-federation"
       "filebrowser-quantum"
       "marginalia"
       "miniflux"
-      "replog"
       "whiskey-whiskey-whiskey"
       "worldmonitor-api"
       "zwave-js-ui"

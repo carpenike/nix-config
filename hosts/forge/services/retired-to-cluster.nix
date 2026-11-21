@@ -42,7 +42,15 @@
 # Postgres database. If the raw-HTML archive in it matters, copy it off before
 # the next reboot (see the PR's cutover plan).
 #
-# Each block yields to the real service definition (it is gated on that
+# RepLog: the Forge unit, Caddy vhost and forge-tunnel hostname are removed
+# so the name can move to the cluster. The dataset, sanoid job and restic job
+# stay, under the same names, so the backup-guard timer counts do not move
+# and the SQLite rollback copy stays snapshotted. Delete this block in a
+# follow-up after the cutover rollback window. Dropping the declaration would
+# not run `zfs destroy`. This block is unconditional: the upstream module is
+# no longer imported, so there is no enable flag to yield to.
+#
+# Each other block yields to the real service definition (it is gated on that
 # service being disabled), so re-importing a retired module for a rollback
 # does not declare anything twice.
 { config, inputs, lib, mylib, ... }:
@@ -364,5 +372,39 @@ in
         zfsDataset = "tank/services/grafana-oncall";
       };
     })
+
+    # ── replog: /var/lib/replog ───────────────────────────────────────────
+    # SQLite workout log plus avatars. Formerly hosts/forge/services/replog.nix.
+    # The upstream module used systemd DynamicUser, so the ZFS mountpoint is
+    # root:root 0700 and there is no stable uid to keep. Same dataset,
+    # snapshots and restic job the service declared.
+    {
+      modules.storage.datasets.services.replog = {
+        mountpoint = "/var/lib/replog";
+        recordsize = "16K"; # SQLite page-aligned writes
+        compression = "zstd";
+        properties = {
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        owner = "root";
+        group = "root";
+        mode = "0700";
+        rootOwnedReason = "Upstream module used systemd DynamicUser; the mountpoint stays root:root 0700 after the service leaves Forge.";
+      };
+
+      modules.backup.sanoid.datasets."tank/services/replog" =
+        forgeDefaults.mkSanoidDataset "replog";
+
+      modules.services.backup.restic.jobs.replog = {
+        enable = true;
+        inherit repository;
+        paths = [ "/var/lib/replog" ];
+        tags = [ "replog" "sqlite" "fitness" "forge" ];
+        frequency = "daily";
+        useSnapshots = true;
+        zfsDataset = "tank/services/replog";
+      };
+    }
   ];
 }

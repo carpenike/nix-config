@@ -153,14 +153,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # replog — self-hosted workout / family fitness tracking
-    # Go + SQLite + embedded SPA, WebAuthn passkey auth (no OIDC).
-    # https://github.com/carpenike/replog
-    replog = {
-      url = "github:carpenike/replog";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # marginalia — cook log service ("lab notebook for cooking"). Node +
     # TypeScript + Fastify + SQLite + MCP, deploy-pattern twin of Whiskey.
     # Native PocketID OIDC + embedded OAuth AS; reads CookLang lineage
