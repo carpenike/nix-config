@@ -449,6 +449,22 @@
         "url": "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz"
       }
     },
+    "nixpkgs-go": {
+      "locked": {
+        "lastModified": 1795137884,
+        "narHash": "sha256-iKXCN36qYfBni+3nH4vAd98/kshoIsPB2S9mYWhma30=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "ab5c18fdedfc8f9bbc9d773f10a540790e2787a7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs-mx-edge": {
       "locked": {
         "lastModified": 1794165970,
@@ -615,14 +631,15 @@
         "flake-utils": "flake-utils_2",
         "nixpkgs": [
           "nixpkgs"
-        ]
+        ],
+        "nixpkgs-go": "nixpkgs-go"
       },
       "locked": {
-        "lastModified": 1785843430,
-        "narHash": "sha256-ReJQwakKh0/cqqOBxscLQgvCF6I4mTLeKh4rS7cDty0=",
+        "lastModified": 1795294720,
+        "narHash": "sha256-jL0SGZLay0hASu8OdGi66j4M7I877uMIFdE5rS2KNgo=",
         "owner": "carpenike",
         "repo": "replog",
-        "rev": "9b714a9ed5d81dfdbd28eb5d9b3663ab5e78c506",
+        "rev": "f448ffd42afa7cd5311602e62c0e08f3e1d90430",
         "type": "github"
       },
       "original": {
