@@ -518,7 +518,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "kometateam/kometa:v2.5.3@sha256:48c3cb318ec984213587f221e8e762c5ad2dbd0e6966efc7bba0a5868a6c5758";
+      default = "kometateam/kometa:v2.5.5@sha256:864cec57d099c71a26a5a5ce2784d34d9b53874c91269c3a12df3949eab96562";
       description = "Container image for Kometa";
     };
 
