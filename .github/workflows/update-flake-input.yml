@@ -25,7 +25,6 @@ on:
         type: choice
         options:
           - whiskey-whiskey-whiskey
-          - replog
           - marginalia
           - homelab-mcp
           - coachiq
@@ -56,7 +55,7 @@ jobs:
           # Allowlist gate: a repository_dispatch is attacker-influenceable, so
           # never feed an arbitrary string into `nix flake lock --update-input`.
           case "$name" in
-            whiskey-whiskey-whiskey|replog|marginalia|homelab-mcp|coachiq|ambit) ;;
+            whiskey-whiskey-whiskey|marginalia|homelab-mcp|coachiq|ambit) ;;
             *)
               echo "::error::Unknown or disallowed flake input '$name'"
               exit 1
