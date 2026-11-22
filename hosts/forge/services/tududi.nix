@@ -26,7 +26,7 @@ in
         # before #1442. With a semver tag, Renovate's automerged minor/digest
         # updates stay on 1.x and 2.x arrives as an unmerged major PR. Moving
         # to 2.x needs the data migrated to PostgreSQL first.
-        image = "chrisvel/tududi:1.9.8@sha256:6b481bfab5e8d1fec07e5539992992b9f7a400755b6e0957e8b470fa791dde29";
+        image = "chrisvel/tududi:1.15.1@sha256:1f00811fd42729b28085268ac14cb2bb0f8690e5529e877523327db9b24eae72";
 
         # Admin credentials
         adminEmail = "ryan@ryanholt.net";
