@@ -15,6 +15,7 @@
     (import ./disko-config.nix { disks = [ "/dev/vda" ]; })
     ./dns.nix
     ./secrets.nix
+    ./monitoring.nix
     ./stalwart.nix
     ./tailscale.nix
   ];
