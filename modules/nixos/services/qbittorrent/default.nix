@@ -35,7 +35,7 @@ mylib.mkContainerService {
     port = 8080;
     # Default to home-operations image per ADR-005
     # Host can override with pinned digest
-    image = "ghcr.io/home-operations/qbittorrent:5.3.0";
+    image = "ghcr.io/home-operations/qbittorrent:5.3.1";
     operationalProfile = "downloads";
     displayName = "qBittorrent";
     function = "torrent";
