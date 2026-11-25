@@ -75,7 +75,7 @@ let
       "miniflux"
       "whiskey-whiskey-whiskey"
       "worldmonitor-api"
-      "zwave-js-ui"
+      # zwave-js-ui left this list with the Forge service (moved to the cluster).
     ] ++ lib.optionals
       ((config.modules.services."obsidian-vault".enable or false)
         && (config.modules.services."obsidian-vault".mcp.tokenProvisioned or false))
