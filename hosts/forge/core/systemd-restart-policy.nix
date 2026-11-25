@@ -64,7 +64,7 @@ let
       "promtail"
       "resilio"
       "tautulli"
-      "zigbee2mqtt"
+      # zigbee2mqtt left this list with the Forge service (moved to the cluster).
     ];
     # replog left this list with the Forge service (hostname moving to the cluster).
     "5" = [
