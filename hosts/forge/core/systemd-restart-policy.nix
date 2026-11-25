@@ -107,7 +107,6 @@ let
       "podman-bgutil-pot"
       "podman-dispatcharr"
       "podman-dispatcharr-celery"
-      "podman-emqx"
       "podman-netvisor-daemon"
       "podman-netvisor-server"
       "podman-peanut"

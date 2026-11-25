@@ -1,9 +1,25 @@
 # hosts/forge/services/emqx.nix
 #
-# Host-specific configuration for the EMQX MQTT broker on 'forge'.
-# EMQX provides MQTT messaging for IoT and home automation services.
+# MQTT on 'forge'. Since 2026-11-25 the broker is EMQX in the k8s cluster
+# (carpenike/k8s-gitops ADR 0018, docs/apps/home-automation.md). Forge's own
+# EMQX is disabled, and a TCP forwarder keeps :1883 here pointing at the
+# cluster's LoadBalancer `emqx-forge` (10.45.10.30), which accepts only
+# Forge's address. Every client that used Forge's broker keeps its settings:
+# Home Assistant, Z-Wave JS UI and Scrypted's MQTT plugin store the broker in
+# their own UI, zigbee2mqtt and Frigate dial 127.0.0.1, TeslaMate dials
+# host.containers.internal, and the cluster Scrypted's forwarder dials
+# 10.20.0.30. Their users and passwords are the same in the cluster broker
+# (1Password item `emqx`, copied from this host's sops file).
+#
+# Rollback: set modules.services.emqx.enable back to true (the forwarder
+# yields to it) and put "podman-emqx" back in containersByRestartSec."0" in
+# core/systemd-restart-policy.nix. The dataset is untouched (nothing runs `zfs destroy`), but its
+# snapshots and backups stop while the module is disabled; the broker's state
+# is users and retained messages, which the clients recreate.
+#
+# Delete the forwarder when the last Forge client moves to the cluster.
 
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
@@ -11,12 +27,14 @@ let
   dataset = "tank/services/emqx";
   dataDir = "/var/lib/emqx";
   dashboardDomain = "emqx.${domain}";
+  # k8s-gitops kubernetes/apps/home-automation/emqx/app/service-forge.yaml
+  clusterBroker = "10.45.10.30:1883";
 in
 {
   config = lib.mkMerge [
     {
       modules.services.emqx = {
-        enable = true;
+        enable = false;
         dataDir = dataDir;
         datasetPath = dataset;
         allowAnonymous = false;
@@ -54,6 +72,37 @@ in
         # the container one because the churn/down pair should follow the unit
         # that actually exists.
         forgeDefaults.mkSystemdServiceDownAlert "podman-emqx" "EMQX" "MQTT broker";
+    })
+
+    (lib.mkIf (!serviceEnabled) {
+      systemd.services.mqtt-forward-cluster = {
+        description = "Forward MQTT on :1883 to the cluster EMQX";
+        wantedBy = [ "multi-user.target" ];
+        wants = [ "network-online.target" ];
+        after = [ "network-online.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:1883,fork,reuseaddr,keepalive TCP:${clusterBroker},keepalive";
+          Restart = "always";
+          RestartSec = 5;
+          DynamicUser = true;
+          NoNewPrivileges = true;
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          CapabilityBoundingSet = "";
+          RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
+          MemoryMax = "128M";
+        };
+      };
+
+      # Same exposure as the EMQX module's openFirewall: local containers
+      # (TeslaMate via host.containers.internal) and the cluster Scrypted
+      # reach :1883 here. Every client still authenticates at the broker.
+      networking.firewall.allowedTCPPorts = [ 1883 ];
+
+      modules.alerting.rules."mqtt-forward-cluster-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "mqtt-forward-cluster" "MQTTForwardCluster" "MQTT forwarder to the cluster broker";
     })
   ];
 }
