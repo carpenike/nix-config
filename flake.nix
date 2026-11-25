@@ -902,7 +902,9 @@
                   seerr = "podman-seerr";
                   sonarr = "podman-sonarr";
                   thelounge = "thelounge";
-                  zigbee2mqtt = "zigbee2mqtt";
+                  # zigbee2mqtt left on 2026-11-25 for the k8s cluster; its
+                  # dataset is kept (services/zigbee2mqtt.nix) and still
+                  # asserted through criticalServicePaths below.
                   "zwave-js-ui" = "zwave-js-ui";
                 };
                 disposableServices = [
@@ -1098,6 +1100,7 @@
               assert signalApi.missingRequiredTiers == [ ];
               assert signalApi.policy.allowEmptyBootstrap;
               assert !(builtins.hasAttr "signal-api" failClosedUnits);
+              assert !(builtins.hasAttr "zigbee2mqtt" failClosedUnits);
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
