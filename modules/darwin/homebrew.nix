@@ -4,12 +4,14 @@ _:
     enable = true;
     onActivation = {
       autoUpdate = false; # Don't update during rebuild
-      # WORKAROUND (2026-09-23): nix-darwin 25.11 emits Homebrew's removed --cleanup.
-      # Affects: Darwin activation with Homebrew 7.
-      # Upstream: https://github.com/nix-darwin/nix-darwin/commit/bb9c29c19327336fa499fe77bd7ba6d00ccec484
-      # Check: Restore cleanup = "zap" and remove extraFlags once our input includes the fix.
+      # Report-only (2026-11-25): a switch never uninstalls anything.
+      # The previous `--force-cleanup --zap` removed every undeclared cask AND
+      # its data on each switch, which took 1Password off this Mac once.
+      # See what a cleanup would remove with:  brew bundle cleanup
+      # and remove it yourself with:           brew bundle cleanup --force
+      # (HOMEBREW_BUNDLE_FILE, set by global.brewfile, points at the declared list.)
+      # Don't restore cleanup = "zap" (or "uninstall") as an automatic step.
       cleanup = "none";
-      extraFlags = [ "--force-cleanup" "--zap" ];
       upgrade = false; # Keep rebuilds independent of App Store updates
     };
     global = {
