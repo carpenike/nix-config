@@ -1231,8 +1231,15 @@
                 # their datasets snapshotted and replicated and all seven of their
                 # Restic jobs under the same names for the rollback week. The
                 # follow-up that deletes that data is what changes these numbers.
+                # 2026-11-25, 133 -> 131 timers, 59 -> 58 snapshot datasets and
+                # 62 -> 61 restic jobs: EMQX moved to the k8s cluster
+                # (hosts/forge/services/emqx.nix, enable = false; Forge relays
+                # :1883 to it). As with Scrypted, the guard set loses
+                # restic-backup-service-emqx.timer and
+                # syncoid-tank-services-emqx.timer. The on-disk dataset stays
+                # as the rollback copy, not snapshotted while the module is off.
               assert builtins.length expectedTimers
-                == 133 + builtins.length agentHostTimers
+                == 131 + builtins.length agentHostTimers
                 + builtins.length obsidianVaultTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) agentHostTimers;
               assert builtins.all (name: builtins.elem name expectedTimers) obsidianVaultTimers;
@@ -1243,14 +1250,14 @@
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets)
-                == 59 + builtins.length agentHostStates
+                == 58 + builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 (agentHostStates ++ obsidianVaultStates);
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
               assert builtins.length (builtins.attrNames enabledResticJobs)
-                == 62 + 2 * builtins.length agentHostStates
+                == 61 + 2 * builtins.length agentHostStates
                 + builtins.length obsidianVaultStates;
               assert builtins.all
                 (name: enabledResticJobs."service-${name}".useSnapshots
