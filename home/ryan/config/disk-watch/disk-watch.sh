@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # disk-watch: hourly free-space and hotspot-growth monitor for rymac.
 #
 # Read-only by design: it measures and alerts, it never deletes anything.
