@@ -191,6 +191,8 @@ let
   };
 in
 {
+  imports = [ ../config/disk-watch ];
+
   home.packages = [
     pkgs.podman
     pkgs.podman-compose
