@@ -48,7 +48,7 @@ let
       "alertmanager"
       "gatus"
       "glances-web"
-      "home-assistant"
+      # home-assistant left this list with the Forge service (moved to the cluster).
       "homepage-dashboard"
       "loki"
       "paperless-consumer"

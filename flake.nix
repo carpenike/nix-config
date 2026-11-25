@@ -890,7 +890,8 @@
                   bichon = "podman-bichon";
                   cooklang = "cooklang";
                   esphome = "podman-esphome";
-                  "home-assistant" = "home-assistant";
+                  # home-assistant left on 2026-11-25 for the k8s cluster; its
+                  # dataset is kept and still asserted below (homeAssistant).
                   "music-assistant" = "music-assistant";
                   netvisor = "podman-netvisor-server";
                   omada = "podman-omada";
@@ -1102,6 +1103,7 @@
               assert !(builtins.hasAttr "signal-api" failClosedUnits);
               assert !(builtins.hasAttr "zigbee2mqtt" failClosedUnits);
               assert !(builtins.hasAttr "zwave-js-ui" failClosedUnits);
+              assert !(builtins.hasAttr "home-assistant" failClosedUnits);
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"

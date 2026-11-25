@@ -1,3 +1,22 @@
+# hosts/forge/services/home-assistant.nix
+#
+# Home Assistant on 'forge'. Since 2026-11-25 it runs in the k8s cluster
+# (carpenike/k8s-gitops ADR 0018, docs/apps/home-automation.md, "4. Home
+# Assistant"), with its config from carpenike/hass-config. The settings below
+# stay as the record of what Forge ran and for rollback; the cluster runs on a
+# copy of /var/lib/home-assistant and of the `home_assistant` recorder
+# database, which stays in Forge's PostgreSQL untouched (the provisioner never
+# drops a database).
+#
+# The dataset is kept as the rollback copy, still snapshotted, replicated and
+# backed up under the same names (the block at the end, gated on the service
+# being off). Only the `automated-restore` tier is dropped.
+#
+# Rollback: scale the cluster's home-assistant to 0, set
+# modules.services.home-assistant.enable back to true, and put
+# "home-assistant" back in core/systemd-restart-policy.nix and in
+# failClosedUnits in flake.nix. Copy the volume back first if it ran for days.
+
 { config, lib, pkgs, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -66,7 +85,7 @@ in
 
     {
       modules.services.home-assistant = {
-        enable = true;
+        enable = false;
         package = unstablePkgs.home-assistant;
 
         # These live under !include_dir_named packages, so the NixOS module
@@ -407,6 +426,65 @@ in
         # Chime TTS custom chimes folder (can be anywhere readable)
         "d ${haDataDir}/chimes 0755 hass hass -"
       ];
+    })
+
+    # Retention while Home Assistant runs in the cluster: the same dataset,
+    # sanoid/syncoid and Restic job (`service-home-assistant`, the name backup
+    # discovery gave it). nixpkgs' module created hass with its fixed ids.
+    (lib.mkIf (!haEnabled) {
+      users.users.hass = {
+        uid = config.ids.uids.hass;
+        group = "hass";
+        isSystemUser = true;
+        description = "Home Assistant user (moved to k8s; data owner)";
+        home = "/var/empty";
+      };
+      users.groups.hass.gid = config.ids.gids.hass;
+
+      modules.storage.datasets.services.home-assistant = {
+        mountpoint = haDataDir;
+        recordsize = "16K";
+        compression = "zstd";
+        properties = { "com.sun:auto-snapshot" = "true"; };
+        owner = "hass";
+        group = "hass";
+        mode = "0770";
+        protection = {
+          class = "critical";
+          objectives = {
+            onsiteRpoSeconds = 900;
+            offsiteRpoSeconds = 86400;
+            rtoSeconds = 7200;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "offsite-backup"
+          ];
+          consistency = "crash-consistent";
+          validator = "home-assistant-config";
+          allowEmptyBootstrap = true;
+          notes = ''
+            Moved to the k8s cluster 2026-11-25. This dataset is the rollback
+            copy as of the cutover; delete it in a follow-up after a week.
+          '';
+        };
+      };
+
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "home-assistant";
+
+      modules.services.backup.restic.jobs.service-home-assistant = {
+        enable = true;
+        inherit (forgeDefaults.backup) repository;
+        paths = [ haDataDir ];
+        tags = [ "home-assistant" "home-automation" "config" "forge" ];
+        excludePatterns = [ "**/deps/**" "**/.cache/**" ]
+          ++ config.modules.services.backup.serviceDiscovery.globalExcludes;
+        frequency = "daily";
+        useSnapshots = true;
+        zfsDataset = dataset;
+      };
     })
   ];
 }
