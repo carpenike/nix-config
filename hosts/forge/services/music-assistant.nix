@@ -27,8 +27,8 @@
 #
 #   Ports (from the upstream module / docs):
 #     * 8095/tcp — web UI + WebSocket API (what humans and HA connect to).
-#                  NOT opened in the firewall; reached only via Caddy (humans)
-#                  or a host-local connection to Forge's LAN IP (HA).
+#                  Opened only to the cluster sleds (HA); humans go via Caddy.
+#                  (HA moved to the cluster on 2026-11-25.)
 #     * 8097/tcp — audio stream server; players fetch the rendered stream here.
 #                  Opened on the LAN manually below so players can reach it.
 #                  (The pinned nixpkgs module has no `openFirewall` option, so
@@ -40,7 +40,7 @@
 #   second PocketID gate for the human-facing UI (caddySecurity.home requires the
 #   "home" group). The HA integration and players bypass Caddy: HA connects over
 #   Forge's LAN IP with its MA token, and players pull audio from the LAN stream
-#   port. Port 8095 is not opened to remote clients by this module; human access
+#   port. Port 8095 is opened only to the cluster sleds (HA moved there); human access
 #   remains through the authenticated Caddy vhost.
 #
 # Providers:
@@ -219,10 +219,21 @@ in
 
       # Open the LAN-facing audio stream port so players can fetch the rendered
       # stream. The pinned nixpkgs module opens no ports itself. The web UI port
-      # (8095) is deliberately NOT opened — humans go through Caddy, HA goes
-      # through a host-local connection to Forge's LAN IP. Add ports if needed
+      # (8095) is opened below to the cluster sleds only; humans go through
+      # Caddy. Add ports if needed
       # (e.g. snapcast 1780/tcp, slimproto 3483/9000/9090).
       networking.firewall.allowedTCPPorts = [ 8097 ];
+
+      # Home Assistant runs in the cluster since 2026-11-25. Its integration
+      # dials http://10.20.0.30:8095, and Cilium masquerades pod traffic to the
+      # sled addresses 10.20.10.20-23 (10.20.10.20/30). Open 8095 to those four
+      # only; everyone else still goes through Caddy.
+      networking.firewall.extraCommands = ''
+        iptables -w -A nixos-fw -p tcp -s 10.20.10.20/30 --dport ${toString webPort} -j nixos-fw-accept
+      '';
+      networking.firewall.extraStopCommands = ''
+        iptables -w -D nixos-fw -p tcp -s 10.20.10.20/30 --dport ${toString webPort} -j nixos-fw-accept || true
+      '';
 
       # Refuse to start until the ZFS dataset is mounted, otherwise systemd's
       # DynamicUser would write MA's library DB to the rpool fallback path and
