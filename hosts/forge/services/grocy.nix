@@ -1,8 +1,29 @@
 # hosts/forge/services/grocy.nix
 #
 # Grocy — self-hosted groceries & household management (ERP for your fridge:
-# stock, shopping lists, chores, tasks, recipes, meal planning) on forge.
+# stock, shopping lists, chores, tasks, recipes, meal planning).
 # Upstream: https://github.com/grocy/grocy
+#
+# MOVED TO THE K8S CLUSTER (carpenike/k8s-gitops docs/apps/grocy.md). Merge
+# this only after that cutover: Forge's Grocy stopped, its /var/lib/grocy
+# copied into the cluster volume, and grocy.<domain> pointed at the cluster.
+# The service, its nginx vhost and the Caddy vhost are off. The settings
+# below stay as the record of what Forge ran and for rollback.
+#
+# The dataset is kept as the rollback copy, still snapshotted, replicated and
+# backed up under the same names (the block at the end, gated on the service
+# being off), as services/zigbee2mqtt.nix does. Delete that block, and this
+# file, after the rollback week.
+#
+# Rollback: scale the cluster's grocy to 0 first, then set
+# services.grocy.enable back to true and put "phpfpm-grocy" back in
+# core/systemd-restart-policy.nix, and point grocy.<domain> back at Forge.
+# After days in the cluster, copy the volume's data/grocy.db and
+# data/storage/ back first, or Forge loses what changed since. Note Grocy
+# 4.7 renamed AUTH_CLASS to Grocy\Middleware\Auth\ReverseProxyAuthMiddleware;
+# the value below is the 4.6 name Forge last ran.
+#
+# --- What Forge ran ---------------------------------------------------------
 #
 # Why NATIVE (services.grocy) instead of a container:
 #   Per .github/instructions/nixos-instructions.md the rule is "native when the
@@ -71,7 +92,7 @@ in
   config = lib.mkMerge [
     {
       services.grocy = {
-        enable = true;
+        enable = false;
         hostName = serviceDomain;
         dataDir = dataDir;
 
@@ -91,7 +112,9 @@ in
           Setting('REVERSE_PROXY_AUTH_HEADER', 'X-Token-User-Email');
         '';
       };
+    }
 
+    (lib.mkIf serviceEnabled {
       # Pin grocy's nginx vhost to loopback so it never competes with Caddy for
       # :80/:443. This overrides the upstream module's default (port 80) listen.
       services.nginx.virtualHosts.${serviceDomain}.listen = [
@@ -127,9 +150,6 @@ in
           bypassPaths = [ "/api" ];
         };
       };
-    }
-
-    (lib.mkIf serviceEnabled {
       # Don't let PHP-FPM start writing the SQLite DB before the ZFS dataset is
       # mounted (otherwise data lands on the rpool fallback and gets shadowed).
       systemd.services.phpfpm-grocy.unitConfig.RequiresMountsFor = [ dataDir ];
@@ -189,6 +209,49 @@ in
           failureThreshold = 3;
           successThreshold = 1;
         }];
+      };
+    })
+
+    # Retention while Grocy runs in the cluster: the same dataset, sanoid/syncoid
+    # and Restic job (`grocy`) as when it ran here, so the backup-guard counts
+    # do not move. The upstream module no longer creates the user, so it is
+    # declared here with the pinned uid; the group stays nginx (nixpkgs' fixed
+    # gid), which owns the files today.
+    (lib.mkIf (!serviceEnabled) {
+      users.users.grocy = {
+        uid = mylib.serviceUids.grocy.uid;
+        group = "nginx";
+        isSystemUser = true;
+        description = "Grocy user (moved to k8s; data owner)";
+        home = dataDir;
+        createHome = false;
+      };
+      users.groups.nginx.gid = config.ids.gids.nginx;
+
+      modules.storage.datasets.services.${serviceName} = {
+        mountpoint = dataDir;
+        recordsize = "16K";
+        compression = "zstd";
+        properties = {
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        owner = "grocy";
+        group = "nginx";
+        mode = "0750";
+      };
+
+      modules.backup.sanoid.datasets.${dataset} =
+        forgeDefaults.mkSanoidDataset serviceName;
+
+      modules.services.backup.restic.jobs.${serviceName} = {
+        enable = true;
+        repository = forgeDefaults.backup.repository;
+        paths = [ dataDir ];
+        tags = [ "grocy" "sqlite" "household" "forge" ];
+        frequency = "daily";
+        useSnapshots = true;
+        zfsDataset = dataset;
       };
     })
   ];

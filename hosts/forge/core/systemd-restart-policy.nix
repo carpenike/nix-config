@@ -55,7 +55,7 @@ let
       "paperless-scheduler"
       "paperless-task-queue"
       "paperless-web"
-      "phpfpm-grocy"
+      # phpfpm-grocy left this list with the Forge service (moved to the cluster).
       "pinchflat"
       "pocket-id"
       "prometheus"
