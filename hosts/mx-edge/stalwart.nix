@@ -53,6 +53,14 @@ in
     config.environment.etc."stalwart/config.json".source
   ];
 
-  # The WebUI and management API, for the tailnet only.
-  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 8080 ];
+  # For the tailnet only: the WebUI and management API (8080), and the
+  # authenticated relay listener the cluster's Stalwart uses for the one
+  # destination it sends through the edge (587; k8s-gitops ADR 0014,
+  # "Fallback path through the edge"). The tailnet grant admits tag:k8s
+  # to 587; Stalwart requires a login there and relays that login to
+  # mail.grokbot.com only.
+  networking.firewall.interfaces.tailscale0.allowedTCPPorts = [
+    8080
+    587
+  ];
 }
