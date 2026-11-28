@@ -865,10 +865,21 @@ in
               # sent) and bounds retries of a failed post; a 1m group_wait
               # collects alerts that start together. Resolved notifications
               # are still sent, so Hank can close what recovered.
+              #
+              # Grouped by (alertname, cluster), not the root's (alertname,
+              # name): one alert type is one wake, with every instance listed
+              # in the payload (up to receivers.hank.maxAlerts). Under the
+              # root's grouping the cluster's per-pool `name` label split a
+              # Ceph outage into 13 CephPGsUnclean wakes, each starting a
+              # Hindsight recall at once, and the burst OOM-killed
+              # hindsight-api (2026-11-18). `cluster` keeps Forge's alerts (no
+              # such label) apart from the cluster's. The per-unit fan-out
+              # alerts keep their own (alertname, instance) child route below.
               ++ (lib.optional cfg.receivers.hank.enable {
                 matchers = cfg.receivers.hank.matchers ++ [ "alertname!=\"Watchdog\"" ];
                 receiver = "hank";
                 continue = true;
+                group_by = [ "alertname" "cluster" ];
                 group_wait = "1m";
                 group_interval = "10m";
                 repeat_interval = "12h";
