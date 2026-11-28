@@ -106,9 +106,15 @@ in
       ];
       brews = [
         "cidr" # Not available in nixpkgs yet
+        "git-crypt"
+        "gitleaks"
+        "ipmitool"
         "jadx"
+        "kubernetes-cli" # kubectl; krew plugins live in ~/.krew
+        "mise" # runs the kubectl/flux/helm/talosctl versions in ~/.local/share/mise
       ];
       casks = [
+        "1password-cli" # op; the 1Password app itself is in modules/darwin/homebrew.nix
         "android-platform-tools"
         "anylist"
         "copilot-cli"
