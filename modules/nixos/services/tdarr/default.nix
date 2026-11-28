@@ -64,7 +64,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/haveagitgat/tdarr:3.02.00@sha256:980c9010a610a3b54405aa64d42dc8547c675c2ba227f8e57c0efbb17bd6414f";
+      default = "ghcr.io/haveagitgat/tdarr:3.10.00@sha256:98137b694eed678f14ebc5f1d594d87ff8086df5cbc04203a15a53d95fe518b7";
       description = ''
         Full container image name including tag or digest.
 
