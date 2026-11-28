@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/radarr:7.0.3@sha256:55d3cf8a4c4c531bb8b5c1ba88eb270d4435e01e228fbdb16cdfc910a17e3b06";
+        image = "ghcr.io/home-operations/radarr:7.1.0@sha256:d259bde2be6b1997c1832cf981d50017f919b305ed3dc9ce445c4661956553f3";
 
         # Raised from the module default of 512M. Radarr already runs at that
         # ceiling (cgroup memory.peak == memory.max, swapping) in normal
